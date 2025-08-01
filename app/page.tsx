@@ -6,6 +6,7 @@ import { useState, useEffect } from "react"
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Scale,
   Shield,
   Copyright,
@@ -622,6 +623,18 @@ export default function LegalIPWebsite() {
         }, 250)
       }
     }
+  }
+
+  const getTaxAmount = () => {
+    return getTotalPrice() * 0.08 // 8% tax
+  }
+
+  const getProcessingFee = () => {
+    return 25 // Fixed $25 processing fee
+  }
+
+  const getGrandTotal = () => {
+    return getTotalPrice() + getTaxAmount() + getProcessingFee()
   }
 
   // Auth Modal Component
@@ -1267,6 +1280,122 @@ export default function LegalIPWebsite() {
               <span className="text-2xl font-bold text-gray-900">LegalIP Pro</span>
             </div>
             <nav className="hidden md:flex space-x-8">
+              <div className="relative group">
+                <button className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors flex items-center">
+                  Patent Services
+                  <ChevronDown className="h-4 w-4 ml-1" />
+                </button>
+                <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="py-2">
+                    <a
+                      href="#patent-services"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                    >
+                      Patent Search & Analysis
+                    </a>
+                    <a
+                      href="#patent-services"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                    >
+                      Patent Application Filing
+                    </a>
+                    <a
+                      href="#patent-services"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                    >
+                      Patent Portfolio Management
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative group">
+                <button className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors flex items-center">
+                  Trademark Services
+                  <ChevronDown className="h-4 w-4 ml-1" />
+                </button>
+                <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="py-2">
+                    <a
+                      href="#trademark-services"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors"
+                    >
+                      Trademark Search
+                    </a>
+                    <a
+                      href="#trademark-services"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors"
+                    >
+                      Trademark Registration
+                    </a>
+                    <a
+                      href="#trademark-services"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors"
+                    >
+                      Trademark Monitoring
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative group">
+                <button className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors flex items-center">
+                  Copyright Services
+                  <ChevronDown className="h-4 w-4 ml-1" />
+                </button>
+                <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="py-2">
+                    <a
+                      href="#copyright-services"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-600 transition-colors"
+                    >
+                      Copyright Registration
+                    </a>
+                    <a
+                      href="#copyright-services"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-600 transition-colors"
+                    >
+                      DMCA Services
+                    </a>
+                    <a
+                      href="#copyright-services"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-600 transition-colors"
+                    >
+                      Copyright Licensing
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative group">
+                <button className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors flex items-center">
+                  Design Services
+                  <ChevronDown className="h-4 w-4 ml-1" />
+                </button>
+                <div className="absolute top-full left-0 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                  <div className="py-2">
+                    <a
+                      href="#design-services"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                    >
+                      Design Registration
+                    </a>
+                    <a
+                      href="#design-services"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                    >
+                      Design Search
+                    </a>
+                    <a
+                      href="#design-services"
+                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-600 transition-colors"
+                    >
+                      Design Portfolio
+                    </a>
+                  </div>
+                </div>
+              </div>
+
               <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
                 Knowledge Hub
               </a>
@@ -1618,9 +1747,25 @@ export default function LegalIPWebsite() {
           </div>
 
           <div className="pt-4 border-t mt-4 bg-gray-50">
-            <div className="flex justify-between items-center mb-3">
-              <span className="font-semibold text-gray-900">Total Estimate:</span>
-              <span className="text-xl font-bold text-blue-600">${getTotalPrice().toLocaleString()}</span>
+            <div className="space-y-2 mb-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Subtotal:</span>
+                <span className="text-sm font-medium text-gray-900">${getTotalPrice().toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Tax (8%):</span>
+                <span className="text-sm font-medium text-gray-900">${getTaxAmount().toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Processing Fee:</span>
+                <span className="text-sm font-medium text-gray-900">${getProcessingFee().toFixed(2)}</span>
+              </div>
+              <div className="border-t pt-2">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-gray-900">Total:</span>
+                  <span className="text-xl font-bold text-blue-600">${getGrandTotal().toLocaleString()}</span>
+                </div>
+              </div>
             </div>
             <div className="space-y-2">
               <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={goToQuotePage}>
