@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { ArrowLeft, ShoppingCart, Calculator, FileText, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,29 +16,21 @@ import { ServiceTabs } from "@/components/sections/ServiceTabs"
 import { Cart } from "@/components/sections/Cart"
 import { Milestones } from "@/components/sections/Milestones"
 import { AuthModal } from "@/components/modals/AuthModal"
+import { useAuthForm } from "@/hooks/useAuthForm"
 import { downloadQuotationPDF } from "@/utils/pdf"
 import { getTotalPrice, calculateAdjustedTotal } from "@/utils/calculations"
 import { servicePricing } from "@/constants/data"
-import type { CartItem, AuthForm, CalculatorFields, ServiceFields } from "@/types"
+import type { CartItem, CalculatorFields, ServiceFields } from "@/types"
 
 export default function LegalIPWebsite() {
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [showQuotePage, setShowQuotePage] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
-  const [showPassword, setShowPassword] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [activeServiceTab, setActiveServiceTab] = useState("patent")
 
-  // Auth form state
-  const [authForm, setAuthForm] = useState<AuthForm>({
-    email: "",
-    password: "",
-    confirmPassword: "",
-    firstName: "",
-    lastName: "",
-    company: "",
-  })
+  // Use the custom auth hook
+  const { authForm, authMode, showPassword, setAuthForm, setShowPassword, switchAuthMode } = useAuthForm()
 
   // Calculator state
   const [calculatorFields, setCalculatorFields] = useState<CalculatorFields>({
@@ -79,7 +71,8 @@ export default function LegalIPWebsite() {
     designField5: "",
   })
 
-  const addToCart = (serviceName: string, category: string) => {
+  // Memoize cart operations to prevent unnecessary re-renders
+  const addToCart = useCallback((serviceName: string, category: string) => {
     const price = servicePricing[serviceName as keyof typeof servicePricing] || 0
     const newItem: CartItem = {
       id: `${serviceName}-${Date.now()}`,
@@ -88,66 +81,55 @@ export default function LegalIPWebsite() {
       category,
     }
     setCartItems((prev) => [...prev, newItem])
-  }
+  }, [])
 
-  const removeFromCart = (id: string) => {
+  const removeFromCart = useCallback((id: string) => {
     setCartItems((prev) => prev.filter((item) => item.id !== id))
-  }
+  }, [])
 
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setCartItems([])
-  }
+  }, [])
 
-  const goToQuotePage = () => {
+  const goToQuotePage = useCallback(() => {
     if (!isAuthenticated) {
       setShowAuthModal(true)
     } else {
       setShowQuotePage(true)
     }
-  }
+  }, [isAuthenticated])
 
-  const backToMainPage = () => {
+  const backToMainPage = useCallback(() => {
     setShowQuotePage(false)
-  }
+  }, [])
 
-  const handleAuth = (e: React.FormEvent) => {
+  const handleAuth = useCallback((e: React.FormEvent) => {
     e.preventDefault()
     // Simulate authentication
     setIsAuthenticated(true)
     setShowAuthModal(false)
     setShowQuotePage(true)
-  }
+  }, [])
 
-  const resetAuthForm = () => {
-    setAuthForm({
-      email: "",
-      password: "",
-      confirmPassword: "",
-      firstName: "",
-      lastName: "",
-      company: "",
-    })
-  }
-
-  const switchAuthMode = (mode: "signin" | "signup") => {
-    setAuthMode(mode)
-    resetAuthForm()
-    setShowPassword(false)
-  }
-
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = useCallback(() => {
     downloadQuotationPDF(cartItems, () => getTotalPrice(cartItems))
-  }
+  }, [cartItems])
 
-  const getServicesByCategory = (category: string) => {
-    return cartItems.filter((item) => item.category === category)
-  }
+  const getServicesByCategory = useCallback(
+    (category: string) => {
+      return cartItems.filter((item) => item.category === category)
+    },
+    [cartItems],
+  )
 
-  const hasServicesInCategory = (category: string) => {
-    return cartItems.some((item) => item.category === category)
-  }
+  const hasServicesInCategory = useCallback(
+    (category: string) => {
+      return cartItems.some((item) => item.category === category)
+    },
+    [cartItems],
+  )
 
-  // Quote Page Component
+  // Quote Page Component (same as before, but with memoized handlers)
   if (showQuotePage) {
     return (
       <div className="min-h-screen bg-gray-50">

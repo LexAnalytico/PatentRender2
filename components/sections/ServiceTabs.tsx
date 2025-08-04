@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { patentServices, trademarkServices, copyrightServices, designServices } from "@/constants/services"
 import { servicePricing } from "@/constants/data"
+import { getServiceIcon } from "@/utils/serviceIcons"
 
 interface ServiceTabsProps {
   activeServiceTab: string
@@ -36,7 +37,9 @@ export function ServiceTabs({ activeServiceTab, setActiveServiceTab, addToCart }
                 {patentServices.map((service, index) => (
                   <Card key={index} className="bg-white hover:shadow-lg transition-shadow relative">
                     <CardHeader className="text-center">
-                      <div className="mx-auto mb-4 p-3 bg-blue-100 rounded-full w-fit">{service.icon}</div>
+                      <div className="mx-auto mb-4 p-3 bg-blue-100 rounded-full w-fit">
+                        {getServiceIcon(service.title, "Patent")}
+                      </div>
                       <CardTitle className="text-xl text-gray-900">{service.title}</CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -76,7 +79,9 @@ export function ServiceTabs({ activeServiceTab, setActiveServiceTab, addToCart }
                 {trademarkServices.map((service, index) => (
                   <Card key={index} className="bg-white hover:shadow-lg transition-shadow relative">
                     <CardHeader className="text-center">
-                      <div className="mx-auto mb-4 p-3 bg-green-100 rounded-full w-fit">{service.icon}</div>
+                      <div className="mx-auto mb-4 p-3 bg-green-100 rounded-full w-fit">
+                        {getServiceIcon(service.title, "Trademark")}
+                      </div>
                       <CardTitle className="text-xl text-gray-900">{service.title}</CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -116,7 +121,9 @@ export function ServiceTabs({ activeServiceTab, setActiveServiceTab, addToCart }
                 {copyrightServices.map((service, index) => (
                   <Card key={index} className="bg-white hover:shadow-lg transition-shadow relative">
                     <CardHeader className="text-center">
-                      <div className="mx-auto mb-4 p-3 bg-purple-100 rounded-full w-fit">{service.icon}</div>
+                      <div className="mx-auto mb-4 p-3 bg-purple-100 rounded-full w-fit">
+                        {getServiceIcon(service.title, "Copyright")}
+                      </div>
                       <CardTitle className="text-xl text-gray-900">{service.title}</CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -156,7 +163,9 @@ export function ServiceTabs({ activeServiceTab, setActiveServiceTab, addToCart }
                 {designServices.map((service, index) => (
                   <Card key={index} className="bg-white hover:shadow-lg transition-shadow relative">
                     <CardHeader className="text-center">
-                      <div className="mx-auto mb-4 p-3 bg-orange-100 rounded-full w-fit">{service.icon}</div>
+                      <div className="mx-auto mb-4 p-3 bg-orange-100 rounded-full w-fit">
+                        {getServiceIcon(service.title, "Design")}
+                      </div>
                       <CardTitle className="text-xl text-gray-900">{service.title}</CardTitle>
                     </CardHeader>
                     <CardContent>
