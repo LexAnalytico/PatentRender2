@@ -4,7 +4,6 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { supabase } from '../lib/supabase';
 import AuthModal from "@/components/AuthModal"; // Adjust path
-import ResetPasswordPage from "@/app/reset-password/page";
 
 
 const services = [
@@ -529,7 +528,7 @@ const handleAuth = async (e: React.FormEvent) => {
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(authForm.email, {
-    redirectTo: "http://localhost:3000/reset-password/page", // or your domain
+    redirectTo: "http://localhost:3000/reset-password", // or your domain
   });
 
   if (error) {
