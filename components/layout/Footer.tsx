@@ -1,4 +1,5 @@
-import { Scale } from "lucide-react"
+import { Scale } from 'lucide-react'
+import Link from "next/link"
 
 export function Footer() {
   return (
@@ -50,6 +51,16 @@ export function Footer() {
               <li>
                 <a href="#" className="hover:text-white transition-colors">
                   Our Team
+                </a>
+              </li>
+              <li>
+                <Link href="/privacy" className="hover:text-white transition-colors">
+                  Privacy Policy
+                </Link>
+              </li>
+              <li>
+                <a href="#" className="hover:text-white transition-colors">
+                  Terms of Service
                 </a>
               </li>
               <li>
