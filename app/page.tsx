@@ -528,7 +528,7 @@ const handleAuth = async (e: React.FormEvent) => {
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(authForm.email, {
-    redirectTo: "https://patent-render2.vercel.app/reset-password", // or your domain
+    redirectTo: "https://patent-render2-git-main-sarosh-jeremy-cruzs-projects.vercel.app/reset-password", // or your domain
   });
 
   if (error) {
