@@ -71,6 +71,28 @@ export default function LegalIPWebsite() {
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
   const [showPassword, setShowPassword] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+
+  // Keep Logout button state in sync with Supabase session
+  useEffect(() => {
+    let active = true
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        console.error("Error getting session:", error)
+        return
+      }
+      if (active) setIsAuthenticated(!!data.session)
+    })
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) setIsAuthenticated(!!session)
+    })
+
+    return () => {
+      active = false
+      authListener?.subscription?.unsubscribe?.()
+    }
+  }, [])
   const [activeServiceTab, setActiveServiceTab] = useState("patent") // State for active tab
   const [session, setSession] = useState<Session | null>(null);  
   const [userEmail, setUserEmail] = useState<string | null>(null);  
@@ -845,11 +867,18 @@ const handleAuth = async (e: React.FormEvent) => {
               <Scale className="h-8 w-8 text-blue-600 mr-2" />
               <span className="text-2xl font-bold text-gray-900">LegalIP Pro</span>
             </div>
-            <nav className="hidden md:flex space-x-8">
+            <div className="hidden md:flex items-center space-x-6">
               <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
                 Knowledge Hub
               </a>
-            </nav>
+              <button
+                onClick={handleLogout}
+                className="text-sm text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!isAuthenticated}
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -1351,17 +1380,18 @@ const handleAuth = async (e: React.FormEvent) => {
               <Scale className="h-8 w-8 text-blue-600 mr-2" />
               <span className="text-2xl font-bold text-gray-900">LegalIP Pro</span>
             </div>
-            <nav className="hidden md:flex space-x-8">
+            <div className="hidden md:flex items-center space-x-6">
               <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
                 Knowledge Hub
               </a>
-            </nav>
-            <button
-              onClick={handleLogout}
-              className="text-sm text-red-600 hover:underline"
-            >
-              Logout
-            </button>  
+              <button
+                onClick={handleLogout}
+                className="text-sm text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!isAuthenticated}
+              >
+                Logout
+              </button>
+            </div>  
           </div>
         </div>
       </header>
