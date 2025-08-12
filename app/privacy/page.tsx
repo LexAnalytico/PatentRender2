@@ -31,6 +31,11 @@ export default function PrivacyPolicyPage() {
             Your privacy is our priority. Learn how we collect, use, protect, and manage your personal information 
             in accordance with the highest standards of data protection.
           </p>
+          <div className="mt-4">
+            <a href="/privacy/data-management" className="inline-block text-blue-200 hover:text-white underline">
+              See what we do with collected data and when we delete it
+            </a>
+          </div>
           <div className="bg-blue-600/20 backdrop-blur-sm rounded-lg p-4 border border-blue-400/30 inline-block">
             <p className="text-blue-200 text-sm">
               <Calendar className="h-4 w-4 inline mr-2" />
