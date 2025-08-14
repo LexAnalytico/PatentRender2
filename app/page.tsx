@@ -1379,13 +1379,9 @@ const handleAuth = async (e: React.FormEvent) => {
   {/* Header */}
       <header className="bg-white shadow-md p-4">
       <div className="hidden md:flex items-center space-x-6 justify-end w-full">
-        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium">
+        <a href="/knowledge-hub" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium">
           Knowledge Hub
         </a>
-        <button onClick={() => console.log("Logout clicked")} className="text-sm text-green-600 hover:underline">
-          Sign Out
-        </button>
-   
         <div className="relative">
           <button onClick={toggleMenu} className="focus:outline-none">
             <UserCircleIcon className="h-8 w-8 text-gray-700 hover:text-blue-600" />
