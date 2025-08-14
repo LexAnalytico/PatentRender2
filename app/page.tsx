@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import { supabase } from '../lib/supabase';
 import AuthModal from "@/components/AuthModal"; // Adjust path
 import { Footer } from "@/components/layout/Footer"
+import { UserCircleIcon } from "@heroicons/react/24/outline";
 
 
 const services = [
@@ -50,6 +51,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs" // Import Tabs components
 
 export default function LegalIPWebsite() {
+  const [isOpen, setIsOpen] = useState(false);
+  const toggleMenu = () => setIsOpen(!isOpen);
   const [currentSlide, setCurrentSlide] = useState(0)
   const [counters, setCounters] = useState({
     patents: 0,
@@ -1354,7 +1357,7 @@ const handleAuth = async (e: React.FormEvent) => {
       </div>
     )
   }
-
+   
   return (
     <div className="min-h-screen bg-white">
       {/* Auth Modal */}
@@ -1374,28 +1377,32 @@ const handleAuth = async (e: React.FormEvent) => {
             )}  
 
   {/* Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Scale className="h-8 w-8 text-blue-600 mr-2" />
-              <span className="text-2xl font-bold text-gray-900">LegalIP Pro</span>
+      <header className="bg-white shadow-md p-4">
+      <div className="hidden md:flex items-center space-x-6 justify-end w-full">
+        <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium">
+          Knowledge Hub
+        </a>
+        <button onClick={() => console.log("Logout clicked")} className="text-sm text-green-600 hover:underline">
+          Sign Out
+        </button>
+   
+        <div className="relative">
+          <button onClick={toggleMenu} className="focus:outline-none">
+            <UserCircleIcon className="h-8 w-8 text-gray-700 hover:text-blue-600" />
+          </button>
+   
+          {isOpen && (
+            <div className="absolute right-0 mt-2 w-56 bg-white shadow-lg rounded-lg py-2 border border-gray-200 z-50">
+              <a href="/profile" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Manage Profile</a>
+              <a href="#" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">View Your Orders</a>
+              <a href="#" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Sign In</a>
+              <a href="#" onClick={() => console.log("Sign Out clicked")} className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Sign Out</a>
             </div>
-            <div className="hidden md:flex items-center space-x-6">
-              <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
-                Knowledge Hub
-              </a>
-              <button
-                onClick={handleLogout}
-                className="text-sm text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!isAuthenticated}
-              >
-                Logout
-              </button>
-            </div>  
-          </div>
+          )}
         </div>
-      </header>
+      </div>
+    </header>
+
    
 
       {/* Enhanced Carousel Banner */}
