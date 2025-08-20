@@ -1,0 +1,152 @@
+{
+  "todo": [
+    {
+      "assignedTo": {
+        "name": "Monisha"
+      },
+      "category": "Task",
+      "creation_time": "2025-08-15T07:21:27.927Z",
+      "description": {
+        "content": "supabase premium\nvercel premium\nrazorpay signing in\nhosting\ndomain name integration",
+        "mime": "text/markdown"
+      },
+      "id": "9",
+      "prio": 5,
+      "references": [],
+      "title": "Management Tasks"
+    },
+    {
+      "assignedTo": {
+        "name": "Monisha"
+      },
+      "category": "Task",
+      "creation_time": "2025-08-15T07:20:40.741Z",
+      "description": {
+        "content": "supabase premium\nvercel premium\nrazorpay \nhosting premium\ndomain name integration\n",
+        "mime": "text/markdown"
+      },
+      "id": "8",
+      "prio": 5,
+      "references": [],
+      "title": "Manangement tasks"
+    },
+    {
+      "assignedTo": {
+        "name": "Monisha"
+      },
+      "category": "Task",
+      "creation_time": "2025-08-15T07:19:56.122Z",
+      "description": {
+        "content": "Finish signing up for organization account for payments ",
+        "mime": "text/markdown"
+      },
+      "id": "7",
+      "prio": 5,
+      "references": [],
+      "title": "Razorpay"
+    },
+    {
+      "assignedTo": {
+        "name": "sarosh"
+      },
+      "category": "Task",
+      "creation_time": "2025-08-15T07:14:27.435Z",
+      "description": {
+        "content": "supabase",
+        "mime": "text/markdown"
+      },
+      "details": {
+        "content": "supabase table creation\nas described in schema\ntables for category 2, 3, 4 and associated flow",
+        "mime": "text/markdown"
+      },
+      "id": "3",
+      "prio": 3,
+      "references": [],
+      "title": "supabase table creation"
+    },
+    {
+      "assignedTo": {
+        "name": "Sarosh"
+      },
+      "category": "Task",
+      "creation_time": "2025-08-15T07:16:39.111Z",
+      "description": {
+        "content": "supabase table creation for category 1 and user profile",
+        "mime": "text/markdown"
+      },
+      "id": "4",
+      "prio": 3,
+      "references": [],
+      "title": "supabase table creation 1"
+    },
+    {
+      "assignedTo": {
+        "name": "Sarosh"
+      },
+      "category": "Task",
+      "creation_time": "2025-08-15T07:17:00.429Z",
+      "description": {
+        "content": "create user profile screen and link to the profile screen manage profile button",
+        "mime": "text/markdown"
+      },
+      "id": "5",
+      "prio": 3,
+      "references": [],
+      "title": "User Profile Screen"
+    },
+    {
+      "category": "Task",
+      "creation_time": "2025-08-15T07:17:43.963Z",
+      "description": {
+        "content": "Finalize admin dash flow",
+        "mime": "text/markdown"
+      },
+      "id": "6",
+      "prio": 1,
+      "references": [],
+      "title": "Admin Panel Screen"
+    }
+  ],
+  "in-progress": [
+    {
+      "assignedTo": {
+        "name": "sarosh"
+      },
+      "category": "Task",
+      "creation_time": "2025-08-15T07:05:22.833Z",
+      "description": {
+        "content": "db schema ",
+        "mime": "text/markdown"
+      },
+      "details": {
+        "content": "Flow:\nUser #T1\nuser_id (PK)\nname\nemail\npassword_hash\ncreated_at\n\nCategories #T2\ncategory_id (PK)\ncategory_name\ndescription\n\nExample rows:\n1 → Patent Search\n2 → Trademark Filing\n3 → Copyright Registration\n\nServices #T3\nservice_id (PK)\ncategory_id (FK → categories.category_id)\nservice_name\ndescription\nprice\nestimated_time\n\nExample rows (linked to Patent Search category):\n1 → Service 1\n2 → Service 2\n3 → Service 3\n\nOptions #T4\nselection_id (PK)\nOption 1\nOption 2\nOption 3\n\nService Form Data #T5\nform_id (PK)\nselection_id (FK → selections.selection_id)\nfield_name\nfield_value\n\nHere, each form entry is stored as field_name → field_value. This lets you handle different fields for different services without changing the table structure.\n\nPayments #T5\npayment_id (PK)\nuser_id (FK → users.user_id)\nselection_id (FK → selections.selection_id)\namount\npayment_date\npayment_status",
+        "mime": "text/markdown"
+      },
+      "id": "1",
+      "prio": 3,
+      "references": [],
+      "title": "design db schema"
+    },
+    {
+      "assignedTo": {
+        "name": "Monisha"
+      },
+      "category": "Task",
+      "creation_time": "2025-08-15T07:07:03.135Z",
+      "description": {
+        "content": "Forms",
+        "mime": "text/markdown"
+      },
+      "details": {
+        "content": "create master form with all labels and fields\nprovide buttons and display data for each category and service",
+        "mime": "text/markdown"
+      },
+      "id": "2",
+      "prio": 3,
+      "references": [],
+      "title": "Forms"
+    }
+  ],
+  "testing": [],
+  "done": []
+}

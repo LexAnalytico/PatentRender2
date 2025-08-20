@@ -3,6 +3,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import { supabase } from '../lib/supabase';
+import { fetchServicePricingRules, computePriceFromRules } from "@/utils/pricing";
 import AuthModal from "@/components/AuthModal"; // Adjust path
 import { Footer } from "@/components/layout/Footer"
 import { UserCircleIcon } from "@heroicons/react/24/outline";
@@ -67,6 +68,7 @@ export default function LegalIPWebsite() {
       name: string
       price: number
       category: string
+      details?: string
     }>
   >([])
    
@@ -75,6 +77,18 @@ export default function LegalIPWebsite() {
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
   const [showPassword, setShowPassword] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [showOptionsPanel, setShowOptionsPanel] = useState(false)
+  const [selectedServiceTitle, setSelectedServiceTitle] = useState<string | null>(null)
+  const [selectedServiceCategory, setSelectedServiceCategory] = useState<string | null>(null)
+  const [optionsForm, setOptionsForm] = useState({
+    applicantTypes: [] as string[],
+    niceClasses: [] as string[],
+    goodsServices: "",
+    goodsServicesCustom: "",
+    useType: "",
+    firstUseDate: "",
+    proofFileNames: [] as string[],
+  })
 
   // Keep Logout button state in sync with Supabase session
   useEffect(() => {
@@ -414,6 +428,119 @@ const services = [
     setCartItems([])
   }
 
+  // Options panel helpers
+  const openOptionsForService = (serviceName: string, category: string) => {
+    setSelectedServiceTitle(serviceName)
+    setSelectedServiceCategory(category)
+    setShowOptionsPanel(true)
+    setTimeout(() => {
+      const el = document.getElementById("options-panel")
+      el?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }, 0)
+  }
+
+  const resetOptionsForm = () => {
+    setOptionsForm({
+      applicantTypes: [],
+      niceClasses: [],
+      goodsServices: "",
+      goodsServicesCustom: "",
+      useType: "",
+      firstUseDate: "",
+      proofFileNames: [],
+    })
+  }
+
+  const closeOptionsPanel = () => {
+    setShowOptionsPanel(false)
+    setSelectedServiceTitle(null)
+    setSelectedServiceCategory(null)
+    resetOptionsForm()
+  }
+
+  const handleOptionsFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).map((f) => f.name)
+    setOptionsForm((prev) => ({ ...prev, proofFileNames: files }))
+  }
+
+  const toggleApplicantType = (label: string) => {
+    setOptionsForm((prev) => {
+      const set = new Set(prev.applicantTypes)
+      if (set.has(label)) set.delete(label)
+      else set.add(label)
+      return { ...prev, applicantTypes: Array.from(set) }
+    })
+  }
+
+  const addToCartWithOptions = async () => {
+    if (!selectedServiceTitle || !selectedServiceCategory) return
+
+    // Map applicant type selection to pricing application_type
+    const applicationType =
+      optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
+        ? "individual"
+        : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
+        ? "startup_msme"
+        : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
+        ? "others"
+        : "individual"
+
+    const selectedOptions = {
+      applicationType,
+      niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
+      goodsServices: {
+        dropdown: optionsForm.goodsServices || undefined,
+        customText: optionsForm.goodsServicesCustom || undefined,
+      },
+      priorUse: {
+        used: optionsForm.useType === "yes",
+        firstUseDate: optionsForm.firstUseDate || undefined,
+        proofFiles: optionsForm.proofFileNames,
+      },
+      // Include Option1 row by default per provided pricing table
+      option1: true,
+    } as const
+
+    let price = servicePricing[selectedServiceTitle as keyof typeof servicePricing] || 0
+
+    // Compute price from DB rules for this service (if available)
+    const { data: svc, error: svcErr } = await supabase
+      .from("services")
+      .select("id")
+      .eq("name", selectedServiceTitle)
+      .maybeSingle()
+
+    if (!svcErr && svc?.id) {
+      try {
+        const rules = await fetchServicePricingRules(svc.id)
+        if (rules && rules.length > 0) {
+          price = computePriceFromRules(rules, selectedOptions as any)
+        }
+      } catch (e) {
+        console.error("Pricing rules fetch/compute failed:", e)
+      }
+    }
+
+    const goods = optionsForm.goodsServicesCustom || optionsForm.goodsServices
+    const details = `Applicants: ${optionsForm.applicantTypes.join(", ") || "N/A"}; NICE classes: ${
+      optionsForm.niceClasses.join(", ") || "N/A"
+    }; Goods/Services: ${goods || "N/A"}; Use in India: ${optionsForm.useType || "N/A"}${
+      optionsForm.useType === "yes"
+        ? `; First use date: ${optionsForm.firstUseDate || "N/A"}; Proof: ${optionsForm.proofFileNames.length} file(s)`
+        : ""
+    }`
+
+    const newItem = {
+      id: `${selectedServiceTitle}-${Date.now()}`,
+      name: selectedServiceTitle,
+      price,
+      category: selectedServiceCategory,
+      details,
+    }
+    setCartItems((prev) => [...prev, newItem])
+    closeOptionsPanel()
+  }
+
   const calculateAdjustedTotal = () => {
     let baseTotal = getTotalPrice()
 
@@ -488,16 +615,19 @@ const handleAuth = async (e: React.FormEvent) => {
 
       if (signUpData.user) {
         const { error: profileError } = await supabase
-          .from("patentprofiles")
-          .insert([
-            {
-              //id: signUpData.user.id,
-              email,
-              first_name: firstName,
-              last_name: lastName,
-              company,
-            },
-          ]);
+          .from("users")
+          .upsert(
+            [
+              {
+                id: signUpData.user.id,
+                email,
+                first_name: firstName || null,
+                last_name: lastName || null,
+                company: company || null,
+              },
+            ],
+            { onConflict: "email" }
+          );
 
         if (profileError) {
           console.error("Failed to store profile info:", profileError.message);
@@ -527,7 +657,13 @@ const handleAuth = async (e: React.FormEvent) => {
   setIsAuthenticated(false);
   setShowQuotePage(false); // optional: hide content that should only be visible when logged in
   setShowAuthModal(true); // ✅ Show login/signup modal again
-  resetAuthForm();        
+  resetAuthForm();
+  // Clear cart and reset options panel state
+  setCartItems([]);
+  setShowOptionsPanel(false);
+  setSelectedServiceTitle(null);
+  setSelectedServiceCategory(null);
+  resetOptionsForm();
 };
  
   const resetAuthForm = () => {
@@ -1391,8 +1527,19 @@ const handleAuth = async (e: React.FormEvent) => {
             <div className="absolute right-0 mt-2 w-56 bg-white shadow-lg rounded-lg py-2 border border-gray-200 z-50">
               <a href="/profile" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Manage Profile</a>
               <a href="#" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">View Your Orders</a>
-              <a href="#" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Sign In</a>
-              <a href="#" onClick={() => console.log("Sign Out clicked")} className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Sign Out</a>
+              <button
+                onClick={() => { goToQuotePage(); setIsOpen(false); }}
+                className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => { handleLogout(); setIsOpen(false); }}
+                className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+                disabled={!isAuthenticated}
+              >
+                Sign Out
+              </button>
             </div>
           )}
         </div>
@@ -1567,11 +1714,11 @@ const handleAuth = async (e: React.FormEvent) => {
                                 : "Price not available"}
                             </span>
                             <Button
-                              onClick={() => addToCart(service.title, "Patent")}
+                              onClick={() => openOptionsForService(service.title, "Patent")}
                               size="sm"
-                              className="bg-blue-600 hover:bg-blue-700 rounded-full w-8 h-8 p-0"
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
                             >
-                              +
+                              Select
                             </Button>
                           </div>
                         </CardContent>
@@ -1607,11 +1754,11 @@ const handleAuth = async (e: React.FormEvent) => {
                               ${servicePricing[service.title as keyof typeof servicePricing]?.toLocaleString()}
                             </span>
                             <Button
-                              onClick={() => addToCart(service.title, "Trademark")}
+                              onClick={() => openOptionsForService(service.title, "Trademark")}
                               size="sm"
-                              className="bg-green-600 hover:bg-green-700 rounded-full w-8 h-8 p-0"
+                              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
                             >
-                              +
+                              Select
                             </Button>
                           </div>
                         </CardContent>
@@ -1773,6 +1920,151 @@ const handleAuth = async (e: React.FormEvent) => {
                 Clear Cart
               </Button>
             </div>
+            {showOptionsPanel && (
+              <div id="options-panel" className="mt-4 p-4 bg-white border border-gray-200 rounded-lg space-y-4">
+                <h4 className="text-md font-semibold text-gray-900">
+                  Options for: {selectedServiceTitle}
+                </h4>
+
+                {/* Applicant Type */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700">Applicant Type</Label>
+                  <div className="mt-2 grid grid-cols-1 gap-2">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
+                      <input
+                        type="checkbox"
+                        checked={optionsForm.applicantTypes.includes("Individual / Sole Proprietor")}
+                        onChange={() => toggleApplicantType("Individual / Sole Proprietor")}
+                      />
+                      Individual / Sole Proprietor
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
+                      <input
+                        type="checkbox"
+                        checked={optionsForm.applicantTypes.includes("Startup / Small Enterprise")}
+                        onChange={() => toggleApplicantType("Startup / Small Enterprise")}
+                      />
+                      Startup / Small Enterprise
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
+                      <input
+                        type="checkbox"
+                        checked={optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")}
+                        onChange={() => toggleApplicantType("Others (Company, Partnership, LLP, Trust, etc.)")}
+                      />
+                      Others (Company, Partnership, LLP, Trust, etc.)
+                    </label>
+                  </div>
+                </div>
+
+                {/* NICE Classes */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700">Choose 1 or more NICE classes (1–45)</Label>
+                  <select
+                    multiple
+                    value={optionsForm.niceClasses}
+                    onChange={(e) => {
+                      const values = Array.from(e.target.selectedOptions).map((o) => o.value)
+                      setOptionsForm((prev) => ({ ...prev, niceClasses: values }))
+                    }}
+                    className="mt-2 w-full border rounded p-2 h-32"
+                  >
+                    {Array.from({ length: 45 }, (_, i) => String(i + 1)).map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Goods/Services */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700">Goods/Services</Label>
+                  <select
+                    value={optionsForm.goodsServices}
+                    onChange={(e) => setOptionsForm((prev) => ({ ...prev, goodsServices: e.target.value }))}
+                    className="mt-2 w-full border rounded p-2"
+                  >
+                    <option value="">Select goods/services from dropdown...</option>
+                    <option value="Advertising services">Advertising services</option>
+                    <option value="Computer software">Computer software</option>
+                    <option value="Legal services">Legal services</option>
+                    <option value="Scientific and technological services">Scientific and technological services</option>
+                  </select>
+                  <Input
+                    className="mt-2"
+                    placeholder="Or enter free text"
+                    value={optionsForm.goodsServicesCustom}
+                    onChange={(e) => setOptionsForm((prev) => ({ ...prev, goodsServicesCustom: e.target.value }))}
+                  />
+                </div>
+
+                {/* Use in India */}
+                <div>
+                  <Label className="text-sm font-medium text-gray-700">Use in India</Label>
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
+                      <input
+                        type="radio"
+                        name="useType"
+                        value="yes"
+                        checked={optionsForm.useType === "yes"}
+                        onChange={(e) => setOptionsForm((prev) => ({ ...prev, useType: e.target.value }))}
+                      />
+                      Yes
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
+                      <input
+                        type="radio"
+                        name="useType"
+                        value="no"
+                        checked={optionsForm.useType === "no"}
+                        onChange={(e) => setOptionsForm((prev) => ({ ...prev, useType: e.target.value }))}
+                      />
+                      No (Intent to use / proposed to be used)
+                    </label>
+                  </div>
+
+                  {optionsForm.useType === "yes" && (
+                    <div className="mt-3 grid md:grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700">Date of first use in India</Label>
+                        <Input
+                          type="date"
+                          className="mt-1"
+                          value={optionsForm.firstUseDate}
+                          onChange={(e) => setOptionsForm((prev) => ({ ...prev, firstUseDate: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700">Upload proof of use</Label>
+                        <input
+                          type="file"
+                          multiple
+                          onChange={handleOptionsFileChange}
+                          className="mt-1 block w-full text-sm text-gray-700"
+                        />
+                        {optionsForm.proofFileNames.length > 0 && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            {optionsForm.proofFileNames.length} file(s) selected
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-3">
+                  <Button className="bg-blue-600 hover:bg-blue-700" onClick={addToCartWithOptions}>
+                    Add to Cart
+                  </Button>
+                  <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={closeOptionsPanel}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
             <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
           </div>
         </div>

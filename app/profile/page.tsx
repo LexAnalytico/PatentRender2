@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   ArrowLeft,
   Building2,
@@ -21,10 +23,16 @@ import {
 } from "lucide-react"
 
 interface Profile {
+  id?: string | null
   first_name?: string | null
   last_name?: string | null
   company?: string | null
   email?: string | null
+  phone?: string | null
+  address?: string | null
+  city?: string | null
+  state?: string | null
+  country?: string | null
 }
 
 export default function ProfilePage() {
@@ -33,6 +41,9 @@ export default function ProfilePage() {
   const [sessionEmail, setSessionEmail] = useState<string | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [editProfile, setEditProfile] = useState<Profile>({} as Profile)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -48,20 +59,46 @@ export default function ProfilePage() {
       if (!active) return
       setSessionEmail(email)
 
-      if (email) {
-        const { data: prof, error: profErr } = await supabase
-          .from("patentprofiles")
-          .select("first_name, last_name, company, email")
-          .eq("email", email)
+      const userId = data.session?.user?.id ?? null
+      setUserId(userId)
+
+      if (email && userId) {
+        // 1) Try fetch by id
+        let prof: Profile | null = null
+        const { data: byId, error: errById } = await supabase
+          .from("users")
+          .select("id, email, first_name, last_name, company, phone, address, city, state, country")
+          .eq("id", userId)
           .maybeSingle()
 
-        if (profErr) {
-          console.error("Failed to fetch profile:", profErr.message)
-        } else if (prof) {
+        if (errById) {
+          console.error("Failed to fetch profile by id:", errById.message)
+        } else if (byId) {
+          prof = byId
+        }
+
+        // 2) Fallback to fetch by email if nothing by id
+        if (!prof) {
+          const { data: byEmail, error: errByEmail } = await supabase
+            .from("users")
+            .select("id, email, first_name, last_name, company, phone, address, city, state, country")
+            .eq("email", email)
+            .maybeSingle()
+          if (errByEmail) {
+            console.error("Failed to fetch profile by email:", errByEmail.message)
+          } else if (byEmail) {
+            prof = byEmail
+          }
+        }
+
+        if (prof) {
           setProfile(prof)
+          setEditProfile(prof)
         } else {
-          // If no row exists, at least show email
-          setProfile({ email })
+          // If no row exists, initialize with session email
+          const initial = { email } as Profile
+          setProfile(initial)
+          setEditProfile(initial)
         }
       }
 
@@ -82,6 +119,50 @@ export default function ProfilePage() {
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push("/")
+  }
+
+  async function handleSaveProfile() {
+    if (!sessionEmail || !userId) {
+      alert("You must be signed in to save your profile.")
+      return
+    }
+    try {
+      setSaving(true)
+      const payload = {
+        id: userId,
+        email: sessionEmail,
+        first_name: editProfile.first_name || null,
+        last_name: editProfile.last_name || null,
+        company: editProfile.company || null,
+        phone: editProfile.phone || null,
+        address: editProfile.address || null,
+        city: editProfile.city || null,
+        state: editProfile.state || null,
+        country: editProfile.country || null,
+      }
+
+      // Single upsert keyed by authenticated user's id ensures we either
+      // create or update the correct row and avoids multi-row updates.
+      const { data, error } = await supabase
+        .from("users")
+        .upsert(payload, { onConflict: "id" })
+        .select(
+          "id, email, first_name, last_name, company, phone, address, city, state, country"
+        )
+        .single()
+
+      if (error) {
+        console.error("Failed to save profile:", error.message)
+        alert(`Failed to save profile: ${error.message}`)
+        return
+      }
+
+      // Update local state with the saved values
+      setProfile(data)
+      setEditProfile(data)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -183,6 +264,7 @@ export default function ProfilePage() {
                 <Tabs defaultValue="summary" className="w-full">
                   <TabsList className="mb-4">
                     <TabsTrigger value="summary">Summary</TabsTrigger>
+                    <TabsTrigger value="profile">Profile</TabsTrigger>
                     <TabsTrigger value="orders">Orders</TabsTrigger>
                     <TabsTrigger value="activity">Activity</TabsTrigger>
                   </TabsList>
@@ -250,6 +332,89 @@ export default function ProfilePage() {
                           <div className="p-4 rounded-lg bg-gray-50 border">
                             <div className="text-2xl font-bold text-blue-700">2025</div>
                             <div className="text-xs text-gray-500">Member Since</div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  {/* Profile */}
+                  <TabsContent value="profile">
+                    <Card className="border">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Manage Profile</CardTitle>
+                        <CardDescription>Update your contact and company information</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">First Name</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.first_name ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, first_name: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">Last Name</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.last_name ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, last_name: e.target.value }))}
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <Label className="text-sm font-medium text-gray-700">Company</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.company ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, company: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">Phone</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.phone ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, phone: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">Address</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.address ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, address: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">City</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.city ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, city: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">State</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.state ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, state: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">Country</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.country ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, country: e.target.value }))}
+                            />
+                          </div>
+                          <div className="md:col-span-2 flex justify-end">
+                            <Button onClick={handleSaveProfile} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+                              {saving ? "Saving..." : "Save Profile"}
+                            </Button>
                           </div>
                         </div>
                       </CardContent>
