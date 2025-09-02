@@ -2,15 +2,19 @@ import type { Service } from "@/types"
 
 export const patentServices: Omit<Service, "icon">[] = [
   {
-    title: "Patent Search & Analysis",
+    title: "Patentability Search",
     description: "Comprehensive prior art search and patentability analysis",
   },
   {
-    title: "Patent Application Filing",
+    title: "Drafting",
     description: "Professional patent application preparation and filing",
   },
   {
-    title: "Patent Portfolio Management",
+    title: "Patent Application Filing",
+    description: "Strategic management of your patent portfolio",
+  },
+    {
+    title: "First Examination Response",
     description: "Strategic management of your patent portfolio",
   },
 ]

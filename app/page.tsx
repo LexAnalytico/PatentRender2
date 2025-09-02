@@ -10,10 +10,10 @@ import { UserCircleIcon } from "@heroicons/react/24/outline";
 
 
 const services = [
-  "Patent Search & Analysis",
+  "Patentability Search",
+  "Drafting",
   "Patent Application Filing",
-  "Patent Portfolio Management",
-  "Trademark Search",
+  "First Examination Response",
   "Trademark Registration",
   "Trademark Monitoring",
   "Copyright Registration",
@@ -183,10 +183,10 @@ export default function LegalIPWebsite() {
 */  
 
 const services = [
-  "Patent Search & Analysis",
+  "Patentability Search",
+  "Drafting",
   "Patent Application Filing",
-  "Patent Portfolio Management",
-  "Trademark Search",
+  "First Examination Response",
   "Trademark Registration",
   "Trademark Monitoring",
   "Copyright Registration",
@@ -197,17 +197,16 @@ const services = [
   "Design Portfolio",
 ]
 
-
   const [servicePricing, setServicePricing] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
 
  
-  useEffect(() => {
+useEffect(() => {
     async function fetchPricing() {
       const { data, error } = await supabase
         .from('patentrender')
         .select(
-          'patent_search, patent_application, patent_portfolio, trademark_search, trademark_registration, trademark_monitoring, copyright_registration, dmca_services, copyright_licensing, design_registration, design_search, design_portfolio'
+          'patent_search, patent_application, patent_portfolio, first_examination, trademark_search, trademark_registration, trademark_monitoring, copyright_registration, dmca_services, copyright_licensing, design_registration, design_search, design_portfolio'
         )
         .maybeSingle();
            
@@ -215,9 +214,10 @@ const services = [
         console.error("Error fetching pricing:", error)
       } else if (data) {
         const formattedPricing: Record<string, number> = {
-          "Patent Search & Analysis": data.patent_search,
-          "Patent Application Filing": data.patent_application,
-          "Patent Portfolio Management": data.patent_portfolio,
+          "Patentability Search": data.patent_search,
+          "Drafting": data.patent_application,
+          "Patent Application Filing": data.patent_portfolio,
+          "First Examination Response": data.first_examination,  
           "Trademark Search": data.trademark_search,
           "Trademark Registration": data.trademark_registration,
           "Trademark Monitoring": data.trademark_monitoring,
@@ -265,22 +265,27 @@ const services = [
     },
   ]
 
-  const patentServices = [
+const patentServices = [
     {
-      title: "Patent Search & Analysis",
+      title: "Patentability Search",
       description: "Comprehensive prior art search and patentability analysis",
       icon: <Scale className="h-8 w-8 text-blue-600" />,
     },
     {
-      title: "Patent Application Filing",
+      title: "Drafting",
       description: "Professional patent application preparation and filing",
       icon: <Shield className="h-8 w-8 text-blue-600" />,
     },
     {
-      title: "Patent Portfolio Management",
+      title: "Patent Application Filing",
       description: "Strategic management of your patent portfolio",
       icon: <Award className="h-8 w-8 text-blue-600" />,
     },
+    {
+      title: "First Examination Response",
+      description: "desctiption tbd",
+      icon: <Award className="h-8 w-8 text-blue-600" />,
+    },  
   ]
 
   const trademarkServices = [
@@ -1709,9 +1714,14 @@ const handleAuth = async (e: React.FormEvent) => {
                           </CardDescription>
                           <div className="flex items-center justify-between">
                             <span className="text-2xl font-bold text-blue-600">
-                              {servicePricing[service.title] != null
-                                ? `$${servicePricing[service.title].toLocaleString()}`
-                                : "Price not available"}
+{servicePricing[service.title] != null
+  ? new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0, // remove paise if you don’t want decimals
+    }).format(servicePricing[service.title])
+  : "Price not available"}
+
                             </span>
                             <Button
                               onClick={() => openOptionsForService(service.title, "Patent")}
@@ -1751,7 +1761,7 @@ const handleAuth = async (e: React.FormEvent) => {
                           </CardDescription>
                           <div className="flex items-center justify-between">
                             <span className="text-2xl font-bold text-green-600">
-                              ${servicePricing[service.title as keyof typeof servicePricing]?.toLocaleString()}
+                              INR {servicePricing[service.title as keyof typeof servicePricing]?.toLocaleString()}
                             </span>
                             <Button
                               onClick={() => openOptionsForService(service.title, "Trademark")}
@@ -1791,7 +1801,7 @@ const handleAuth = async (e: React.FormEvent) => {
                           </CardDescription>
                           <div className="flex items-center justify-between">
                             <span className="text-2xl font-bold text-purple-600">
-                              ${servicePricing[service.title as keyof typeof servicePricing]?.toLocaleString()}
+                              INR {servicePricing[service.title as keyof typeof servicePricing]?.toLocaleString()}
                             </span>
                             <Button
                               onClick={() => addToCart(service.title, "Copyright")}
@@ -1831,7 +1841,7 @@ const handleAuth = async (e: React.FormEvent) => {
                           </CardDescription>
                           <div className="flex items-center justify-between">
                             <span className="text-2xl font-bold text-orange-600">
-                              ${servicePricing[service.title as keyof typeof servicePricing]?.toLocaleString()}
+                              INR {servicePricing[service.title as keyof typeof servicePricing]?.toLocaleString()}
                             </span>
                             <Button
                               onClick={() => addToCart(service.title, "Design")}
