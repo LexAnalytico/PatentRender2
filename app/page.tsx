@@ -504,26 +504,32 @@ const patentServices = [
       option1: true,
     } as const
 
-    let price = servicePricing[selectedServiceTitle as keyof typeof servicePricing] || 0
-
-    // Compute price from DB rules for this service (if available)
+    // Always compute price from DB rules using selected options
     const { data: svc, error: svcErr } = await supabase
       .from("services")
       .select("id")
       .eq("name", selectedServiceTitle)
       .maybeSingle()
 
+    let price = 0
     if (!svcErr && svc?.id) {
       try {
         const rules = await fetchServicePricingRules(svc.id)
         if (rules && rules.length > 0) {
           price = computePriceFromRules(rules, selectedOptions as any)
+        } else {
+          // Fallback to base pricing table if no rules exist
+          price = servicePricing[selectedServiceTitle as keyof typeof servicePricing] || 0
         }
       } catch (e) {
         console.error("Pricing rules fetch/compute failed:", e)
+        price = servicePricing[selectedServiceTitle as keyof typeof servicePricing] || 0
       }
+    } else {
+      price = servicePricing[selectedServiceTitle as keyof typeof servicePricing] || 0
     }
 
+    const turnaround = optionsForm.goodsServices
     const goods = optionsForm.goodsServicesCustom || optionsForm.goodsServices
     const details = `Applicants: ${optionsForm.applicantTypes.join(", ") || "N/A"}; NICE classes: ${
       optionsForm.niceClasses.join(", ") || "N/A"
@@ -531,7 +537,7 @@ const patentServices = [
       optionsForm.useType === "yes"
         ? `; First use date: ${optionsForm.firstUseDate || "N/A"}; Proof: ${optionsForm.proofFileNames.length} file(s)`
         : ""
-    }`
+    }; Turnaround: ${turnaround || "N/A"}`
 
     const newItem = {
       id: `${selectedServiceTitle}-${Date.now()}`,

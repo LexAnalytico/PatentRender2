@@ -1,7 +1,15 @@
 import { supabase } from "@/lib/supabase"
 
 export type ApplicationType = "individual" | "startup_msme" | "others"
-export type PricingKey = "option1" | "nice_classes" | "goods_services" | "prior_use_yes" | "professional_fee"
+export type PricingKey =
+  | "option1"
+  | "nice_classes"
+  | "goods_services"
+  | "prior_use_yes"
+  | "professional_fee"
+  | "turnaround_standard"
+  | "turnaround_expediated"
+  | "turnaround_rush"
 
 export interface PricingRule {
   id: number
@@ -68,6 +76,19 @@ export function computePriceFromRules(rules: PricingRule[], opts: SelectedOption
   const goodsRule = byKey.get("goods_services")
   if (goodsRule && (opts.goodsServices?.dropdown || opts.goodsServices?.customText)) {
     total += goodsRule.amount
+  }
+
+  // Turnaround from dropdown (DB-driven)
+  const t = (opts.goodsServices?.dropdown || "").toLowerCase()
+  if (t === "standard") {
+    const r = byKey.get("turnaround_standard")
+    if (r) total += r.amount
+  } else if (t === "expediated") {
+    const r = byKey.get("turnaround_expediated")
+    if (r) total += r.amount
+  } else if (t === "rush") {
+    const r = byKey.get("turnaround_rush")
+    if (r) total += r.amount
   }
 
   // Prior use
