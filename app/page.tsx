@@ -1936,133 +1936,37 @@ const handleAuth = async (e: React.FormEvent) => {
                   Options for: {selectedServiceTitle}
                 </h4>
 
-                {/* Applicant Type */}
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Applicant Type</Label>
-                  <div className="mt-2 grid grid-cols-1 gap-2">
-                    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
-                      <input
-                        type="checkbox"
-                        checked={optionsForm.applicantTypes.includes("Individual / Sole Proprietor")}
-                        onChange={() => toggleApplicantType("Individual / Sole Proprietor")}
-                      />
-                      Individual / Sole Proprietor
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
-                      <input
-                        type="checkbox"
-                        checked={optionsForm.applicantTypes.includes("Startup / Small Enterprise")}
-                        onChange={() => toggleApplicantType("Startup / Small Enterprise")}
-                      />
-                      Startup / Small Enterprise
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
-                      <input
-                        type="checkbox"
-                        checked={optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")}
-                        onChange={() => toggleApplicantType("Others (Company, Partnership, LLP, Trust, etc.)")}
-                      />
-                      Others (Company, Partnership, LLP, Trust, etc.)
-                    </label>
-                  </div>
-                </div>
+{/* Applicant Type */}
+<div>
+  <Label className="text-sm font-medium text-gray-700">Applicant Type</Label>
+  <div className="mt-2 grid grid-cols-1 gap-2">
+    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
+      <input
+        type="radio"
+        name="applicantType"
+        value="Individual / Sole Proprietor"
+        checked={optionsForm.applicantType === "Individual / Sole Proprietor"}
+        onChange={(e) =>
+          setOptionsForm({ ...optionsForm, applicantType: e.target.value })
+        }
+      />
+      Start-Up/Individuals/MSMEs/Educational Institute
+    </label>
+    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
+      <input
+        type="radio"
+        name="applicantType"
+        value="Startup / Small Enterprise"
+        checked={optionsForm.applicantType === "Startup / Small Enterprise"}
+        onChange={(e) =>
+          setOptionsForm({ ...optionsForm, applicantType: e.target.value })
+        }
+      />
+      Large Entity/Others
+    </label>
+  </div>
+</div>
 
-                {/* NICE Classes */}
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Choose 1 or more NICE classes (1–45)</Label>
-                  <select
-                    multiple
-                    value={optionsForm.niceClasses}
-                    onChange={(e) => {
-                      const values = Array.from(e.target.selectedOptions).map((o) => o.value)
-                      setOptionsForm((prev) => ({ ...prev, niceClasses: values }))
-                    }}
-                    className="mt-2 w-full border rounded p-2 h-32"
-                  >
-                    {Array.from({ length: 45 }, (_, i) => String(i + 1)).map((v) => (
-                      <option key={v} value={v}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Goods/Services */}
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Goods/Services</Label>
-                  <select
-                    value={optionsForm.goodsServices}
-                    onChange={(e) => setOptionsForm((prev) => ({ ...prev, goodsServices: e.target.value }))}
-                    className="mt-2 w-full border rounded p-2"
-                  >
-                    <option value="">Select goods/services from dropdown...</option>
-                    <option value="Advertising services">Advertising services</option>
-                    <option value="Computer software">Computer software</option>
-                    <option value="Legal services">Legal services</option>
-                    <option value="Scientific and technological services">Scientific and technological services</option>
-                  </select>
-                  <Input
-                    className="mt-2"
-                    placeholder="Or enter free text"
-                    value={optionsForm.goodsServicesCustom}
-                    onChange={(e) => setOptionsForm((prev) => ({ ...prev, goodsServicesCustom: e.target.value }))}
-                  />
-                </div>
-
-                {/* Use in India */}
-                <div>
-                  <Label className="text-sm font-medium text-gray-700">Use in India</Label>
-                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
-                      <input
-                        type="radio"
-                        name="useType"
-                        value="yes"
-                        checked={optionsForm.useType === "yes"}
-                        onChange={(e) => setOptionsForm((prev) => ({ ...prev, useType: e.target.value }))}
-                      />
-                      Yes
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
-                      <input
-                        type="radio"
-                        name="useType"
-                        value="no"
-                        checked={optionsForm.useType === "no"}
-                        onChange={(e) => setOptionsForm((prev) => ({ ...prev, useType: e.target.value }))}
-                      />
-                      No (Intent to use / proposed to be used)
-                    </label>
-                  </div>
-
-                  {optionsForm.useType === "yes" && (
-                    <div className="mt-3 grid md:grid-cols-2 gap-3">
-                      <div>
-                        <Label className="text-sm font-medium text-gray-700">Date of first use in India</Label>
-                        <Input
-                          type="date"
-                          className="mt-1"
-                          value={optionsForm.firstUseDate}
-                          onChange={(e) => setOptionsForm((prev) => ({ ...prev, firstUseDate: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-700">Upload proof of use</Label>
-                        <input
-                          type="file"
-                          multiple
-                          onChange={handleOptionsFileChange}
-                          className="mt-1 block w-full text-sm text-gray-700"
-                        />
-                        {optionsForm.proofFileNames.length > 0 && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            {optionsForm.proofFileNames.length} file(s) selected
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
 
                 {/* Actions */}
                 <div className="flex items-center gap-3">
