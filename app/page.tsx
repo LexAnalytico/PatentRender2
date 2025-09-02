@@ -50,6 +50,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs" // Import Tabs components
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 
 export default function LegalIPWebsite() {
   const [isOpen, setIsOpen] = useState(false);
@@ -438,10 +440,6 @@ const patentServices = [
     setSelectedServiceTitle(serviceName)
     setSelectedServiceCategory(category)
     setShowOptionsPanel(true)
-    setTimeout(() => {
-      const el = document.getElementById("options-panel")
-      el?.scrollIntoView({ behavior: "smooth", block: "start" })
-    }, 0)
   }
 
   const resetOptionsForm = () => {
@@ -1931,53 +1929,109 @@ const handleAuth = async (e: React.FormEvent) => {
               </Button>
             </div>
             {showOptionsPanel && (
-              <div id="options-panel" className="mt-4 p-4 bg-white border border-gray-200 rounded-lg space-y-4">
-                <h4 className="text-md font-semibold text-gray-900">
-                  Options for: {selectedServiceTitle}
-                </h4>
+              <Dialog open={showOptionsPanel} onOpenChange={(open) => { if (!open) closeOptionsPanel() }}>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Options for: {selectedServiceTitle}</DialogTitle>
+                    <DialogDescription>Select the options for this service.</DialogDescription>
+                  </DialogHeader>
 
-{/* Applicant Type */}
-<div>
-  <Label className="text-sm font-medium text-gray-700">Applicant Type</Label>
-  <div className="mt-2 grid grid-cols-1 gap-2">
-    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
-      <input
-        type="radio"
-        name="applicantType"
-        value="Individual / Sole Proprietor"
-        checked={optionsForm.applicantType === "Individual / Sole Proprietor"}
-        onChange={(e) =>
-          setOptionsForm({ ...optionsForm, applicantType: e.target.value })
-        }
-      />
-      Start-Up/Individuals/MSMEs/Educational Institute
-    </label>
-    <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
-      <input
-        type="radio"
-        name="applicantType"
-        value="Startup / Small Enterprise"
-        checked={optionsForm.applicantType === "Startup / Small Enterprise"}
-        onChange={(e) =>
-          setOptionsForm({ ...optionsForm, applicantType: e.target.value })
-        }
-      />
-      Large Entity/Others
-    </label>
-  </div>
-</div>
+                  <TooltipProvider>
+                    <div className="space-y-6">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm font-medium text-gray-700">Applicant Type</Label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Eye className="h-4 w-4 text-gray-500 cursor-pointer" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Choose the applicant category; government fees vary by applicant type.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div className="mt-2 grid grid-cols-1 gap-2">
+                          <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
+                            <input
+                              type="checkbox"
+                              checked={optionsForm.applicantTypes.includes("Start-Up/Individuals/MSMEs/               Educational Institute")}
+                              onChange={() => toggleApplicantType("Start-Up/Individuals/MSMEs/                         Educational Institute")}
+                            />
+                            Start-Up/Individuals/MSMEs/
+                            Educational Institute
+                          </label>
+                          <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
+                            <input
+                              type="checkbox"
+                              checked={optionsForm.applicantTypes.includes("Large Entity/Others")}
+                              onChange={() => toggleApplicantType("Large Entity/Others")}
+                            />
+                            Large Entity/Others
+                          </label>
+                        </div>
+                      </div>
 
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm font-medium text-gray-700">Quick Knockout Search</Label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Eye className="h-4 w-4 text-gray-500 cursor-pointer" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Pick the turnaround time. Faster tiers may increase professional fees.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <select
+                          value={optionsForm.goodsServices}
+                          onChange={(e) => setOptionsForm((prev) => ({ ...prev, goodsServices: e.target.value }))}
+                          className="mt-2 w-full border rounded p-2"
+                        >
+                          <option value="">Select from dropdown...</option>
+                          <option value="Standard">Standard (7-10 days)</option>
+                          <option value="Expediated">Expediated (3-5 Days)</option>
+                          <option value="Rush">Rush (1-2 days)</option>
+                        </select>
+                      </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-3">
-                  <Button className="bg-blue-600 hover:bg-blue-700" onClick={addToCartWithOptions}>
-                    Add to Cart
-                  </Button>
-                  <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={closeOptionsPanel}>
-                    Cancel
-                  </Button>
-                </div>
-              </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm font-medium text-gray-700">Estimated Professional Fee</Label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Eye className="h-4 w-4 text-gray-500 cursor-pointer" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Our professional service fee estimate for the selected options.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm font-medium text-gray-700">Estimated Govt. Fee</Label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Eye className="h-4 w-4 text-gray-500 cursor-pointer" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Indicative government filing fee. Actuals may vary per IPO schedule.
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    </div>
+                  </TooltipProvider>
+
+                  <DialogFooter>
+                    <Button className="bg-blue-600 hover:bg-blue-700" onClick={addToCartWithOptions}>
+                      Add
+                    </Button>
+                    <Button variant="outline" onClick={closeOptionsPanel}>
+                      Cancel
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             )}
             <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
           </div>
