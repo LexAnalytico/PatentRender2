@@ -10,6 +10,9 @@ export type PricingKey =
   | "turnaround_standard"
   | "turnaround_expediated"
   | "turnaround_rush"
+  | "search_type_quick"
+  | "search_type_full_without_opinion"
+  | "search_type_full_with_opinion"
 
 export interface PricingRule {
   id: number
@@ -24,9 +27,12 @@ export interface SelectedOptions {
   applicationType: ApplicationType
   niceClasses: number[]
   goodsServices: {
+    // For turnaround selection (Standard/Expediated/Rush)
     dropdown?: string
     customText?: string
   }
+  // Search type: quick | full_without_opinion | full_with_opinion
+  searchType?: string
   priorUse: {
     used: boolean
     firstUseDate?: string
@@ -88,6 +94,19 @@ export function computePriceFromRules(rules: PricingRule[], opts: SelectedOption
     if (r) total += r.amount
   } else if (t === "rush") {
     const r = byKey.get("turnaround_rush")
+    if (r) total += r.amount
+  }
+
+  // Search type (DB-driven)
+  const st = (opts.searchType || "").toLowerCase()
+  if (st === "quick") {
+    const r = byKey.get("search_type_quick")
+    if (r) total += r.amount
+  } else if (st === "full_without_opinion") {
+    const r = byKey.get("search_type_full_without_opinion")
+    if (r) total += r.amount
+  } else if (st === "full_with_opinion") {
+    const r = byKey.get("search_type_full_with_opinion")
     if (r) total += r.amount
   }
 

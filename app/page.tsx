@@ -42,6 +42,7 @@ import {
   Lock,
   Eye,
   EyeOff,
+  Info,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -90,6 +91,7 @@ export default function LegalIPWebsite() {
     useType: "",
     firstUseDate: "",
     proofFileNames: [] as string[],
+    searchType: "",
   })
 
   // Keep Logout button state in sync with Supabase session
@@ -459,6 +461,7 @@ const patentServices = [
       useType: "",
       firstUseDate: "",
       proofFileNames: [],
+      searchType: "",
     })
   }
 
@@ -468,6 +471,83 @@ const patentServices = [
     setSelectedServiceCategory(null)
     resetOptionsForm()
   }
+
+  // Live fee preview state and pricing rules
+  const [pricingRules, setPricingRules] = useState<any[] | null>(null)
+  const [preview, setPreview] = useState({ total: 0, professional: 0, government: 0 })
+
+  // Load pricing rules when modal opens
+  useEffect(() => {
+    const loadRules = async () => {
+      if (!showOptionsPanel || !selectedServiceTitle) {
+        setPricingRules(null)
+        return
+      }
+      let serviceId: number | null = null
+      const { data: svc, error: svcErr } = await supabase
+        .from("services")
+        .select("id")
+        .eq("name", selectedServiceTitle)
+        .maybeSingle()
+      if (!svcErr && svc?.id) serviceId = svc.id
+      else {
+        const mapped = serviceIdByName[selectedServiceTitle as keyof typeof serviceIdByName]
+        serviceId = typeof mapped === "number" ? mapped : null
+      }
+      if (serviceId == null) {
+        setPricingRules(null)
+        return
+      }
+      try {
+        const rules = await fetchServicePricingRules(serviceId)
+        setPricingRules(rules as any)
+      } catch (e) {
+        console.error("Failed to load pricing rules:", e)
+        setPricingRules(null)
+      }
+    }
+    loadRules()
+  }, [showOptionsPanel, selectedServiceTitle])
+
+  // Recompute fee preview when selections change
+  useEffect(() => {
+    if (!pricingRules || !selectedServiceTitle) {
+      setPreview({ total: 0, professional: 0, government: 0 })
+      return
+    }
+    const applicationType =
+      optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
+        ? "individual"
+        : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
+        ? "startup_msme"
+        : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
+        ? "others"
+        : "individual"
+
+    const sel = {
+      applicationType,
+      niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
+      goodsServices: {
+        dropdown: optionsForm.goodsServices || undefined,
+        customText: optionsForm.goodsServicesCustom || undefined,
+      },
+      searchType: optionsForm.searchType || undefined,
+      priorUse: {
+        used: optionsForm.useType === "yes",
+        firstUseDate: optionsForm.firstUseDate || undefined,
+        proofFiles: optionsForm.proofFileNames,
+      },
+      option1: true,
+    } as const
+
+    const total = computePriceFromRules(pricingRules as any, sel as any)
+    const profRule = (pricingRules as any).find(
+      (r: any) => r.application_type === applicationType && r.key === "professional_fee"
+    )
+    const professional = profRule ? Number(profRule.amount) : 0
+    const government = Math.max(0, total - professional)
+    setPreview({ total, professional, government })
+  }, [pricingRules, optionsForm, selectedServiceTitle])
 
   const handleOptionsFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []).map((f) => f.name)
@@ -503,6 +583,7 @@ const patentServices = [
         dropdown: optionsForm.goodsServices || undefined,
         customText: optionsForm.goodsServicesCustom || undefined,
       },
+      searchType: optionsForm.searchType || undefined,
       priorUse: {
         used: optionsForm.useType === "yes",
         firstUseDate: optionsForm.firstUseDate || undefined,
@@ -1958,6 +2039,73 @@ const handleAuth = async (e: React.FormEvent) => {
                     <DialogTitle>Options for: {selectedServiceTitle}</DialogTitle>
                     <DialogDescription>Select the options for this service.</DialogDescription>
                   </DialogHeader>
+
+                  <TooltipProvider>
+                    <div className="space-y-6 mb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-sm font-medium text-gray-700">Search Type</Label>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-4 w-4 text-gray-500 cursor-pointer" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Select the scope of search and whether a legal opinion is included.
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v }))}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Choose search type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="quick">Quick Knockout Search</SelectItem>
+                          <SelectItem value="full_without_opinion">Full Patentability Search (Without Opinion)</SelectItem>
+                          <SelectItem value="full_with_opinion">Full Patentability Search with Opinion</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {optionsForm.searchType && (
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm font-medium text-gray-700">Turnaround</Label>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-4 w-4 text-gray-500 cursor-pointer" />
+                            </TooltipTrigger>
+                            <TooltipContent>Choose delivery speed. Faster options may add to the fee per rules.</TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <Select value={optionsForm.goodsServices} onValueChange={(v) => setOptionsForm((p) => ({ ...p, goodsServices: v }))}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Choose turnaround" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="standard">Standard (7-10 days)</SelectItem>
+                            <SelectItem value="expediated">Expediated (3-5 Days)</SelectItem>
+                            <SelectItem value="rush">Rush (1-2 days)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    <div className="rounded-md border p-3 bg-gray-50">
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span>Professional Fee</span>
+                        <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.professional)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span>Government Fee</span>
+                        <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.government)}</span>
+                      </div>
+                      <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                        <span>Total</span>
+                        <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  </TooltipProvider>
 
                   <TooltipProvider>
                     <div className="space-y-6">
