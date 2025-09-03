@@ -202,6 +202,14 @@ const services = [
   const [servicePricing, setServicePricing] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
 
+  // Fallback mapping if services table lookup by name is unavailable
+  const serviceIdByName: Record<string, number> = {
+    "Patentability Search": 1,
+    "Drafting": 2,
+    "Patent Application Filing": 3,
+    "First Examination Response": 4,
+  }
+
  
 useEffect(() => {
     async function fetchPricing() {
@@ -505,28 +513,37 @@ const patentServices = [
     } as const
 
     // Always compute price from DB rules using selected options
+    const basePrice = servicePricing[selectedServiceTitle as keyof typeof servicePricing] || 0
     const { data: svc, error: svcErr } = await supabase
       .from("services")
       .select("id")
       .eq("name", selectedServiceTitle)
       .maybeSingle()
 
-    let price = 0
+    let serviceId: number | null = null
     if (!svcErr && svc?.id) {
+      serviceId = svc.id
+    } else {
+      const mapped = serviceIdByName[selectedServiceTitle as keyof typeof serviceIdByName]
+      serviceId = typeof mapped === "number" ? mapped : null
+    }
+
+    let price = 0
+    if (serviceId != null) {
       try {
-        const rules = await fetchServicePricingRules(svc.id)
+        const rules = await fetchServicePricingRules(serviceId)
         if (rules && rules.length > 0) {
           price = computePriceFromRules(rules, selectedOptions as any)
         } else {
           // Fallback to base pricing table if no rules exist
-          price = servicePricing[selectedServiceTitle as keyof typeof servicePricing] || 0
+          price = basePrice
         }
       } catch (e) {
         console.error("Pricing rules fetch/compute failed:", e)
-        price = servicePricing[selectedServiceTitle as keyof typeof servicePricing] || 0
+        price = basePrice
       }
     } else {
-      price = servicePricing[selectedServiceTitle as keyof typeof servicePricing] || 0
+      price = basePrice
     }
 
     const turnaround = optionsForm.goodsServices
