@@ -533,6 +533,29 @@ const patentServices = [
     setPreview({ total, professional, government })
   }, [pricingRules, optionsForm, selectedServiceTitle])
 
+  // Helpers for turnaround pricing display in modal
+  const formatINR = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n)
+  const computeTurnaroundTotal = (turn: "standard" | "expediated" | "rush") => {
+    if (!pricingRules) return 0
+    const applicationType =
+      optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
+        ? "individual"
+        : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
+        ? "startup_msme"
+        : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
+        ? "others"
+        : "individual"
+    const sel = {
+      applicationType,
+      niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
+      goodsServices: { dropdown: turn },
+      searchType: optionsForm.searchType || undefined,
+      priorUse: { used: optionsForm.useType === "yes" },
+      option1: true,
+    } as any
+    return computePriceFromRules(pricingRules as any, sel)
+  }
+
   const handleOptionsFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []).map((f) => f.name)
     setOptionsForm((prev) => ({ ...prev, proofFileNames: files }))
@@ -616,15 +639,24 @@ const patentServices = [
       price = basePrice
     }
 
-    const turnaround = optionsForm.goodsServices
+    const prettySearchTypeMap = {
+      quick: "Quick Knockout Search",
+      full_without_opinion: "Full Search (No Opinion)",
+      full_with_opinion: "Full Search (With Opinion)",
+    } as const
+    const prettyTurnaroundMap = {
+      standard: "Standard (7-10 days)",
+      expediated: "Expediated (3-5 Days)",
+      rush: "Rush (1-2 days)",
+    } as const
     const goods = optionsForm.goodsServicesCustom || optionsForm.goodsServices
-    const details = `Applicants: ${optionsForm.applicantTypes.join(", ") || "N/A"}; NICE classes: ${
-      optionsForm.niceClasses.join(", ") || "N/A"
-    }; Goods/Services: ${goods || "N/A"}; Use in India: ${optionsForm.useType || "N/A"}${
-      optionsForm.useType === "yes"
-        ? `; First use date: ${optionsForm.firstUseDate || "N/A"}; Proof: ${optionsForm.proofFileNames.length} file(s)`
-        : ""
-    }; Turnaround: ${turnaround || "N/A"}`
+    const searchTypeLabel = optionsForm.searchType
+      ? prettySearchTypeMap[optionsForm.searchType as keyof typeof prettySearchTypeMap]
+      : "N/A"
+    const turnaroundLabel = selectedTurnaround
+      ? prettyTurnaroundMap[selectedTurnaround as keyof typeof prettyTurnaroundMap]
+      : "N/A"
+    const details = `Search: ${searchTypeLabel}; Turnaround: ${turnaroundLabel}`
 
     const newItem = {
       id: `${selectedServiceTitle}-${Date.now()}`,
@@ -1144,6 +1176,9 @@ const handleAuth = async (e: React.FormEvent) => {
                             Professional {item.category.toLowerCase()} service with comprehensive coverage and expert
                             guidance.
                           </p>
+                          {item.details && (
+                            <p className="text-xs text-gray-500 mb-2">Details: {item.details}</p>
+                          )}
                           <div className="flex items-center justify-between">
                             <span className="text-2xl font-bold text-blue-600">${item.price.toLocaleString()}</span>
                             <Button
@@ -1775,185 +1810,129 @@ const handleAuth = async (e: React.FormEvent) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row gap-8">
         {/* Left Column: Tabbed Services */}
         <div className="flex-1">
-          <Tabs value={activeServiceTab} onValueChange={setActiveServiceTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-2 mb-8">
-              <TabsTrigger value="patent">Patent Services</TabsTrigger>
-              <TabsTrigger value="trademark">Trademark Services</TabsTrigger>
-              <TabsTrigger value="copyright">Copyright Services</TabsTrigger>
-              <TabsTrigger value="design">Design Services</TabsTrigger>
-            </TabsList>
+          {/* Scrollable nav styled as tabs */}
+          <div className="grid w-full grid-cols-2 md:grid-cols-4 gap-2 mb-8">
+            <button onClick={() => scrollToSection('patent-services')} className="px-3 py-2 rounded bg-blue-50 text-blue-700 hover:bg-blue-100">Patent Services</button>
+            <button onClick={() => scrollToSection('trademark-services')} className="px-3 py-2 rounded bg-green-50 text-green-700 hover:bg-green-100">Trademark Services</button>
+            <button onClick={() => scrollToSection('copyright-services')} className="px-3 py-2 rounded bg-purple-50 text-purple-700 hover:bg-purple-100">Copyright Services</button>
+            <button onClick={() => scrollToSection('design-services')} className="px-3 py-2 rounded bg-orange-50 text-orange-700 hover:bg-orange-100">Design Services</button>
+          </div>
 
-            <TabsContent value="patent">
-              <section id="patent-services" className="bg-blue-50 py-8 rounded-lg">
-                <div className="px-4 sm:px-6 lg:px-8">
-                  <div className="text-center mb-12">
-                    <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Patent Services</h2>
-                    <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                      Comprehensive patent services to protect your innovations and inventions
-                    </p>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-8">
-                    {patentServices.map((service, index) => (
-                      <Card key={index} className="bg-white hover:shadow-lg transition-shadow relative">
-                        <CardHeader className="text-center">
-                          <div className="mx-auto mb-4 p-3 bg-blue-100 rounded-full w-fit">{service.icon}</div>
-                          <CardTitle className="text-xl text-gray-900">{service.title}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <CardDescription className="text-gray-600 text-center mb-4">
-                            {service.description}
-                          </CardDescription>
-                          <div className="flex items-center justify-between">
-                            <span className="text-2xl font-bold text-blue-600">
-{servicePricing[service.title] != null
-  ? new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0, // remove paise if you don’t want decimals
-    }).format(servicePricing[service.title])
-  : "Price not available"}
+          {/* Patent Services */}
+          <section id="patent-services" className="bg-blue-50 py-8 rounded-lg">
+            <div className="px-4 sm:px-6 lg:px-8">
+              <div className="mb-8">
+                <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Patent Services</h2>
+                <p className="text-lg text-gray-600 max-w-3xl">Comprehensive patent services to protect your innovations and inventions.</p>
+              </div>
+              <div className="grid md:grid-cols-2 gap-10">
+                {patentServices.map((service, index) => (
+                  <Card key={index} className="bg-white hover:shadow-lg transition-shadow">
+                    <CardContent className="p-7">
+                      <div className="flex items-start justify-between">
+                        <div className="p-3 bg-blue-100 rounded-full">{service.icon}</div>
+                        <h3 className="text-xl font-semibold text-gray-900">{service.title}</h3>
+                      </div>
+                      <p className="text-gray-600 mt-4">
+                        {service.description} Our experts perform in-depth analysis, draft precise documents, and guide you across the full lifecycle to maximize protection and value.
+                      </p>
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="text-2xl font-bold text-blue-600">
+                          {servicePricing[service.title] != null ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(servicePricing[service.title]) : 'Price not available'}
+                        </span>
+                        <Button onClick={() => openOptionsForService(service.title, 'Patent')} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Select</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </section>
 
-                            </span>
-                            <Button
-                              onClick={() => openOptionsForService(service.title, "Patent")}
-                              size="sm"
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-                            >
-                              Select
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </TabsContent>
+          {/* Trademark Services */}
+          <section id="trademark-services" className="bg-green-50 py-8 rounded-lg mt-8">
+            <div className="px-4 sm:px-6 lg:px-8">
+              <div className="mb-8">
+                <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Trademark Services</h2>
+                <p className="text-lg text-gray-600 max-w-3xl">Protect your brand identity with tailored search, filing, and monitoring solutions.</p>
+              </div>
+              <div className="grid md:grid-cols-2 gap-10">
+                {trademarkServices.map((service, index) => (
+                  <Card key={index} className="bg-white hover:shadow-lg transition-shadow">
+                    <CardContent className="p-7">
+                      <div className="flex items-start justify-between">
+                        <div className="p-3 bg-green-100 rounded-full">{service.icon}</div>
+                        <h3 className="text-xl font-semibold text-gray-900">{service.title}</h3>
+                      </div>
+                      <p className="text-gray-600 mt-4">{service.description} We ensure comprehensive coverage and enforceability across relevant classes and jurisdictions.</p>
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="text-2xl font-bold text-green-600">INR {servicePricing[service.title as keyof typeof servicePricing]?.toLocaleString()}</span>
+                        <Button onClick={() => openOptionsForService(service.title, 'Trademark')} size="sm" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Select</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </section>
 
-            <TabsContent value="trademark">
-              <section id="trademark-services" className="bg-green-50 py-8 rounded-lg">
-                <div className="px-4 sm:px-6 lg:px-8">
-                  <div className="text-center mb-12">
-                    <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Trademark Services</h2>
-                    <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                      Protect your brand identity with our comprehensive trademark services
-                    </p>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-8">
-                    {trademarkServices.map((service, index) => (
-                      <Card key={index} className="bg-white hover:shadow-lg transition-shadow relative">
-                        <CardHeader className="text-center">
-                          <div className="mx-auto mb-4 p-3 bg-green-100 rounded-full w-fit">{service.icon}</div>
-                          <CardTitle className="text-xl text-gray-900">{service.title}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <CardDescription className="text-gray-600 text-center mb-4">
-                            {service.description}
-                          </CardDescription>
-                          <div className="flex items-center justify-between">
-                            <span className="text-2xl font-bold text-green-600">
-                              INR {servicePricing[service.title as keyof typeof servicePricing]?.toLocaleString()}
-                            </span>
-                            <Button
-                              onClick={() => openOptionsForService(service.title, "Trademark")}
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
-                            >
-                              Select
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </TabsContent>
+          {/* Copyright Services */}
+          <section id="copyright-services" className="bg-purple-50 py-8 rounded-lg mt-8">
+            <div className="px-4 sm:px-6 lg:px-8">
+              <div className="mb-8">
+                <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Copyright Services</h2>
+                <p className="text-lg text-gray-600 max-w-3xl">Safeguard creative works with registration, licensing, and enforcement support.</p>
+              </div>
+              <div className="grid md:grid-cols-2 gap-10">
+                {copyrightServices.map((service, index) => (
+                  <Card key={index} className="bg-white hover:shadow-lg transition-shadow">
+                    <CardContent className="p-7">
+                      <div className="flex items-start justify-between">
+                        <div className="p-3 bg-purple-100 rounded-full">{service.icon}</div>
+                        <h3 className="text-xl font-semibold text-gray-900">{service.title}</h3>
+                      </div>
+                      <p className="text-gray-600 mt-4">{service.description} Streamlined processes help you establish ownership and leverage your rights.</p>
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="text-2xl font-bold text-purple-600">INR {servicePricing[service.title as keyof typeof servicePricing]?.toLocaleString()}</span>
+                        <Button onClick={() => addToCart(service.title, 'Copyright')} size="sm" className="bg-purple-600 hover:bg-purple-700 rounded-full w-8 h-8 p-0">+</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </section>
 
-            <TabsContent value="copyright">
-              <section id="copyright-services" className="bg-purple-50 py-8 rounded-lg">
-                <div className="px-4 sm:px-6 lg:px-8">
-                  <div className="text-center mb-12">
-                    <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Copyright Services</h2>
-                    <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                      Safeguard your creative works with our expert copyright protection services
-                    </p>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-8">
-                    {copyrightServices.map((service, index) => (
-                      <Card key={index} className="bg-white hover:shadow-lg transition-shadow relative">
-                        <CardHeader className="text-center">
-                          <div className="mx-auto mb-4 p-3 bg-purple-100 rounded-full w-fit">{service.icon}</div>
-                          <CardTitle className="text-xl text-gray-900">{service.title}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <CardDescription className="text-gray-600 text-center mb-4">
-                            {service.description}
-                          </CardDescription>
-                          <div className="flex items-center justify-between">
-                            <span className="text-2xl font-bold text-purple-600">
-                              INR {servicePricing[service.title as keyof typeof servicePricing]?.toLocaleString()}
-                            </span>
-                            <Button
-                              onClick={() => addToCart(service.title, "Copyright")}
-                              size="sm"
-                              className="bg-purple-600 hover:bg-purple-700 rounded-full w-8 h-8 p-0"
-                            >
-                              +
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </TabsContent>
-
-            <TabsContent value="design">
-              <section id="design-services" className="bg-orange-50 py-8 rounded-lg">
-                <div className="px-4 sm:px-6 lg:px-8">
-                  <div className="text-center mb-12">
-                    <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Design Services</h2>
-                    <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                      Protect your unique designs and visual innovations with our specialized services
-                    </p>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-8">
-                    {designServices.map((service, index) => (
-                      <Card key={index} className="bg-white hover:shadow-lg transition-shadow relative">
-                        <CardHeader className="text-center">
-                          <div className="mx-auto mb-4 p-3 bg-orange-100 rounded-full w-fit">{service.icon}</div>
-                          <CardTitle className="text-xl text-gray-900">{service.title}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <CardDescription className="text-gray-600 text-center mb-4">
-                            {service.description}
-                          </CardDescription>
-                          <div className="flex items-center justify-between">
-                            <span className="text-2xl font-bold text-orange-600">
-                              INR {servicePricing[service.title as keyof typeof servicePricing]?.toLocaleString()}
-                            </span>
-                            <Button
-                              onClick={() => addToCart(service.title, "Design")}
-                              size="sm"
-                              className="bg-orange-600 hover:bg-orange-700 rounded-full w-8 h-8 p-0"
-                            >
-                              +
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </TabsContent>
-          </Tabs>
+          {/* Design Services */}
+          <section id="design-services" className="bg-orange-50 py-8 rounded-lg mt-8">
+            <div className="px-4 sm:px-6 lg:px-8">
+              <div className="mb-8">
+                <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Design Services</h2>
+                <p className="text-lg text-gray-600 max-w-3xl">Protect unique designs with strategic search, filing, and portfolio support.</p>
+              </div>
+              <div className="grid md:grid-cols-2 gap-10">
+                {designServices.map((service, index) => (
+                  <Card key={index} className="bg-white hover:shadow-lg transition-shadow">
+                    <CardContent className="p-7">
+                      <div className="flex items-start justify-between">
+                        <div className="p-3 bg-orange-100 rounded-full">{service.icon}</div>
+                        <h3 className="text-xl font-semibold text-gray-900">{service.title}</h3>
+                      </div>
+                      <p className="text-gray-600 mt-4">{service.description} Tailored guidance to protect your visual innovations effectively.</p>
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="text-2xl font-bold text-orange-600">INR {servicePricing[service.title as keyof typeof servicePricing]?.toLocaleString()}</span>
+                        <Button onClick={() => addToCart(service.title, 'Design')} size="sm" className="bg-orange-600 hover:bg-orange-700 rounded-full w-8 h-8 p-0">+</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </section>
         </div>
 
         {/* Right Column: Cart Section */}
-        <div className="w-full lg:w-80 bg-gray-50 border border-gray-200 rounded-lg p-4 flex-shrink-0 lg:sticky lg:top-24 lg:h-[calc(100vh-6rem)] lg:overflow-y-auto">
+        <div className="w-full lg:w-72 bg-gray-50 border border-gray-200 rounded-lg p-4 flex-shrink-0 lg:sticky lg:top-24 lg:h-[calc(100vh-6rem)] lg:overflow-y-auto">
           <div className="pb-4 border-b mb-4">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center">
               <Scale className="h-5 w-5 mr-2 text-blue-600" />
@@ -1977,6 +1956,9 @@ const handleAuth = async (e: React.FormEvent) => {
                     <div className="flex-1">
                       <h4 className="font-medium text-sm text-gray-900">{item.name}</h4>
                       <p className="text-xs text-gray-500">{item.category}</p>
+                      {item.details && (
+                        <p className="text-[11px] text-gray-600 mt-1">{item.details}</p>
+                      )}
                       <p className="text-sm font-semibold text-blue-600">${item.price.toLocaleString()}</p>
                     </div>
                     <Button
@@ -2071,9 +2053,9 @@ const handleAuth = async (e: React.FormEvent) => {
                             <SelectValue placeholder="Choose turnaround" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="standard">Standard (7-10 days)</SelectItem>
-                            <SelectItem value="expediated">Expediated (3-5 Days)</SelectItem>
-                            <SelectItem value="rush">Rush (1-2 days)</SelectItem>
+                            <SelectItem value="standard">Standard (7-10 days) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
+                            <SelectItem value="expediated">Expediated (3-5 Days) — {formatINR(computeTurnaroundTotal("expediated"))}</SelectItem>
+                            <SelectItem value="rush">Rush (1-2 days) — {formatINR(computeTurnaroundTotal("rush"))}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
