@@ -499,7 +499,7 @@ const patentServices = [
       setPreview({ total: 0, professional: 0, government: 0 })
       return
     }
-    const applicationType =
+    let applicationType =
       optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
         ? "individual"
         : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
@@ -507,6 +507,10 @@ const patentServices = [
         : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
         ? "others"
         : "individual"
+
+    if (selectedServiceTitle === "Patent Application Filing" && (optionsForm.searchType === "individual" || optionsForm.searchType === "others")) {
+      applicationType = optionsForm.searchType as any
+    }
 
     const sel = {
       applicationType,
@@ -574,7 +578,7 @@ const patentServices = [
     if (!selectedServiceTitle || !selectedServiceCategory) return
 
     // Map applicant type selection to pricing application_type
-    const applicationType =
+    let applicationType =
       optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
         ? "individual"
         : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
@@ -582,6 +586,10 @@ const patentServices = [
         : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
         ? "others"
         : "individual"
+
+    if (selectedServiceTitle === "Patent Application Filing" && (optionsForm.searchType === "individual" || optionsForm.searchType === "others")) {
+      applicationType = optionsForm.searchType as any
+    }
 
     // If no turnaround selected, default to 'standard' for pricing
     const selectedTurnaround = optionsForm.goodsServices && optionsForm.goodsServices !== "0"
@@ -649,14 +657,47 @@ const patentServices = [
       expediated: "Expediated (3-5 Days)",
       rush: "Rush (1-2 days)",
     } as const
+    const draftingSpecMap = {
+      ps: "Provisional Specification (PS)",
+      cs: "Complete Specification (CS)",
+      ps_cs: "PS-CS",
+    } as const
+    const filingTypeMap = {
+      provisional_filing: "Provisional Filing (4 days) - Up to 30 pages of specification and drawing",
+      complete_specification_filing: "Complete Specification Filing (4 days) - Up to 30 pages of specification and drawing",
+      ps_cs_filing: "PS-CS Filing (4 days) - Up to 30 pages of specification and drawing",
+      pct_filing: "PCT Filing",
+    } as const
+    const ferMap = {
+      base_fee: "Base Fee (Response due date after 3 months)",
+      within_15: "Response due anytime after 15 days",
+      within_11_15: "Response due within 11-15 days",
+      within_4_10: "Response due within 4-10 days",
+    } as const
+
     const goods = optionsForm.goodsServicesCustom || optionsForm.goodsServices
     const searchTypeLabel = optionsForm.searchType
       ? prettySearchTypeMap[optionsForm.searchType as keyof typeof prettySearchTypeMap]
-      : "N/A"
+      : ""
     const turnaroundLabel = selectedTurnaround
       ? prettyTurnaroundMap[selectedTurnaround as keyof typeof prettyTurnaroundMap]
-      : "N/A"
-    const details = `Search: ${searchTypeLabel}; Turnaround: ${turnaroundLabel}`
+      : ""
+
+    const specLabel = optionsForm.searchType ? draftingSpecMap[optionsForm.searchType as keyof typeof draftingSpecMap] : ""
+    const filingLabel = optionsForm.goodsServices ? filingTypeMap[optionsForm.goodsServices as keyof typeof filingTypeMap] : ""
+    const responseLabel = optionsForm.searchType ? ferMap[optionsForm.searchType as keyof typeof ferMap] : ""
+    const applicantLabel = optionsForm.searchType === "others" ? "Large Entity/Others" : optionsForm.searchType === "individual" ? "Start-Up/Individuals/MSMEs/Educational Institute" : ""
+
+    let details = ""
+    if (selectedServiceTitle === "Drafting") {
+      details = `Specification: ${specLabel}${turnaroundLabel ? `; Turnaround: ${turnaroundLabel}` : ""}`
+    } else if (selectedServiceTitle === "Patent Application Filing") {
+      details = `Applicant: ${applicantLabel}${filingLabel ? `; Filing: ${filingLabel}` : ""}`
+    } else if (selectedServiceTitle === "First Examination Response") {
+      details = `Response Due: ${responseLabel}`
+    } else {
+      details = `Search: ${searchTypeLabel}${turnaroundLabel ? `; Turnaround: ${turnaroundLabel}` : ""}`
+    }
 
     const newItem = {
       id: `${selectedServiceTitle}-${Date.now()}`,
@@ -2009,10 +2050,93 @@ const handleAuth = async (e: React.FormEvent) => {
                   <DialogHeader>
                     <DialogTitle>Options for: {selectedServiceTitle}</DialogTitle>
                     <DialogDescription>Select the options for this service.</DialogDescription>
+
+                    {selectedServiceTitle === 'Drafting' && (
+                      <>
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700">Specification Type</Label>
+                          <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v }))}>
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder="Choose specification" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="ps">Provisional Specification (PS)</SelectItem>
+                              <SelectItem value="cs">Complete Specification (CS)</SelectItem>
+                              <SelectItem value="ps_cs">PS-CS</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {optionsForm.searchType && (
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">Turnaround</Label>
+                            <Select value={optionsForm.goodsServices} onValueChange={(v) => setOptionsForm((p) => ({ ...p, goodsServices: v }))}>
+                              <SelectTrigger className="mt-1">
+                                <SelectValue placeholder="Choose turnaround" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="standard">Standard (12-15 days) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
+                                <SelectItem value="expediated">Expediated (8-10 Days) — {formatINR(computeTurnaroundTotal("expediated"))}</SelectItem>
+                                <SelectItem value="rush">Rush (5-7 days) — {formatINR(computeTurnaroundTotal("rush"))}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {selectedServiceTitle === 'Patent Application Filing' && (
+                      <>
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700">Applicant Type</Label>
+                          <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v }))}>
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder="Choose applicant type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="individual">Start-Up/Individuals/MSMEs/Educational Institute</SelectItem>
+                              <SelectItem value="others">Large Entity/Others</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {optionsForm.searchType && (
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">Filing Type</Label>
+                            <Select value={optionsForm.goodsServices} onValueChange={(v) => setOptionsForm((p) => ({ ...p, goodsServices: v }))}>
+                              <SelectTrigger className="mt-1">
+                                <SelectValue placeholder="Choose filing type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="provisional_filing">Provisional Filing (4 days) - Up to 30 pages of specification and drawing</SelectItem>
+                                <SelectItem value="complete_specification_filing">Complete Specification Filing (4 days) - Up to 30 pages of specification and drawing</SelectItem>
+                                <SelectItem value="ps_cs_filing">PS-CS Filing (4 days) - Up to 30 pages of specification and drawing</SelectItem>
+                                <SelectItem value="pct_filing">PCT Filing</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {selectedServiceTitle === 'First Examination Response' && (
+                      <div>
+                        <Label className="text-sm font-medium text-gray-700">Response Due</Label>
+                        <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v }))}>
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Choose option" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="base_fee">Base Fee (Response due date after 3 months)</SelectItem>
+                            <SelectItem value="within_15">Response due anytime after 15 days</SelectItem>
+                            <SelectItem value="within_11_15">Response due within 11-15 days</SelectItem>
+                            <SelectItem value="within_4_10">Response due within 4-10 days</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </DialogHeader>
 
                   <TooltipProvider>
-                    <div className="space-y-6 mb-4">
+                    <div className="space-y-6 mb-4" style={{ display: selectedServiceTitle !== 'Patentability Search' ? 'none' : undefined }}>
                     <div>
                       <div className="flex items-center gap-2">
                         <Label className="text-sm font-medium text-gray-700">Search Type</Label>
