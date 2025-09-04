@@ -577,6 +577,25 @@ const patentServices = [
   const addToCartWithOptions = async () => {
     if (!selectedServiceTitle || !selectedServiceCategory) return
 
+    // Validate mandatory selections per service
+    let missing: string[] = []
+    if (selectedServiceTitle === "Patentability Search") {
+      if (!optionsForm.searchType) missing.push("Search Type")
+      if (!optionsForm.goodsServices) missing.push("Turnaround")
+    } else if (selectedServiceTitle === "Drafting") {
+      if (!optionsForm.searchType) missing.push("Specification Type")
+      if (!optionsForm.goodsServices) missing.push("Turnaround")
+    } else if (selectedServiceTitle === "Patent Application Filing") {
+      if (!optionsForm.searchType) missing.push("Applicant Type")
+      if (!optionsForm.goodsServices) missing.push("Filing Type")
+    } else if (selectedServiceTitle === "First Examination Response") {
+      if (!optionsForm.searchType) missing.push("Response Due")
+    }
+    if (missing.length) {
+      alert(`Please select: ${missing.join(", ")}`)
+      return
+    }
+
     // Map applicant type selection to pricing application_type
     let applicationType =
       optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
@@ -591,10 +610,8 @@ const patentServices = [
       applicationType = optionsForm.searchType as any
     }
 
-    // If no turnaround selected, default to 'standard' for pricing
-    const selectedTurnaround = optionsForm.goodsServices && optionsForm.goodsServices !== "0"
-      ? optionsForm.goodsServices
-      : "standard";
+    // Use selected turnaround as-is; require explicit selection via validation above
+    const selectedTurnaround = optionsForm.goodsServices || undefined
 
     const selectedOptions = {
       applicationType,
@@ -2203,7 +2220,16 @@ const handleAuth = async (e: React.FormEvent) => {
                   </TooltipProvider>
            
                   <DialogFooter>
-                    <Button className="bg-blue-600 hover:bg-blue-700" onClick={addToCartWithOptions}>
+                    <Button
+                      className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={addToCartWithOptions}
+                      disabled={
+                        (selectedServiceTitle === "Patentability Search" && (!optionsForm.searchType || !optionsForm.goodsServices)) ||
+                        (selectedServiceTitle === "Drafting" && (!optionsForm.searchType || !optionsForm.goodsServices)) ||
+                        (selectedServiceTitle === "Patent Application Filing" && (!optionsForm.searchType || !optionsForm.goodsServices)) ||
+                        (selectedServiceTitle === "First Examination Response" && (!optionsForm.searchType))
+                      }
+                    >
                       Add
                     </Button>
                     <Button variant="outline" onClick={closeOptionsPanel}>
