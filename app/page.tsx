@@ -168,23 +168,7 @@ export default function LegalIPWebsite() {
     designField4: "",
     designField5: "",
   })
-/*
-  // Service pricing
-  const servicePricing = {
-    "Patent Search & Analysis": 500,
-    "Patent Application Filing": 2500,
-    "Patent Portfolio Management": 1500,
-    "Trademark Search": 300,
-    "Trademark Registration": 800,
-    "Trademark Monitoring": 400,
-    "Copyright Registration": 200,
-    "DMCA Services": 350,
-    "Copyright Licensing": 600,
-    "Design Registration": 450,
-    "Design Search": 250,
-    "Design Portfolio": 750,
-  }  
-*/  
+
 
 const services = [
   "Patentability Search",
@@ -576,11 +560,16 @@ const patentServices = [
         ? "others"
         : "individual"
 
+    // If no turnaround selected, default to 'standard' for pricing
+    const selectedTurnaround = optionsForm.goodsServices && optionsForm.goodsServices !== "0"
+      ? optionsForm.goodsServices
+      : "standard";
+
     const selectedOptions = {
       applicationType,
       niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
       goodsServices: {
-        dropdown: optionsForm.goodsServices || undefined,
+        dropdown: selectedTurnaround,
         customText: optionsForm.goodsServicesCustom || undefined,
       },
       searchType: optionsForm.searchType || undefined,
@@ -2106,93 +2095,7 @@ const handleAuth = async (e: React.FormEvent) => {
                     </div>
                   </div>
                   </TooltipProvider>
-
-                  <TooltipProvider>
-                    <div className="space-y-6">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Label className="text-sm font-medium text-gray-700">Applicant Type</Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Eye className="h-4 w-4 text-gray-500 cursor-pointer" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              Choose the applicant category; government fees vary by applicant type.
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        <div className="mt-2 grid grid-cols-1 gap-2">
-                          <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
-                            <input
-                              type="checkbox"
-                              checked={optionsForm.applicantTypes.includes("Start-Up/Individuals/MSMEs/               Educational Institute")}
-                              onChange={() => toggleApplicantType("Start-Up/Individuals/MSMEs/                         Educational Institute")}
-                            />
-                            Start-Up/Individuals/MSMEs/
-                            Educational Institute
-                          </label>
-                          <label className="flex items-center gap-2 text-sm text-gray-700 p-2 border rounded">
-                            <input
-                              type="checkbox"
-                              checked={optionsForm.applicantTypes.includes("Large Entity/Others")}
-                              onChange={() => toggleApplicantType("Large Entity/Others")}
-                            />
-                            Large Entity/Others
-                          </label>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Label className="text-sm font-medium text-gray-700">Quick Knockout Search</Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Eye className="h-4 w-4 text-gray-500 cursor-pointer" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              Pick the turnaround time. Faster tiers may increase professional fees.
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        <select
-                          value={optionsForm.goodsServices}
-                          onChange={(e) => setOptionsForm((prev) => ({ ...prev, goodsServices: e.target.value }))}
-                          className="mt-2 w-full border rounded p-2"
-                        >
-                          <option value="">Select from dropdown...</option>
-                          <option value="Standard">Standard (7-10 days)</option>
-                          <option value="Expediated">Expediated (3-5 Days)</option>
-                          <option value="Rush">Rush (1-2 days)</option>
-                        </select>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="flex items-center gap-2">
-                          <Label className="text-sm font-medium text-gray-700">Estimated Professional Fee</Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Eye className="h-4 w-4 text-gray-500 cursor-pointer" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              Our professional service fee estimate for the selected options.
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Label className="text-sm font-medium text-gray-700">Estimated Govt. Fee</Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Eye className="h-4 w-4 text-gray-500 cursor-pointer" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              Indicative government filing fee. Actuals may vary per IPO schedule.
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </div>
-                    </div>
-                  </TooltipProvider>
-
+           
                   <DialogFooter>
                     <Button className="bg-blue-600 hover:bg-blue-700" onClick={addToCartWithOptions}>
                       Add
