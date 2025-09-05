@@ -573,31 +573,11 @@ const patentServices = [
       return { ...prev, applicantTypes: Array.from(set) }
     })
   }
-
-  const addToCartWithOptions = async () => {
+    const addToCartWithOptions = async () => {
     if (!selectedServiceTitle || !selectedServiceCategory) return
 
-    // Validate mandatory selections per service
-    let missing: string[] = []
-    if (selectedServiceTitle === "Patentability Search") {
-      if (!optionsForm.searchType) missing.push("Search Type")
-      if (!optionsForm.goodsServices) missing.push("Turnaround")
-    } else if (selectedServiceTitle === "Drafting") {
-      if (!optionsForm.searchType) missing.push("Specification Type")
-      if (!optionsForm.goodsServices) missing.push("Turnaround")
-    } else if (selectedServiceTitle === "Patent Application Filing") {
-      if (!optionsForm.searchType) missing.push("Applicant Type")
-      if (!optionsForm.goodsServices) missing.push("Filing Type")
-    } else if (selectedServiceTitle === "First Examination Response") {
-      if (!optionsForm.searchType) missing.push("Response Due")
-    }
-    if (missing.length) {
-      alert(`Please select: ${missing.join(", ")}`)
-      return
-    }
-
     // Map applicant type selection to pricing application_type
-    let applicationType =
+    const applicationType =
       optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
         ? "individual"
         : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
@@ -606,12 +586,10 @@ const patentServices = [
         ? "others"
         : "individual"
 
-    if (selectedServiceTitle === "Patent Application Filing" && (optionsForm.searchType === "individual" || optionsForm.searchType === "others")) {
-      applicationType = optionsForm.searchType as any
-    }
-
-    // Use selected turnaround as-is; require explicit selection via validation above
-    const selectedTurnaround = optionsForm.goodsServices || undefined
+    // If no turnaround selected, default to 'standard' for pricing
+    const selectedTurnaround = optionsForm.goodsServices && optionsForm.goodsServices !== "0"
+      ? optionsForm.goodsServices
+      : "standard";
 
     const selectedOptions = {
       applicationType,
@@ -629,7 +607,7 @@ const patentServices = [
       // Include Option1 row by default per provided pricing table
       option1: true,
     } as const
-
+       
     // Always compute price from DB rules using selected options
     const basePrice = servicePricing[selectedServiceTitle as keyof typeof servicePricing] || 0
     const { data: svc, error: svcErr } = await supabase
@@ -666,55 +644,22 @@ const patentServices = [
 
     const prettySearchTypeMap = {
       quick: "Quick Knockout Search",
-      full_without_opinion: "Full Search (No Opinion)",
-      full_with_opinion: "Full Search (With Opinion)",
+      full_without_opinion: "Full Patentability Search (No Opinion)",
+      full_with_opinion: "Full Patentability Search (With Opinion)",
     } as const
     const prettyTurnaroundMap = {
       standard: "Standard (7-10 days)",
       expediated: "Expediated (3-5 Days)",
       rush: "Rush (1-2 days)",
     } as const
-    const draftingSpecMap = {
-      ps: "Provisional Specification (PS)",
-      cs: "Complete Specification (CS)",
-      ps_cs: "PS-CS",
-    } as const
-    const filingTypeMap = {
-      provisional_filing: "Provisional Filing (4 days) - Up to 30 pages of specification and drawing",
-      complete_specification_filing: "Complete Specification Filing (4 days) - Up to 30 pages of specification and drawing",
-      ps_cs_filing: "PS-CS Filing (4 days) - Up to 30 pages of specification and drawing",
-      pct_filing: "PCT Filing",
-    } as const
-    const ferMap = {
-      base_fee: "Base Fee (Response due date after 3 months)",
-      within_15: "Response due anytime after 15 days",
-      within_11_15: "Response due within 11-15 days",
-      within_4_10: "Response due within 4-10 days",
-    } as const
-
     const goods = optionsForm.goodsServicesCustom || optionsForm.goodsServices
     const searchTypeLabel = optionsForm.searchType
       ? prettySearchTypeMap[optionsForm.searchType as keyof typeof prettySearchTypeMap]
-      : ""
+      : "N/A"
     const turnaroundLabel = selectedTurnaround
       ? prettyTurnaroundMap[selectedTurnaround as keyof typeof prettyTurnaroundMap]
-      : ""
-
-    const specLabel = optionsForm.searchType ? draftingSpecMap[optionsForm.searchType as keyof typeof draftingSpecMap] : ""
-    const filingLabel = optionsForm.goodsServices ? filingTypeMap[optionsForm.goodsServices as keyof typeof filingTypeMap] : ""
-    const responseLabel = optionsForm.searchType ? ferMap[optionsForm.searchType as keyof typeof ferMap] : ""
-    const applicantLabel = optionsForm.searchType === "others" ? "Large Entity/Others" : optionsForm.searchType === "individual" ? "Start-Up/Individuals/MSMEs/Educational Institute" : ""
-
-    let details = ""
-    if (selectedServiceTitle === "Drafting") {
-      details = `Specification: ${specLabel}${turnaroundLabel ? `; Turnaround: ${turnaroundLabel}` : ""}`
-    } else if (selectedServiceTitle === "Patent Application Filing") {
-      details = `Applicant: ${applicantLabel}${filingLabel ? `; Filing: ${filingLabel}` : ""}`
-    } else if (selectedServiceTitle === "First Examination Response") {
-      details = `Response Due: ${responseLabel}`
-    } else {
-      details = `Search: ${searchTypeLabel}${turnaroundLabel ? `; Turnaround: ${turnaroundLabel}` : ""}`
-    }
+      : "N/A"
+    const details = `Search: ${searchTypeLabel}; Turnaround: ${turnaroundLabel}`
 
     const newItem = {
       id: `${selectedServiceTitle}-${Date.now()}`,

@@ -84,30 +84,20 @@ export function computePriceFromRules(rules: PricingRule[], opts: SelectedOption
     total += goodsRule.amount
   }
 
-  // Turnaround from dropdown (DB-driven)
-  const t = (opts.goodsServices?.dropdown || "").toLowerCase()
-  if (t === "standard") {
-    const r = byKey.get("turnaround_standard")
-    if (r) total += r.amount
-  } else if (t === "expediated") {
-    const r = byKey.get("turnaround_expediated")
-    if (r) total += r.amount
-  } else if (t === "rush") {
-    const r = byKey.get("turnaround_rush")
-    if (r) total += r.amount
+  // Combined key logic for search type and turnaround
+  const st = (opts.searchType || "").toLowerCase();
+  const t = (opts.goodsServices?.dropdown || "").toLowerCase();
+  let combinedKey = "";
+  if (st === "full_without_opinion" && t) {
+    combinedKey = `full_without_opinion_${t}`;
+  } else if (st === "full_with_opinion" && t) {
+    combinedKey = `full_with_opinion_${t}`;
+  } else if (st === "quick" && t) {
+    combinedKey = `turnaround_${t}`;
   }
-
-  // Search type (DB-driven)
-  const st = (opts.searchType || "").toLowerCase()
-  if (st === "quick") {
-    const r = byKey.get("search_type_quick")
-    if (r) total += r.amount
-  } else if (st === "full_without_opinion") {
-    const r = byKey.get("search_type_full_without_opinion")
-    if (r) total += r.amount
-  } else if (st === "full_with_opinion") {
-    const r = byKey.get("search_type_full_with_opinion")
-    if (r) total += r.amount
+  if (combinedKey) {
+    const r = byKey.get(combinedKey);
+    if (r) total += r.amount;
   }
 
   // Prior use
@@ -121,4 +111,5 @@ export function computePriceFromRules(rules: PricingRule[], opts: SelectedOption
   if (profRule) total += profRule.amount
 
   return total
-}
+}  
+
