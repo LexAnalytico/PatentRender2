@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -48,6 +48,21 @@ const articles = [
 ]
 
 export default function KnowledgeHubPage() {
+  const [currentTrending, setCurrentTrending] = useState(0)
+  const trending = articles.slice(0, 4)
+
+  useEffect(() => {
+    if (trending.length <= 1) return
+    const id = setInterval(() => {
+      setCurrentTrending((i) => (i + 1) % trending.length)
+    }, 3000)
+    return () => clearInterval(id)
+  }, [trending.length])
+
+  const scrollTo = (slug: string) => {
+    const el = document.getElementById(slug)
+    if (el) el.scrollIntoView({ behavior: "smooth" })
+  }
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top Bar */}
@@ -75,6 +90,25 @@ export default function KnowledgeHubPage() {
           </div>
           <div className="w-64 hidden md:block">
             <Input placeholder="Search articles..." className="bg-white" />
+          </div>
+        </div>
+
+        {/* Trending banner */}
+        <div className="mb-6">
+          <div className="bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 flex items-center gap-3 overflow-hidden">
+            <span className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide">Trending</span>
+            <div className="relative h-6 flex-1">
+              {trending.map((a, idx) => (
+                <button
+                  key={a.slug}
+                  onClick={() => scrollTo(a.slug)}
+                  className={`absolute inset-0 flex items-center text-sm text-blue-800 hover:underline transition-all duration-500 ${idx === currentTrending ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}`}
+                  aria-label={`Go to ${a.title}`}
+                >
+                  • {a.title}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

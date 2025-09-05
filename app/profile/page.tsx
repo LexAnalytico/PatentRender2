@@ -44,6 +44,55 @@ export default function ProfilePage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [editProfile, setEditProfile] = useState<Profile>({} as Profile)
   const [saving, setSaving] = useState(false)
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({})
+  const orders = [
+    {
+      id: "TRX-10342",
+      title: "Trademark Registration",
+      status: "In Review",
+      placedAt: "2025-02-11",
+      total: "₹ 18,500",
+      details: {
+        items: ["Trademark search (Class 25)", "Drafting & filing", "Government fees"],
+        form: {
+          fields: [
+            { label: "Applicant Name", value: "Acme Clothing Co." },
+            { label: "Mark Name", value: "ACME FIT" },
+            { label: "Nice Classes", value: "25" },
+            { label: "Use in Commerce", value: "Yes (since 2022-03-10)" },
+          ],
+          attachments: ["logo_mark.png", "specimen_use.pdf"],
+        },
+        timeline: [
+          { label: "Order placed", date: "2025-02-11" },
+          { label: "Attorney assigned", date: "2025-02-12" },
+          { label: "Form review", date: "2025-02-13" },
+        ],
+      },
+    },
+    {
+      id: "PSA-98761",
+      title: "Patent Search & Analysis",
+      status: "Completed",
+      placedAt: "2024-12-03",
+      total: "₹ 42,000",
+      details: {
+        items: ["Quick knockout search", "Prior art matrix", "Patentability opinion"],
+        form: {
+          fields: [
+            { label: "Inventor", value: "John Doe" },
+            { label: "Field", value: "IoT Sensors" },
+            { label: "Jurisdictions", value: "IN, US" },
+          ],
+        },
+        timeline: [
+          { label: "Order placed", date: "2024-12-03" },
+          { label: "Search completed", date: "2024-12-07" },
+          { label: "Opinion delivered", date: "2024-12-09" },
+        ],
+      },
+    },
+  ] as const
 
   useEffect(() => {
     let active = true
@@ -424,30 +473,96 @@ export default function ProfilePage() {
                   {/* Orders */}
                   <TabsContent value="orders">
                     <div className="space-y-3">
-                      <Card className="border">
-                        <CardContent className="p-4 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <ClipboardList className="h-5 w-5 text-blue-700" />
-                            <div>
-                              <div className="font-medium text-gray-900">Trademark Registration</div>
-                              <div className="text-xs text-gray-500">Order #TRX-10342 • In Review</div>
+                      {orders.map((o) => (
+                        <Card key={o.id} className="border">
+                          <CardContent className="p-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <ClipboardList className="h-5 w-5 text-blue-700" />
+                                <div>
+                                  <div className="font-medium text-gray-900">{o.title}</div>
+                                  <div className="text-xs text-gray-500">Order #{o.id} • {o.status}</div>
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setExpandedOrderIds((prev) => ({ ...prev, [o.id]: !prev[o.id] }))
+                                }
+                              >
+                                {expandedOrderIds[o.id] ? "Hide" : "View"}
+                              </Button>
                             </div>
-                          </div>
-                          <Button size="sm" variant="outline">View</Button>
-                        </CardContent>
-                      </Card>
-                      <Card className="border">
-                        <CardContent className="p-4 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <ClipboardList className="h-5 w-5 text-blue-700" />
-                            <div>
-                              <div className="font-medium text-gray-900">Patent Search & Analysis</div>
-                              <div className="text-xs text-gray-500">Order #PSA-98761 • Completed</div>
-                            </div>
-                          </div>
-                          <Button size="sm" variant="outline">View</Button>
-                        </CardContent>
-                      </Card>
+
+                            {expandedOrderIds[o.id] && (
+                              <div className="mt-4 border-t pt-4 space-y-4">
+                                <div className="grid sm:grid-cols-3 gap-3 text-sm">
+                                  <div className="p-3 rounded-lg bg-gray-50 border">
+                                    <div className="text-xs text-gray-500">Placed</div>
+                                    <div className="font-medium text-gray-900">{o.placedAt}</div>
+                                  </div>
+                                  <div className="p-3 rounded-lg bg-gray-50 border">
+                                    <div className="text-xs text-gray-500">Status</div>
+                                    <div className="font-medium">{o.status}</div>
+                                  </div>
+                                  <div className="p-3 rounded-lg bg-gray-50 border">
+                                    <div className="text-xs text-gray-500">Total</div>
+                                    <div className="font-medium">{o.total}</div>
+                                  </div>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 gap-4">
+                                  <div className="rounded-lg border p-4">
+                                    <div className="text-sm font-semibold mb-2">Items</div>
+                                    <ul className="list-disc pl-5 space-y-1 text-sm text-gray-700">
+                                      {o.details.items.map((it, idx) => (
+                                        <li key={idx}>{it}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                  <div className="rounded-lg border p-4">
+                                    <div className="text-sm font-semibold mb-2">Form Details</div>
+                                    <div className="space-y-2 text-sm text-gray-700">
+                                      {o.details.form.fields.map((f, idx) => (
+                                        <div key={idx} className="flex justify-between gap-4">
+                                          <span className="text-gray-500">{f.label}</span>
+                                          <span className="font-medium text-gray-900">{f.value}</span>
+                                        </div>
+                                      ))}
+                                      {o.details.form.attachments && (
+                                        <div className="pt-2">
+                                          <div className="text-xs text-gray-500 mb-1">Attachments</div>
+                                          <div className="flex flex-wrap gap-2">
+                                            {o.details.form.attachments.map((a, idx) => (
+                                              <span key={idx} className="text-xs px-2 py-1 bg-gray-100 rounded border">{a}</span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="rounded-lg border p-4">
+                                  <div className="text-sm font-semibold mb-3">Timeline</div>
+                                  <div className="space-y-2">
+                                    {o.details.timeline.map((t, idx) => (
+                                      <div key={idx} className="flex items-center justify-between text-sm">
+                                        <div className="flex items-center gap-2 text-gray-700">
+                                          <Calendar className="h-4 w-4 text-gray-500" />
+                                          <span>{t.label}</span>
+                                        </div>
+                                        <span className="text-xs text-gray-500">{t.date}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
                   </TabsContent>
 

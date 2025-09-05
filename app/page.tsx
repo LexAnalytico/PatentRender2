@@ -345,12 +345,37 @@ const patentServices = [
     { label: "Happy Clients", value: 950, key: "clients" },
   ]
 
+  const reviews = [
+    {
+      quote: "LegalIP Pro streamlined our filing and kept us informed at every step. Outstanding experience.",
+      name: "Anita S.",
+      role: "Founder, HealthTech Co.",
+      rating: 5,
+    },
+    {
+      quote: "Clear guidance and timely updates helped us avoid costly delays. Highly recommended.",
+      name: "Rahul M.",
+      role: "CTO, IoT Startup",
+      rating: 5,
+    },
+    {
+      quote: "Excellent trademark strategy with practical advice we could implement quickly.",
+      name: "Priya K.",
+      role: "Brand Manager, D2C",
+      rating: 4,
+    },
+  ]
+  const [reviewIndex, setReviewIndex] = useState(0)
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % bannerSlides.length)
     }, 5000)
     return () => clearInterval(interval)
   }, [])
+  useEffect(() => {
+    const id = setInterval(() => setReviewIndex((i) => (i + 1) % reviews.length), 4000)
+    return () => clearInterval(id)
+  }, [reviews.length])
 
   useEffect(() => {
     const animateCounters = () => {
@@ -2188,6 +2213,66 @@ const handleAuth = async (e: React.FormEvent) => {
           </div>
         </div>
       </div>
+
+      {/* Reviews Carousel */}
+      <section className="py-16 bg-white">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900">What clients say</h2>
+            <p className="text-gray-600 mt-2">Real feedback from founders, counsel, and operators</p>
+          </div>
+
+          <div className="relative mx-auto max-w-3xl">
+            <div className="min-h-[160px] relative">
+              {reviews.map((r, idx) => (
+                <div
+                  key={idx}
+                  className={`absolute inset-0 transition-all duration-700 ease-in-out ${idx === reviewIndex ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2 pointer-events-none"}`}
+                >
+                  <div className="bg-gray-50 border rounded-xl p-6 md:p-8 shadow-sm">
+                    <p className="text-lg md:text-xl text-gray-800 leading-relaxed">“{r.quote}”</p>
+                    <div className="mt-4 flex items-center justify-center gap-2 text-amber-500">
+                      {Array.from({ length: r.rating }).map((_, i) => (
+                        <span key={`f-${i}`}>★</span>
+                      ))}
+                      {Array.from({ length: 5 - r.rating }).map((_, i) => (
+                        <span key={`e-${i}`}>☆</span>
+                      ))}
+                    </div>
+                    <div className="mt-3 text-sm text-gray-600 text-center">— {r.name}, {r.role}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              aria-label="Previous review"
+              onClick={() => setReviewIndex((i) => (i - 1 + reviews.length) % reviews.length)}
+              className="absolute -left-3 top-1/2 -translate-y-1/2 bg-white border rounded-full p-2 shadow hover:bg-gray-50"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              aria-label="Next review"
+              onClick={() => setReviewIndex((i) => (i + 1) % reviews.length)}
+              className="absolute -right-3 top-1/2 -translate-y-1/2 bg-white border rounded-full p-2 shadow hover:bg-gray-50"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+
+            <div className="mt-6 flex items-center justify-center gap-2">
+              {reviews.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setReviewIndex(i)}
+                  className={`h-2.5 rounded-full transition-all ${i === reviewIndex ? "w-6 bg-blue-600" : "w-2.5 bg-gray-300"}`}
+                  aria-label={`Go to review ${i + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Milestone Counter (Full Width) */}
       <section id="milestones" className="py-16 bg-gray-50">
