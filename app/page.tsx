@@ -509,6 +509,14 @@ const patentServices = [
       }
       try {
         const rules = await fetchServicePricingRules(serviceId)
+        // Debug: log rules meta when loading
+        console.log("[Rules] Loaded", {
+          service: selectedServiceTitle,
+          serviceId,
+          count: Array.isArray(rules) ? rules.length : 0,
+          appTypes: Array.isArray(rules) ? Array.from(new Set(rules.map((r: any) => r.application_type))) : [],
+          sampleKeys: Array.isArray(rules) ? Array.from(new Set(rules.slice(0, 12).map((r: any) => r.key))) : [],
+        })
         setPricingRules(rules as any)
       } catch (e) {
         console.error("Failed to load pricing rules:", e)
@@ -559,6 +567,18 @@ const patentServices = [
     )
     const professional = profRule ? Number(profRule.amount) : 0
     const government = Math.max(0, total - professional)
+
+    // Debug: log recompute context
+    console.log("[Preview] Recompute", {
+      service: selectedServiceTitle,
+      applicationType,
+      searchType: optionsForm.searchType,
+      filingType: optionsForm.goodsServices,
+      niceClasses: optionsForm.niceClasses,
+      priorUse: optionsForm.useType,
+      totals: { total, professional, government },
+    })
+
     setPreview({ total, professional, government })
   }, [pricingRules, optionsForm, selectedServiceTitle])
 
@@ -602,7 +622,7 @@ const patentServices = [
     if (!selectedServiceTitle || !selectedServiceCategory) return
 
     // Map applicant type selection to pricing application_type
-    const applicationType =
+    let applicationType =
       optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
         ? "individual"
         : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
@@ -610,6 +630,15 @@ const patentServices = [
         : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
         ? "others"
         : "individual"
+
+    // For Patent Application Filing, the Applicant Type select is stored in searchType.
+    // If present, override the derived value so we price against the intended application type.
+    if (
+      selectedServiceTitle === "Patent Application Filing" &&
+      (optionsForm.searchType === "individual" || optionsForm.searchType === "others")
+    ) {
+      applicationType = optionsForm.searchType as any
+    }
 
     // If no turnaround selected, default to 'standard' for pricing
     const selectedTurnaround = optionsForm.goodsServices && optionsForm.goodsServices !== "0"
@@ -667,24 +696,51 @@ const patentServices = [
       price = basePrice
     }
 
+    // Debug: log add-to-cart computation context
+    console.log("[Cart] Add with options", {
+      service: selectedServiceTitle,
+      serviceId,
+      applicationType,
+      searchType: optionsForm.searchType,
+      filingType: selectedTurnaround,
+      computedPrice: price,
+    })
+
     const prettySearchTypeMap = {
+      // Patentability Search types
       quick: "Quick Knockout Search",
       full_without_opinion: "Full Patentability Search (No Opinion)",
       full_with_opinion: "Full Patentability Search (With Opinion)",
+      // Drafting types
+      ps: "Provisional Specification (PS)",
+      cs: "Complete Specification (CS)",
+      ps_cs: "PS-CS",
     } as const
-    const prettyTurnaroundMap = {
-      standard: "Standard (7-10 days)",
-      expediated: "Expediated (3-5 Days)",
-      rush: "Rush (1-2 days)",
-    } as const
+
+    // Turnaround labels differ for Drafting vs. Patentability Search
+    const prettyTurnaroundMap =
+      selectedServiceTitle === "Drafting"
+        ? {
+            standard: "Standard (12-15 days)",
+            expediated: "Expediated (8-10 Days)",
+            rush: "Rush (5-7 days)",
+          }
+        : {
+            standard: "Standard (7-10 days)",
+            expediated: "Expediated (3-5 Days)",
+            rush: "Rush (1-2 days)",
+          }
+
     const goods = optionsForm.goodsServicesCustom || optionsForm.goodsServices
     const searchTypeLabel = optionsForm.searchType
-      ? prettySearchTypeMap[optionsForm.searchType as keyof typeof prettySearchTypeMap]
+      ? (prettySearchTypeMap as any)[optionsForm.searchType] ?? optionsForm.searchType
       : "N/A"
     const turnaroundLabel = selectedTurnaround
-      ? prettyTurnaroundMap[selectedTurnaround as keyof typeof prettyTurnaroundMap]
+      ? (prettyTurnaroundMap as any)[selectedTurnaround] ?? selectedTurnaround
       : "N/A"
-    const details = `Search: ${searchTypeLabel}; Turnaround: ${turnaroundLabel}`
+
+    const detailsLabel = selectedServiceTitle === "Drafting" ? "Type" : "Search"
+    const details = `${detailsLabel}: ${searchTypeLabel}; Turnaround: ${turnaroundLabel}`
 
     const newItem = {
       id: `${selectedServiceTitle}-${Date.now()}`,
@@ -2113,9 +2169,9 @@ const handleAuth = async (e: React.FormEvent) => {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="base_fee">Base Fee (Response due date after 3 months)</SelectItem>
-                            <SelectItem value="within_15">Response due anytime after 15 days</SelectItem>
-                            <SelectItem value="within_11_15">Response due within 11-15 days</SelectItem>
-                            <SelectItem value="within_4_10">Response due within 4-10 days</SelectItem>
+                            <SelectItem value="response_due_anytime_after_15_days">Response due anytime after 15 days</SelectItem>
+                            <SelectItem value="response_due_within_11_15_days">Response due within 11-15 days</SelectItem>
+                            <SelectItem value="response_due_within_4_10_days">Response due within 4-10 days</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

@@ -1,0 +1,101 @@
+category
+id,name,description
+1,Patent Services,patent
+2,Trademark Services,trademark
+3,Copyright Services,copyright
+4,Design Services,design
+
+Services
+id,category_id,name,base_price,description
+1,1,Patent Search & Analysis,500.00,Patent prior art and novelty search
+2,1,Patent Application Filing,2500.00,Drafting and filing patent application
+3,1,Patent Portfolio Management,1500.00,Managing multiple patents and renewals
+4,2,Trademark Search,300.00,Search for trademark availability
+5,2,Trademark Registration,800.00,Filing and registering trademarks
+6,2,Trademark Monitoring,400.00,Ongoing trademark infringement monitoring
+7,3,Copyright Registration,200.00,"Registering literary, artistic works"
+8,3,DMCA Services,350.00,Takedown notices and enforcement
+9,3,Copyright Licensing,600.00,Licensing agreements and management
+10,4,Design Registration,450.00,Registering industrial designs
+11,4,Design Search,250.00,Searching existing registered designs
+12,4,Design Portfolio,750.00,Managing design registrations and renewals
+
+
+service_pricing_rules
+id,service_id,application_type,key,unit,amount
+1,1,individual,turnaround_standard,fixed,10500.00
+2,1,individual,option1,fixed,0.00
+3,1,startup_msme,option1,fixed,0.00
+4,1,others,option1,fixed,0.00
+5,1,individual,nice_classes,per_class,0.00
+6,1,startup_msme,nice_classes,per_class,0.00
+7,1,others,nice_classes,per_class,0.00
+8,1,individual,goods_services,fixed,0.00
+9,1,startup_msme,goods_services,fixed,0.00
+10,1,others,goods_services,fixed,0.00
+11,1,individual,prior_use_yes,fixed,0.00
+12,1,startup_msme,prior_use_yes,fixed,0.00
+13,1,others,prior_use_yes,fixed,0.00
+14,1,individual,professional_fee,fixed,0.00
+15,1,startup_msme,professional_fee,fixed,0.00
+16,1,others,professional_fee,fixed,0.00
+17,2,individual,option1,fixed,0.00
+18,2,individual,nice_classes,per_class,0.00
+19,2,individual,goods_services,fixed,0.00
+20,2,individual,prior_use_yes,fixed,0.00
+21,2,individual,professional_fee,fixed,0.00
+22,2,startup_msme,option1,fixed,0.00
+23,2,startup_msme,nice_classes,per_class,0.00
+24,2,startup_msme,goods_services,fixed,0.00
+25,2,startup_msme,prior_use_yes,fixed,0.00
+26,2,startup_msme,professional_fee,fixed,0.00
+27,2,others,option1,fixed,0.00
+28,2,others,nice_classes,per_class,0.00
+29,2,others,goods_services,fixed,0.00
+30,2,others,prior_use_yes,fixed,0.00
+31,2,others,professional_fee,fixed,0.00
+32,3,individual,option1,fixed,0.00
+33,3,individual,nice_classes,per_class,0.00
+34,3,individual,goods_services,fixed,0.00
+35,3,individual,prior_use_yes,fixed,0.00
+36,3,individual,professional_fee,fixed,0.00
+37,3,startup_msme,option1,fixed,0.00
+38,3,startup_msme,nice_classes,per_class,0.00
+39,3,startup_msme,goods_services,fixed,0.00
+40,3,startup_msme,prior_use_yes,fixed,0.00
+41,3,startup_msme,professional_fee,fixed,0.00
+42,3,others,option1,fixed,0.00
+43,3,others,nice_classes,per_class,0.00
+44,3,others,goods_services,fixed,0.00
+45,3,others,prior_use_yes,fixed,0.00
+46,3,others,professional_fee,fixed,0.00
+47,1,individual,turnaround_standard,fixed,10500.00
+48,1,individual,turnaround_expediated,fixed,10500.00
+49,1,individual,turnaround_rush,fixed,15000.00
+50,1,individual,full_without_opinion_standard,fixed,15000.00
+51,1,individual,full_without_opinion_expediated,fixed,18000.00
+52,1,individual,full_without_opinion_rush,fixed,19500.00
+53,1,individual,full_with_opinion_standard,fixed,16500.00
+54,1,individual,full_with_opinion_expediated,fixed,19500.00
+55,1,individual,full_with_opinion_rush,fixed,21000.00
+56,2,individual,provisional_specification_standard,fixed,18000.00
+57,2,individual,provisional_specification_expediated,fixed,22000.00
+58,2,individual,provisional_specification_rush,fixed,24000.00
+59,2,individual,complete_specification_standard,fixed,30000.00
+60,2,individual,complete_specification_expediated,fixed,34000.00
+61,2,individual,complete_specification_rush,fixed,36000.00
+62,2,individual,ps_cs_standard,fixed,25000.00
+63,2,individual,ps_cs_expediated,fixed,29000.00
+64,2,individual,ps_cs_rush,fixed,31000.00
+65,3,individual,provisional_filing,fixed,6600.00
+66,3,individual,complete_specification_filing,fixed,6600.00
+67,3,individual,ps_cs_filing,fixed,5000.00
+68,3,individual,pct_filing,fixed,9600.00
+69,4,individual,base_fee,fixed,15000.00
+70,4,individual,response_due_anytime_after_15_days,fixed,15000.00
+71,4,individual,response_due_within_11_15_days,fixed,18000.00
+72,4,individual,response_due_within_4_10_days,fixed,21000.00
+73,3,others,complete_specification_filing,fixed,13000.00
+74,3,others,pct_filing,fixed,13000.00
+75,3,others,provisional_filing,fixed,5000.00
+76,3,others,ps_cs_filing,fixed,16000.00

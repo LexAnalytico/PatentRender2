@@ -13,6 +13,26 @@ export type PricingKey =
   | "search_type_quick"
   | "search_type_full_without_opinion"
   | "search_type_full_with_opinion"
+  // Drafting (PS/CS/PS-CS) combined with turnaround
+  | "provisional_specification_standard"
+  | "provisional_specification_expediated"
+  | "provisional_specification_rush"
+  | "complete_specification_standard"
+  | "complete_specification_expediated"
+  | "complete_specification_rush"
+  | "ps_cs_standard"
+  | "ps_cs_expediated"
+  | "ps_cs_rush"
+  // Patent Application Filing (direct keys)
+  | "provisional_filing"
+  | "complete_specification_filing"
+  | "ps_cs_filing"
+  | "pct_filing"
+  // First Examination Response (direct keys)
+  | "base_fee"
+  | "response_due_anytime_after_15_days"
+  | "response_due_within_11_15_days"
+  | "response_due_within_4_10_days"
 
 export interface PricingRule {
   id: number
@@ -54,22 +74,28 @@ export async function fetchServicePricingRules(serviceId: number): Promise<Prici
 
 export function computePriceFromRules(rules: PricingRule[], opts: SelectedOptions): number {
   const byKey = new Map<string, PricingRule>()
+  const anyKey = new Map<string, PricingRule>()
   for (const r of rules) {
+    // Map of rules for the selected application type
     if (r.application_type === opts.applicationType) {
       byKey.set(r.key, r)
     }
+    // Unfiltered map (used as fallback)
+    if (!anyKey.has(r.key)) anyKey.set(r.key, r)
   }
+
+  const getRule = (key: string) => byKey.get(key) ?? anyKey.get(key)
 
   let total = 0
 
   // Option1 (if relevant)
   if (opts.option1) {
-    const rule = byKey.get("option1")
+    const rule = getRule("option1")
     if (rule) total += rule.amount
   }
 
   // NICE classes (per class)
-  const niceRule = byKey.get("nice_classes")
+  const niceRule = getRule("nice_classes")
   if (niceRule && opts.niceClasses?.length) {
     if (niceRule.unit === "per_class") {
       total += niceRule.amount * opts.niceClasses.length
@@ -79,12 +105,14 @@ export function computePriceFromRules(rules: PricingRule[], opts: SelectedOption
   }
 
   // Goods/Services selection cost (fixed add-on if any)
-  const goodsRule = byKey.get("goods_services")
+  const goodsRule = getRule("goods_services")
   if (goodsRule && (opts.goodsServices?.dropdown || opts.goodsServices?.customText)) {
     total += goodsRule.amount
   }
 
-  // Combined key logic for search type and turnaround
+  // Combined key logic for service-specific type and turnaround
+  // Patentability Search: quick/full_without_opinion/full_with_opinion + standard/expediated/rush
+  // Drafting: ps/cs/ps_cs + standard/expediated/rush
   const st = (opts.searchType || "").toLowerCase();
   const t = (opts.goodsServices?.dropdown || "").toLowerCase();
   let combinedKey = "";
@@ -94,20 +122,47 @@ export function computePriceFromRules(rules: PricingRule[], opts: SelectedOption
     combinedKey = `full_with_opinion_${t}`;
   } else if (st === "quick" && t) {
     combinedKey = `turnaround_${t}`;
+  } else if ((st === "ps" || st === "cs" || st === "ps_cs") && t) {
+    const base = st === "ps" ? "provisional_specification" : st === "cs" ? "complete_specification" : "ps_cs";
+    combinedKey = `${base}_${t}`;
   }
   if (combinedKey) {
-    const r = byKey.get(combinedKey);
+    const r = getRule(combinedKey);
     if (r) total += r.amount;
   }
 
+  // Patent Application Filing: goodsServices.dropdown holds a direct key
+  const filingKeys = new Set([
+    "provisional_filing",
+    "complete_specification_filing",
+    "ps_cs_filing",
+    "pct_filing",
+  ])
+  if (t && filingKeys.has(t)) {
+    const r = getRule(t)
+    if (r) total += r.amount
+  }
+
+  // First Examination Response: searchType holds a direct key
+  const ferKeys = new Set([
+    "base_fee",
+    "response_due_anytime_after_15_days",
+    "response_due_within_11_15_days",
+    "response_due_within_4_10_days",
+  ])
+  if (st && ferKeys.has(st)) {
+    const r = getRule(st)
+    if (r) total += r.amount
+  }
+
   // Prior use
-  const priorRule = byKey.get("prior_use_yes")
+  const priorRule = getRule("prior_use_yes")
   if (priorRule && opts.priorUse?.used) {
     total += priorRule.amount
   }
 
   // Professional fee always applies (if defined)
-  const profRule = byKey.get("professional_fee")
+  const profRule = getRule("professional_fee")
   if (profRule) total += profRule.amount
 
   return total

@@ -1,0 +1,22 @@
+1) mapping to be done from 
+- user->category->service->payment->forms
+2) this data should be available in pdf download and where else?
+3) forms to be completed
+4) add admin users to supabase and create admin panel for 
+- changing prices 
+- view orders
+- ....
+5) refactor code to put patent services code in 
+- patent_services file 
+- pricing related code in patent_service_pricing 
+6)Trademark, copyright and design to be completed 
+- same as point 5 where new files are created for services and pricing 
+7) UI testing with Playwright
+- create user, select category->services->add to cart->make payment
+- check for each category and service against the actual price in excel
+8) RLS testing with Playwright
+- test u1 cannot access u2 data
+- in draft mode user can change data 
+- in final mode (payment done) user/admin cannot change any data
+9) Download csv and sql file from supabase for tables: patentrender, category, services, service_pricing_rules
+ 
