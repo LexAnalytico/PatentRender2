@@ -609,6 +609,9 @@ const patentServices = [
     } as any
     return computePriceFromRules(pricingRules as any, sel)
   }
+  const basePrice = computeTurnaroundTotal("standard")
+  const expediatedDiff = computeTurnaroundTotal("expediated") - basePrice
+  const rushDiff = computeTurnaroundTotal("rush") - basePrice 
 
   const handleOptionsFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []).map((f) => f.name)
@@ -2108,9 +2111,9 @@ const handleAuth = async (e: React.FormEvent) => {
                               <SelectValue placeholder="Choose specification" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="ps">Provisional Specification (PS)</SelectItem>
-                              <SelectItem value="cs">Complete Specification (CS)</SelectItem>
-                              <SelectItem value="ps_cs">PS-CS</SelectItem>
+                              <SelectItem value="ps">Provisional Specification (PS) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
+                              <SelectItem value="cs">Complete Specification (CS) + {formatINR(expediatedDiff)}</SelectItem>
+                              <SelectItem value="ps_cs">PS-CS + {formatINR(rushDiff)}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -2121,10 +2124,10 @@ const handleAuth = async (e: React.FormEvent) => {
                               <SelectTrigger className="mt-1">
                                 <SelectValue placeholder="Choose turnaround" />
                               </SelectTrigger>
-                              <SelectContent>
+                                <SelectContent>
                                 <SelectItem value="standard">Standard (12-15 days) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
-                                <SelectItem value="expediated">Expediated (8-10 Days) — {formatINR(computeTurnaroundTotal("expediated"))}</SelectItem>
-                                <SelectItem value="rush">Rush (5-7 days) — {formatINR(computeTurnaroundTotal("rush"))}</SelectItem>
+                            <SelectItem value="expediated">Expediated (8-10 Days) + {formatINR(expediatedDiff)}</SelectItem>
+                            <SelectItem value="rush">Rush (5-7 days) + {formatINR(rushDiff)}</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -2202,9 +2205,9 @@ const handleAuth = async (e: React.FormEvent) => {
                           <SelectValue placeholder="Choose search type" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="quick">Quick Knockout Search</SelectItem>
-                          <SelectItem value="full_without_opinion">Full Patentability Search (Without Opinion)</SelectItem>
-                          <SelectItem value="full_with_opinion">Full Patentability Search with Opinion</SelectItem>
+                          <SelectItem value="quick">Quick Knockout Search —  {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
+                          <SelectItem value="full_without_opinion">Full Patentability Search (Without Opinion) + {formatINR(expediatedDiff)} </SelectItem>
+                          <SelectItem value="full_with_opinion">Full Patentability Search with Opinion + {formatINR(rushDiff)}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -2226,8 +2229,8 @@ const handleAuth = async (e: React.FormEvent) => {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="standard">Standard (7-10 days) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
-                            <SelectItem value="expediated">Expediated (3-5 Days) — {formatINR(computeTurnaroundTotal("expediated"))}</SelectItem>
-                            <SelectItem value="rush">Rush (1-2 days) — {formatINR(computeTurnaroundTotal("rush"))}</SelectItem>
+                            <SelectItem value="expediated">Expediated (3-5 Days) + {formatINR(expediatedDiff)}</SelectItem>
+                            <SelectItem value="rush">Rush (1-2 days) + {formatINR(rushDiff)}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
