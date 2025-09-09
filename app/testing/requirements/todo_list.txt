@@ -1,8 +1,8 @@
 1) mapping to be done from 
 - user->category->service->payment->forms
-2) this data should be available in pdf download and where else?
-3) forms to be completed
-4) add admin users to supabase and create admin panel for 
+2) this data should be available in pdf download and where else? (saved in databse)
+3) forms to be completed -p2
+4) add admin users to supabase and create admin panel for -p
 - changing prices 
 - view orders
 - ....
@@ -19,4 +19,4 @@
 - in draft mode user can change data 
 - in final mode (payment done) user/admin cannot change any data
 9) Download csv and sql file from supabase for tables: patentrender, category, services, service_pricing_rules
- 
+

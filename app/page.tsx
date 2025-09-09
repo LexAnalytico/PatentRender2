@@ -579,7 +579,12 @@ const patentServices = [
       totals: { total, professional, government },
     })
 
-    setPreview({ total, professional, government })
+    // For Patentability Search, Drafting, and First Examination Response: treat all computed amount as Professional Fee (no Government Fee)
+    if (selectedServiceTitle === "Patentability Search" || selectedServiceTitle === "Drafting" || selectedServiceTitle === "First Examination Response") {
+      setPreview({ total, professional: total, government: 0 })
+    } else {
+      setPreview({ total, professional, government })
+    }
   }, [pricingRules, optionsForm, selectedServiceTitle])
 
   // Helpers for turnaround pricing display in modal
@@ -2245,6 +2250,30 @@ const handleAuth = async (e: React.FormEvent) => {
                   </div>
                   </TooltipProvider>
            
+                  {/* Fee summary for Drafting */}
+                  <div className="space-y-6 mb-4" style={{ display: selectedServiceTitle === 'Drafting' ? undefined : 'none' }}>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Professional Fee</span>
+                      <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.professional)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Government Fee</span>
+                      <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.government)}</span>
+                    </div>
+                  </div>
+
+                  {/* Fee summary for First Examination Response */}
+                  <div className="space-y-6 mb-4" style={{ display: selectedServiceTitle === 'First Examination Response' ? undefined : 'none' }}>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Professional Fee</span>
+                      <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.professional)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Government Fee</span>
+                      <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.government)}</span>
+                    </div>
+                  </div>
+
                   <DialogFooter>
                     <Button
                       className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
