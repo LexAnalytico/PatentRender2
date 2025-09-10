@@ -1006,8 +1006,103 @@ const handleAuth = async (e: React.FormEvent) => {
     currency: "INR",
     name: "LegalIP Pro",
     description: "Patent Service Payment",
-    handler: function (response: any) {
+    handler: async function (response: any) {
       alert(`Payment successful! ID: ${response.razorpay_payment_id}`);
+
+      // Insert into quotes table after payment
+      try {
+        // Get user info (assume session is available)
+        const user = (await supabase.auth.getUser()).data.user;
+        if (!user) {
+          alert("User not found. Quote not saved.");
+          return;
+        }
+
+        // Use first cart item for category/service, or adjust as needed
+        const firstItem = cartItems[0];
+        if (!firstItem) {
+          alert("No service in cart. Quote not saved.");
+          return;
+        }
+
+
+        // Debug: log what we're searching for
+        console.log("Looking up category:", firstItem.category, "service:", firstItem.name);
+
+        // Look up category_id and service_id (case-insensitive)
+        let category_id = null;
+        let service_id = null;
+        if (firstItem.category) {
+          const { data: catData, error: catErr } = await supabase
+            .from("categories")
+            .select("id")
+            .ilike("name", firstItem.category)
+            .maybeSingle();
+          if (catErr) throw catErr;
+          category_id = catData?.id || null;
+        }
+        if (firstItem.name) {
+          const { data: svcData, error: svcErr } = await supabase
+            .from("services")
+            .select("id")
+            .ilike("name", firstItem.name)
+            .maybeSingle();
+          if (svcErr) throw svcErr;
+          service_id = svcData?.id || null;
+        }
+
+        // Fallback: if not found, try to get the first available category/service
+        if (!category_id) {
+          const { data: catList } = await supabase.from("categories").select("id").limit(1);
+          if (catList && catList.length > 0) category_id = catList[0].id;
+        }
+        if (!service_id) {
+          const { data: svcList } = await supabase.from("services").select("id").limit(1);
+          if (svcList && svcList.length > 0) service_id = svcList[0].id;
+        }
+
+        if (!category_id || !service_id) {
+          alert("Could not find category or service in database. Quote not saved.");
+          return;
+        }
+
+        // 1. Insert payment record
+        const { data: paymentData, error: paymentError } = await supabase
+          .from("payments")
+          .insert([
+            {
+              user_id: user.id,
+              total_amount: amount / 100, // convert paise to INR
+              payment_status: "completed",
+              payment_date: new Date().toISOString(),
+              razorpay_payment_id: response.razorpay_payment_id
+            }
+          ])
+          .select("id")
+          .single();
+
+        if (paymentError) {
+          alert("Failed to save payment: " + paymentError.message);
+          return;
+        }
+
+        // 2. Insert quote with payment_id
+        const quoteData: any = {
+          user_id: user.id,
+          category_id,
+          service_id,
+          payment_id: paymentData.id,
+          form_id: null, // Add form_id if available
+          created_at: new Date().toISOString(),
+        };
+
+        const { error } = await supabase.from("quotes").insert([quoteData]);
+        if (error) {
+          alert("Failed to save quote: " + error.message);
+        }
+      } catch (e: any) {
+        alert("Error saving quote: " + e.message);
+      }
     },
     prefill: {
       name: "John Doe",
@@ -1791,18 +1886,40 @@ const handleAuth = async (e: React.FormEvent) => {
       {/* Auth Modal */}
        
               {showAuthModal && (
-              <AuthModal
-                authForm={authForm}
-                setAuthForm={setAuthForm}
-                authMode={authMode}
-                switchAuthMode={switchAuthMode}
-                handleAuth={handleAuth}
-                handleForgotPassword={handleForgotPassword}
-                showPassword={showPassword}
-                setShowPassword={setShowPassword}
-                setShowAuthModal={setShowAuthModal}
-              />
-            )}  
+  <AuthModal
+    authForm={authForm}
+    setAuthForm={setAuthForm}
+    authMode={authMode}
+    switchAuthMode={switchAuthMode}
+    handleAuth={handleAuth}
+    handleForgotPassword={handleForgotPassword}
+    showPassword={showPassword}
+    setShowPassword={setShowPassword}
+    setShowAuthModal={setShowAuthModal}
+    googleSignInButton={
+      <button
+        type="button"
+        onClick={handleGoogleLogin}
+        className="w-full flex items-center justify-center gap-2 mt-4 px-4 py-2 border border-gray-300 rounded-md bg-white hover:bg-gray-50 text-gray-700 font-medium shadow-sm"
+      >
+        <svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <g clipPath="url(#clip0_17_40)">
+            <path d="M47.5 24.5C47.5 22.6 47.3 20.8 47 19H24V29H37.1C36.5 32.1 34.5 34.7 31.7 36.4V42H39.3C44 38.1 47.5 32.1 47.5 24.5Z" fill="#4285F4"/>
+            <path d="M24 48C30.6 48 36.1 45.8 39.3 42L31.7 36.4C29.9 37.6 27.7 38.3 24 38.3C18.7 38.3 14.1 34.7 12.5 29.9H4.7V35.7C7.9 42.1 15.3 48 24 48Z" fill="#34A853"/>
+            <path d="M12.5 29.9C12.1 28.7 11.9 27.4 11.9 26C11.9 24.6 12.1 23.3 12.5 22.1V16.3H4.7C3.2 19.1 2.5 22.4 2.5 26C2.5 29.6 3.2 32.9 4.7 35.7L12.5 29.9Z" fill="#FBBC05"/>
+            <path d="M24 9.7C27.1 9.7 29.5 10.8 31.2 12.3L39.4 4.1C36.1 1.1 30.6-1 24 0C15.3 0 7.9 5.9 4.7 12.3L12.5 18.1C14.1 13.3 18.7 9.7 24 9.7Z" fill="#EA4335"/>
+          </g>
+          <defs>
+            <clipPath id="clip0_17_40">
+              <rect width="48" height="48" fill="white"/>
+            </clipPath>
+          </defs>
+        </svg>
+        Continue with Google
+      </button>
+    }
+  />
+)}
 
   {/* Header */}
       <header className="bg-white shadow-md p-4">

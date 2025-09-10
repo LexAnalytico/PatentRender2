@@ -37,4 +37,12 @@ assign to admin2 - move to admin2 dashboard
 
 
 
-
+to be decided 
+for all the 4 functions weather price display should be static or from database(p1). - D
+login/logout all in the box(p1) -S
+email to be sent after user makes payment(p2) - D
+user dashboard displayed (p2) - 
+admin dashboard to display orders (p2)-
+forms to be displayed after payment (p2)
+box styling to be done for all 4 patent services (p1) - S
+user clicks out of application and comes back it needs to logout

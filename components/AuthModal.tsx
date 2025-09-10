@@ -15,6 +15,7 @@ interface AuthModalProps {
   showPassword: boolean;
   setShowPassword: React.Dispatch<React.SetStateAction<boolean>>;
   setShowAuthModal: (show: boolean) => void;
+  googleSignInButton?: React.ReactNode;
 }
 
 interface AuthFormState {
@@ -36,6 +37,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
   showPassword,
   setShowPassword,
   setShowAuthModal,
+  googleSignInButton,
 }) => {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -160,6 +162,10 @@ const AuthModal: React.FC<AuthModalProps> = ({
               <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">
                 {authMode === "signin" ? "Sign In" : "Create Account"}
               </Button>
+
+              {googleSignInButton && (
+                <div className="w-full flex flex-col items-center">{googleSignInButton}</div>
+              )}
 
               <div className="text-center">
                 <button
