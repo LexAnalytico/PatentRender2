@@ -27,10 +27,6 @@ export default function Navbar() {
       <div>
         {user && (
           <div className="flex items-center gap-4">
-            {/* ✅ Only menu icon, no Google button, no logout, no greeting */}
-            <button className="p-2 rounded-full bg-gray-100 hover:bg-gray-200">
-              ☰
-            </button>
           </div>
         )}
       </div>
