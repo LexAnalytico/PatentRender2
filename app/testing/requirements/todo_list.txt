@@ -20,3 +20,21 @@
 - in final mode (payment done) user/admin cannot change any data
 9) Download csv and sql file from supabase for tables: patentrender, category, services, service_pricing_rules
 
+Login
+google/facebook
+services - done
+payment - done
+forms
+if user picks more than 1
+show one form - where?
+with common fields first
+email to client and admin
+logout
+indication in user icon for pending user data
+
+admin1 dashboard
+assign to admin2 - move to admin2 dashboard
+
+
+
+

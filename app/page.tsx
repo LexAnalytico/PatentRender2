@@ -579,18 +579,14 @@ const patentServices = [
       totals: { total, professional, government },
     })
 
-    // For Patentability Search, Drafting, and First Examination Response: treat all computed amount as Professional Fee (no Government Fee)
-    if (selectedServiceTitle === "Patentability Search" || selectedServiceTitle === "Drafting" || selectedServiceTitle === "First Examination Response") {
-      setPreview({ total, professional: total, government: 0 })
-    } else {
-      setPreview({ total, professional, government })
-    }
+    setPreview({ total, professional, government })
   }, [pricingRules, optionsForm, selectedServiceTitle])
 
   // Helpers for turnaround pricing display in modal
-  const formatINR = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n)
-  const computeTurnaroundTotal = (turn: "standard" | "expediated" | "rush") => {
+const formatINR = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n)
+const computeTurnaroundTotal = (turn: "standard" | "expediated" | "rush") => {    
     if (!pricingRules) return 0
+     
     const applicationType =
       optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
         ? "individual"
@@ -609,10 +605,73 @@ const patentServices = [
     } as any
     return computePriceFromRules(pricingRules as any, sel)
   }
+ 
   const basePrice = computeTurnaroundTotal("standard")
   const expediatedDiff = computeTurnaroundTotal("expediated") - basePrice
-  const rushDiff = computeTurnaroundTotal("rush") - basePrice 
+  const rushDiff = computeTurnaroundTotal("rush") - basePrice  
 
+   
+ 
+  // Compute price for a given Patentability Search type and turnaround, independent of current selection
+  const computePatentSearchPrice = (
+    type: "quick" | "full_without_opinion" | "full_with_opinion",
+    turn: "standard" | "expediated" | "rush" = "standard"
+  ) => {
+    if (!pricingRules) return 0
+
+    const applicationType =
+      optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
+        ? "individual"
+        : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
+        ? "startup_msme"
+        : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
+        ? "others"
+        : "individual"
+
+    const sel = {
+      applicationType,
+      niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
+      goodsServices: { dropdown: turn },
+      searchType: type,
+      priorUse: { used: optionsForm.useType === "yes" },
+      option1: true,
+    } as any
+
+    return computePriceFromRules(pricingRules as any, sel)
+  }
+
+  const basePricePS = computePatentSearchPrice("quick")
+const DiffWithoutPS = computePatentSearchPrice("full_without_opinion") - basePricePS
+const DiffWithPS = computePatentSearchPrice("full_with_opinion") - basePricePS  
+/*
+  // Compute price for a given Drafting type and turnaround, independent of current selection
+  const computeDraftingPrice = (
+    type: "ps" | "cs" | "ps_cs",
+    turn: "standard" | "expediated" | "rush" = "standard"
+  ) => {
+    if (!pricingRules) return 0
+
+    const applicationType =
+      optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
+        ? "individual"
+        : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
+        ? "startup_msme"
+        : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
+        ? "others"
+        : "individual"
+
+    const sel = {
+      applicationType,
+      niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
+      goodsServices: { dropdown: turn },
+      searchType: type,
+      priorUse: { used: optionsForm.useType === "yes" },
+      option1: true,
+    } as any
+
+    return computePriceFromRules(pricingRules as any, sel)
+  }
+*/
   const handleOptionsFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []).map((f) => f.name)
     setOptionsForm((prev) => ({ ...prev, proofFileNames: files }))
@@ -806,7 +865,17 @@ const patentServices = [
   const backToMainPage = () => {
     setShowQuotePage(false)
   }
- 
+
+const handleGoogleLogin = async () => {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+    })
+    if (error) {
+      console.error("Google login error:", error.message)
+      alert("Google login failed!")
+    }
+  }
+   
 const handleAuth = async (e: React.FormEvent) => {
   e.preventDefault();
 
@@ -1756,6 +1825,11 @@ const handleAuth = async (e: React.FormEvent) => {
               >
                 Sign In
               </button>
+             
+              <button type="button" onClick={handleGoogleLogin}>
+                Continue with Google
+              </button>
+             
               <button
                 onClick={() => { handleLogout(); setIsOpen(false); }}
                 className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
@@ -2112,8 +2186,8 @@ const handleAuth = async (e: React.FormEvent) => {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="ps">Provisional Specification (PS) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
-                              <SelectItem value="cs">Complete Specification (CS) + {formatINR(expediatedDiff)}</SelectItem>
-                              <SelectItem value="ps_cs">PS-CS + {formatINR(rushDiff)}</SelectItem>
+                              <SelectItem value="cs">Complete Specification (CS) + {formatINR(computeTurnaroundTotal("expediated"))}</SelectItem>
+                              <SelectItem value="ps_cs">PS-CS + {formatINR(computeTurnaroundTotal("rush"))}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -2124,10 +2198,12 @@ const handleAuth = async (e: React.FormEvent) => {
                               <SelectTrigger className="mt-1">
                                 <SelectValue placeholder="Choose turnaround" />
                               </SelectTrigger>
-                                <SelectContent>
+                              <SelectContent>
                                 <SelectItem value="standard">Standard (12-15 days) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
-                            <SelectItem value="expediated">Expediated (8-10 Days) + {formatINR(expediatedDiff)}</SelectItem>
-                            <SelectItem value="rush">Rush (5-7 days) + {formatINR(rushDiff)}</SelectItem>
+                            <SelectItem value="expediated">Expediated (8-10 Days) + {formatINR(expediatedDiff)}
+</SelectItem>
+                            <SelectItem value="rush">Rush (5-7 days) + {formatINR(rushDiff)}
+</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -2204,11 +2280,19 @@ const handleAuth = async (e: React.FormEvent) => {
                         <SelectTrigger className="mt-1">
                           <SelectValue placeholder="Choose search type" />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="quick">Quick Knockout Search —  {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
-                          <SelectItem value="full_without_opinion">Full Patentability Search (Without Opinion) + {formatINR(expediatedDiff)} </SelectItem>
-                          <SelectItem value="full_with_opinion">Full Patentability Search with Opinion + {formatINR(rushDiff)}</SelectItem>
+ 
+                          <SelectContent>
+                          <SelectItem value="quick">
+                            Quick Knockout Search — {formatINR(basePricePS)}
+                          </SelectItem>
+                          <SelectItem value="full_without_opinion">
+                            Full Patentability Search (Without Opinion) — {formatINR(DiffWithoutPS)}
+                          </SelectItem>
+                          <SelectItem value="full_with_opinion">
+                            Full Patentability Search with Opinion — {formatINR(DiffWithPS)}
+                          </SelectItem>
                         </SelectContent>
+                         
                       </Select>
                     </div>
 
@@ -2229,8 +2313,10 @@ const handleAuth = async (e: React.FormEvent) => {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="standard">Standard (7-10 days) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
-                            <SelectItem value="expediated">Expediated (3-5 Days) + {formatINR(expediatedDiff)}</SelectItem>
-                            <SelectItem value="rush">Rush (1-2 days) + {formatINR(rushDiff)}</SelectItem>
+                            <SelectItem value="expediated">Expediated (3-5 Days) + {formatINR(expediatedDiff)}
+</SelectItem>
+                            <SelectItem value="rush">Rush (1-2 days) + {formatINR(rushDiff)}
+</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -2253,30 +2339,6 @@ const handleAuth = async (e: React.FormEvent) => {
                   </div>
                   </TooltipProvider>
            
-                  {/* Fee summary for Drafting */}
-                  <div className="space-y-6 mb-4" style={{ display: selectedServiceTitle === 'Drafting' ? undefined : 'none' }}>
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Professional Fee</span>
-                      <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.professional)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Government Fee</span>
-                      <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.government)}</span>
-                    </div>
-                  </div>
-
-                  {/* Fee summary for First Examination Response */}
-                  <div className="space-y-6 mb-4" style={{ display: selectedServiceTitle === 'First Examination Response' ? undefined : 'none' }}>
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Professional Fee</span>
-                      <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.professional)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Government Fee</span>
-                      <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.government)}</span>
-                    </div>
-                  </div>
-
                   <DialogFooter>
                     <Button
                       className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"

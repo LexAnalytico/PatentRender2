@@ -1,31 +1,26 @@
-import type { Metadata } from 'next'
-import { GeistSans } from 'geist/font/sans'
-import { GeistMono } from 'geist/font/mono'
-import './globals.css'
+import type { Metadata } from "next";
+import Navbar from "@/components/Navbar"; // ✅ import your Navbar
+import "./globals.css"; // ✅ make sure Tailwind or CSS is applied
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.dev',
-}
+  title: "v0 App",
+  description: "Created with v0",
+  generator: "v0.dev",
+};
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode;
 }>) {
   return (
     <html lang="en">
-      <head>
-        <style>{`
-html {
-  font-family: ${GeistSans.style.fontFamily};
-  --font-sans: ${GeistSans.variable};
-  --font-mono: ${GeistMono.variable};
-}
-        `}</style>
-      </head>
-      <body>{children}</body>
+      <head />
+      <body>
+        {/* ✅ Navbar appears on every page */}
+        <Navbar />
+        <main>{children}</main>
+      </body>
     </html>
-  )
+  );
 }
