@@ -2308,23 +2308,38 @@ const handleAuth = async (e: React.FormEvent) => {
                             </SelectContent>
                           </Select>
                         </div>
-                        {optionsForm.searchType && (
-                          <div>
-                            <Label className="text-sm font-medium text-gray-700">Turnaround</Label>
-                            <Select value={optionsForm.goodsServices} onValueChange={(v) => setOptionsForm((p) => ({ ...p, goodsServices: v }))}>
-                              <SelectTrigger className="mt-1">
-                                <SelectValue placeholder="Choose turnaround" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="standard">Standard (12-15 days) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
-                            <SelectItem value="expediated">Expediated (8-10 Days) + {formatINR(expediatedDiff)}
-</SelectItem>
-                            <SelectItem value="rush">Rush (5-7 days) + {formatINR(rushDiff)}
-</SelectItem>
-                              </SelectContent>
-                            </Select>
+                        <>
+                          {optionsForm.searchType && (
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700">Turnaround</Label>
+                              <Select value={optionsForm.goodsServices} onValueChange={(v) => setOptionsForm((p) => ({ ...p, goodsServices: v }))}>
+                                <SelectTrigger className="mt-1">
+                                  <SelectValue placeholder="Choose turnaround" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="standard">Standard (12-15 days) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
+                                  <SelectItem value="expediated">Expediated (8-10 Days) + {formatINR(expediatedDiff)}</SelectItem>
+                                  <SelectItem value="rush">Rush (5-7 days) + {formatINR(rushDiff)}</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                          {/* Fee Preview for Drafting */}
+                          <div className="rounded-md border p-3 bg-gray-50 mt-4">
+                            <div className="flex items-center justify-between text-sm mb-1">
+                              <span>Professional Fee</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.professional)}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span>Government Fee</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.government)}</span>
+                            </div>
+                            <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                              <span>Total</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
+                            </div>
                           </div>
-                        )}
+                        </>
                       </>
                     )}
 
@@ -2342,40 +2357,74 @@ const handleAuth = async (e: React.FormEvent) => {
                             </SelectContent>
                           </Select>
                         </div>
-                        {optionsForm.searchType && (
-                          <div>
-                            <Label className="text-sm font-medium text-gray-700">Filing Type</Label>
-                            <Select value={optionsForm.goodsServices} onValueChange={(v) => setOptionsForm((p) => ({ ...p, goodsServices: v }))}>
-                              <SelectTrigger className="mt-1">
-                                <SelectValue placeholder="Choose filing type" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="provisional_filing">Provisional Filing (4 days) - Up to 30 pages of specification and drawing</SelectItem>
-                                <SelectItem value="complete_specification_filing">Complete Specification Filing (4 days) - Up to 30 pages of specification and drawing</SelectItem>
-                                <SelectItem value="ps_cs_filing">PS-CS Filing (4 days) - Up to 30 pages of specification and drawing</SelectItem>
-                                <SelectItem value="pct_filing">PCT Filing</SelectItem>
-                              </SelectContent>
-                            </Select>
+                        <>
+                          {optionsForm.searchType && (
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700">Filing Type</Label>
+                              <Select value={optionsForm.goodsServices} onValueChange={(v) => setOptionsForm((p) => ({ ...p, goodsServices: v }))}>
+                                <SelectTrigger className="mt-1">
+                                  <SelectValue placeholder="Choose filing type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="provisional_filing">Provisional Filing (4 days) - Up to 30 pages of specification and drawing</SelectItem>
+                                  <SelectItem value="complete_specification_filing">Complete Specification Filing (4 days) - Up to 30 pages of specification and drawing</SelectItem>
+                                  <SelectItem value="ps_cs_filing">PS-CS Filing (4 days) - Up to 30 pages of specification and drawing</SelectItem>
+                                  <SelectItem value="pct_filing">PCT Filing</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                          {/* Fee Preview for Patent Application Filing */}
+                          <div className="rounded-md border p-3 bg-gray-50 mt-4">
+                            <div className="flex items-center justify-between text-sm mb-1">
+                              <span>Professional Fee</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.professional)}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm">
+                              <span>Government Fee</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.government)}</span>
+                            </div>
+                            <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                              <span>Total</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
+                            </div>
                           </div>
-                        )}
+                        </>
                       </>
                     )}
 
                     {selectedServiceTitle === 'First Examination Response' && (
-                      <div>
-                        <Label className="text-sm font-medium text-gray-700">Response Due</Label>
-                        <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v }))}>
-                          <SelectTrigger className="mt-1">
-                            <SelectValue placeholder="Choose option" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="base_fee">Base Fee (Response due date after 3 months)</SelectItem>
-                            <SelectItem value="response_due_anytime_after_15_days">Response due anytime after 15 days</SelectItem>
-                            <SelectItem value="response_due_within_11_15_days">Response due within 11-15 days</SelectItem>
-                            <SelectItem value="response_due_within_4_10_days">Response due within 4-10 days</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      <>
+                        <div>
+                          <Label className="text-sm font-medium text-gray-700">Response Due</Label>
+                          <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v }))}>
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder="Choose option" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="base_fee">Base Fee (Response due date after 3 months)</SelectItem>
+                              <SelectItem value="response_due_anytime_after_15_days">Response due anytime after 15 days</SelectItem>
+                              <SelectItem value="response_due_within_11_15_days">Response due within 11-15 days</SelectItem>
+                              <SelectItem value="response_due_within_4_10_days">Response due within 4-10 days</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {/* Fee Preview for First Examination Response */}
+                        <div className="rounded-md border p-3 bg-gray-50 mt-4">
+                          <div className="flex items-center justify-between text-sm mb-1">
+                            <span>Professional Fee</span>
+                            <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.professional)}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span>Government Fee</span>
+                            <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.government)}</span>
+                          </div>
+                          <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                            <span>Total</span>
+                            <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
+                          </div>
+                        </div>
+                      </>
                     )}
                   </DialogHeader>
 
