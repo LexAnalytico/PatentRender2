@@ -2328,11 +2328,11 @@ const handleAuth = async (e: React.FormEvent) => {
                           <div className="rounded-md border p-3 bg-gray-50 mt-4">
                             <div className="flex items-center justify-between text-sm mb-1">
                               <span>Professional Fee</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.professional)}</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
                             </div>
                             <div className="flex items-center justify-between text-sm">
                               <span>Government Fee</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.government)}</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(0)}</span>
                             </div>
                             <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
                               <span>Total</span>
@@ -2378,11 +2378,11 @@ const handleAuth = async (e: React.FormEvent) => {
                           <div className="rounded-md border p-3 bg-gray-50 mt-4">
                             <div className="flex items-center justify-between text-sm mb-1">
                               <span>Professional Fee</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.professional)}</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
                             </div>
                             <div className="flex items-center justify-between text-sm">
                               <span>Government Fee</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.government)}</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(0)}</span>
                             </div>
                             <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
                               <span>Total</span>
@@ -2413,11 +2413,11 @@ const handleAuth = async (e: React.FormEvent) => {
                         <div className="rounded-md border p-3 bg-gray-50 mt-4">
                           <div className="flex items-center justify-between text-sm mb-1">
                             <span>Professional Fee</span>
-                            <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.professional)}</span>
+                            <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
                           </div>
                           <div className="flex items-center justify-between text-sm">
                             <span>Government Fee</span>
-                            <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.government)}</span>
+                            <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(0)}</span>
                           </div>
                           <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
                             <span>Total</span>
@@ -2491,11 +2491,11 @@ const handleAuth = async (e: React.FormEvent) => {
                     <div className="rounded-md border p-3 bg-gray-50">
                       <div className="flex items-center justify-between text-sm mb-1">
                         <span>Professional Fee</span>
-                        <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.professional)}</span>
+                        <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span>Government Fee</span>
-                        <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.government)}</span>
+                        <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(0)}</span>
                       </div>
                       <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
                         <span>Total</span>
