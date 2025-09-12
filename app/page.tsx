@@ -484,7 +484,14 @@ const patentServices = [
   // Live fee preview state and pricing rules
   const [pricingRules, setPricingRules] = useState<any[] | null>(null)
   const [preview, setPreview] = useState({ total: 0, professional: 0, government: 0 })
-
+  const [applicantPrices, setApplicantPrices] = useState<{ individual?: number; others?: number }>({})
+  const [ferPrices, setFerPrices] = useState<{
+    base_fee?: number
+    response_due_anytime_after_15_days?: number
+    response_due_within_11_15_days?: number
+    response_due_within_4_10_days?: number
+  }>({})
+ 
   // Load pricing rules when modal opens
   useEffect(() => {
     const loadRules = async () => {
@@ -582,6 +589,82 @@ const patentServices = [
     setPreview({ total, professional, government })
   }, [pricingRules, optionsForm, selectedServiceTitle])
 
+  // Compute and show prices next to Applicant Type options for Patent Application Filing
+  useEffect(() => {
+    if (!pricingRules || selectedServiceTitle !== "Patent Application Filing") {
+      setApplicantPrices({})
+      return
+    }
+
+    const filingType = optionsForm.goodsServices && optionsForm.goodsServices !== "0" ? optionsForm.goodsServices : "provisional_filing"
+    const baseSel = {
+      niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
+      goodsServices: { dropdown: filingType },
+      searchType: undefined,
+      priorUse: { used: optionsForm.useType === "yes" },
+      option1: true,
+    } as any
+
+    const prices: { [k: string]: number } = {}
+    try {
+      prices.individual = computePriceFromRules(pricingRules as any, { ...baseSel, applicationType: "individual" })
+      prices.others = computePriceFromRules(pricingRules as any, { ...baseSel, applicationType: "others" })
+    } catch (e) {
+      console.error("Failed computing applicant type prices:", e)
+    }
+    const fallback = servicePricing["Patent Application Filing"] || 0
+    if (!prices.individual || prices.individual <= 0) prices.individual = fallback
+    if (!prices.others || prices.others <= 0) prices.others = fallback
+    setApplicantPrices(prices)
+  }, [pricingRules, selectedServiceTitle, optionsForm.goodsServices, optionsForm.niceClasses, optionsForm.useType])
+
+  // Compute and show prices for First Examination Response options
+  useEffect(() => {
+    if (!pricingRules || selectedServiceTitle !== "First Examination Response") {
+      setFerPrices({})
+      return
+    }
+
+    const applicationType =
+      optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
+        ? "individual"
+        : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
+        ? "startup_msme"
+        : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
+        ? "others"
+        : "individual"
+
+    const baseSel = {
+      applicationType,
+      niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
+      searchType: undefined,
+      priorUse: { used: optionsForm.useType === "yes" },
+      option1: true,
+    } as any
+
+    const values = [
+      "base_fee",
+      "response_due_anytime_after_15_days",
+      "response_due_within_11_15_days",
+      "response_due_within_4_10_days",
+    ] as const
+
+    const prices: Record<string, number> = {}
+    try {
+      for (const v of values) {
+        prices[v] = computePriceFromRules(pricingRules as any, { ...baseSel, searchType: v })
+      }
+    } catch (e) {
+      console.error("Failed computing FER prices:", e)
+    }
+    // Fallback to base service price if computed is zero
+    const fallbackFER = servicePricing["First Examination Response"] || 0
+    for (const k of Object.keys(prices)) {
+      if (!prices[k] || prices[k] <= 0) prices[k] = fallbackFER
+    }
+    setFerPrices(prices)
+  }, [pricingRules, selectedServiceTitle, optionsForm.applicantTypes, optionsForm.niceClasses, optionsForm.useType])
+
   // Helpers for turnaround pricing display in modal
 const formatINR = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n)
 const computeTurnaroundTotal = (turn: "standard" | "expediated" | "rush") => {    
@@ -607,10 +690,9 @@ const computeTurnaroundTotal = (turn: "standard" | "expediated" | "rush") => {
   }
  
   const basePrice = computeTurnaroundTotal("standard")
-  const expediatedDiff = computeTurnaroundTotal("expediated") - basePrice
-  const rushDiff = computeTurnaroundTotal("rush") - basePrice  
+  const expediatedDiff = computeTurnaroundTotal("expediated") //- basePrice
+  const rushDiff = computeTurnaroundTotal("rush") //- basePrice  
 
-   
  
   // Compute price for a given Patentability Search type and turnaround, independent of current selection
   const computePatentSearchPrice = (
@@ -640,17 +722,17 @@ const computeTurnaroundTotal = (turn: "standard" | "expediated" | "rush") => {
     return computePriceFromRules(pricingRules as any, sel)
   }
 
-  const basePricePS = computePatentSearchPrice("quick")
-const DiffWithoutPS = computePatentSearchPrice("full_without_opinion") - basePricePS
-const DiffWithPS = computePatentSearchPrice("full_with_opinion") - basePricePS  
-/*
+const basePricePS = computePatentSearchPrice("quick")
+const DiffWithoutPS = computePatentSearchPrice("full_without_opinion") //- basePricePS
+const DiffWithPS = computePatentSearchPrice("full_with_opinion") //- basePricePS  
+ 
   // Compute price for a given Drafting type and turnaround, independent of current selection
   const computeDraftingPrice = (
     type: "ps" | "cs" | "ps_cs",
     turn: "standard" | "expediated" | "rush" = "standard"
-  ) => {
+    ) => {
     if (!pricingRules) return 0
-
+           
     const applicationType =
       optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
         ? "individual"
@@ -671,7 +753,66 @@ const DiffWithPS = computePatentSearchPrice("full_with_opinion") - basePricePS
 
     return computePriceFromRules(pricingRules as any, sel)
   }
-*/
+  const basePriceD = computeDraftingPrice("ps", "standard")
+  const DiffWithoutD = computeDraftingPrice("cs", "expediated") //- basePriceD
+  const DiffWithD = computeDraftingPrice("ps_cs", "rush") //- basePriceD      
+ 
+    // Compute price for a given Search turnaround, independent of current selection
+  const computeSearchPrice = (
+  type: "quick" | "without_opinion" | "with_opinion",
+  turn: "standard" | "expediated" | "rush" = "standard"
+) => {
+  if (!pricingRules) return 0
+
+  const applicationType =
+    optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
+      ? "individual"
+      : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
+      ? "startup_msme"
+      : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
+      ? "others"
+      : "individual"
+
+  const sel = {
+    applicationType,
+    niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
+    goodsServices: { dropdown: turn },   // turnaround speed
+    searchType: type,                    // search type passed in
+    priorUse: { used: optionsForm.useType === "yes" },
+    option1: true,
+  } as any
+
+  return computePriceFromRules(pricingRules as any, sel)
+}
+     
+  const computeFilingPrice = (
+  filingType: "provisional_filing" | "complete_specification_filing" | "ps_cs_filing" | "pct_filing",
+  appType: "individual" | "others"
+) => {
+  if (!pricingRules) return 0
+
+  const sel = {
+    applicationType: appType,
+    niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
+    goodsServices: { dropdown: filingType },
+    searchType: optionsForm.searchType || undefined,
+    priorUse: { used: optionsForm.useType === "yes" },
+    option1: true,
+  } as any
+
+  return computePriceFromRules(pricingRules as any, sel)
+}    
+   
+const selectedSearchType = optionsForm.searchType as
+  | "quick"
+  | "without_opinion"
+  | "with_opinion"
+
+const basePriceTurn = computeSearchPrice(selectedSearchType, "standard")
+const diffExpediated = computeSearchPrice(selectedSearchType, "expediated") //- basePriceTurn
+const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTurn
+
+
   const handleOptionsFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []).map((f) => f.name)
     setOptionsForm((prev) => ({ ...prev, proofFileNames: files }))
@@ -697,6 +838,7 @@ const DiffWithPS = computePatentSearchPrice("full_with_opinion") - basePricePS
         : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
         ? "others"
         : "individual"
+         
 
     // For Patent Application Filing, the Applicant Type select is stored in searchType.
     // If present, override the derived value so we price against the intended application type.
@@ -706,7 +848,7 @@ const DiffWithPS = computePatentSearchPrice("full_with_opinion") - basePricePS
     ) {
       applicationType = optionsForm.searchType as any
     }
-
+   
     // If no turnaround selected, default to 'standard' for pricing
     const selectedTurnaround = optionsForm.goodsServices && optionsForm.goodsServices !== "0"
       ? optionsForm.goodsServices
@@ -762,7 +904,7 @@ const DiffWithPS = computePatentSearchPrice("full_with_opinion") - basePricePS
     } else {
       price = basePrice
     }
-
+           
     // Debug: log add-to-cart computation context
     console.log("[Cart] Add with options", {
       service: selectedServiceTitle,
@@ -999,17 +1141,25 @@ const handleAuth = async (e: React.FormEvent) => {
   const handlePayment = () => {
   const amount = Math.round(calculateAdjustedTotal() * 100); // Razorpay expects paise
   const key = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+  //to be changed
+  const name = "John Doe";
+  const email = "saroshcruz@gmail.com";
+  const phone = "1234567890";
+  const message = "I need help with a patent application.";
+  const complexity = "Medium";
+  const urgency = "High";    
 
-  const options = {
+const options = {
     key: key,
     amount: amount,
     currency: "INR",
     name: "LegalIP Pro",
     description: "Patent Service Payment",
     handler: async function (response: any) {
+      console.log(`Payment successful! ID: ${response.razorpay_payment_id}`);
       alert(`Payment successful! ID: ${response.razorpay_payment_id}`);
 
-      // Insert into quotes table after payment
+      // Insert into quotes table after payment (we will notify server after we have an internal payment id)
       try {
         // Get user info (assume session is available)
         const user = (await supabase.auth.getUser()).data.user;
@@ -1017,7 +1167,6 @@ const handleAuth = async (e: React.FormEvent) => {
           alert("User not found. Quote not saved.");
           return;
         }
-
         // Use first cart item for category/service, or adjust as needed
         const firstItem = cartItems[0];
         if (!firstItem) {
@@ -1100,14 +1249,37 @@ const handleAuth = async (e: React.FormEvent) => {
         if (error) {
           alert("Failed to save quote: " + error.message);
         }
+
+        // 3. Notify server AFTER payment and quote rows exist
+        try {
+          const notifyResp = await fetch('/api/notify-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name,
+              email,
+              phone,
+              message,
+              complexity,
+              urgency,
+              payment_id: paymentData.id, // internal payments.id
+              razorpay_payment_id: response.razorpay_payment_id, // provider id
+            }),
+          });
+          const notifyResult = await notifyResp.json();
+          if (notifyResult.success) console.log('Notify sent OK');
+          else console.error('Notify failed', notifyResult.message, notifyResult.error);
+        } catch (notifyErr) {
+          console.error('Network error notifying server:', notifyErr);
+        }
       } catch (e: any) {
         alert("Error saving quote: " + e.message);
       }
     },
     prefill: {
-      name: "John Doe",
-      email: "john@example.com",
-      contact: "9999999999",
+      name: "",
+      email: "",
+      contact: "",
     },
     notes: {
       service: "Quotation Payment"
@@ -1370,29 +1542,29 @@ const handleAuth = async (e: React.FormEvent) => {
   }
      
  
-  // Quote Page Component
-  if (showQuotePage) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {/* Header for Quote Page */}
-        {/* Header */}
+  /// Quote Page Component
+if (showQuotePage) {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
       <header className="bg-white shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-           
-            {/* ✅ Back button */}
             <button
               onClick={() => setShowQuotePage(false)}
               className="text-blue-600 hover:underline text-sm font-medium"
             >
               ← Back to Home
-            </button>  
+            </button>
             <div className="flex items-center">
               <Scale className="h-8 w-8 text-blue-600 mr-2" />
               <span className="text-2xl font-bold text-gray-900">LegalIP Pro</span>
             </div>
             <div className="hidden md:flex items-center space-x-6">
-              <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
+              <a
+                href="#"
+                className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors"
+              >
                 Knowledge Hub
               </a>
               <button
@@ -1406,481 +1578,87 @@ const handleAuth = async (e: React.FormEvent) => {
           </div>
         </div>
       </header>
-     
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex gap-8">
-            {/* Left Side - Selected Services */}
-            <div className="flex-1">
-              <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Your Selected Services</h1>
-                <p className="text-gray-600">Review your selected IP protection services and customize your quote</p>
-              </div>
 
-              <div className="space-y-6">
-                {cartItems.map((item) => (
-                  <Card key={item.id} className="bg-white">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center mb-2">
-                            <span className="inline-block px-3 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full mr-3">
-                              {item.category}
-                            </span>
-                            <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
-                          </div>
-                          <p className="text-gray-600 text-sm mb-3">
-                            Professional {item.category.toLowerCase()} service with comprehensive coverage and expert
-                            guidance.
-                          </p>
-                          {item.details && (
-                            <p className="text-xs text-gray-500 mb-2">Details: {item.details}</p>
-                          )}
-                          <div className="flex items-center justify-between">
-                            <span className="text-2xl font-bold text-blue-600">${item.price.toLocaleString()}</span>
-                            <Button
-                              onClick={() => removeFromCart(item.id)}
-                              variant="outline"
-                              size="sm"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              Remove
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-
-                {cartItems.length === 0 && (
-                  <Card className="bg-white">
-                    <CardContent className="p-12 text-center">
-                      <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No services selected</h3>
-                      <p className="text-gray-600 mb-4">Add some services to create your quote</p>
-                      <Button onClick={backToMainPage} className="bg-blue-600 hover:bg-blue-700">
-                        Browse Services
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-
-              {/* Service-Specific Details Forms - Moved here from right sidebar */}
-              <div className="mt-8 space-y-6">
-                {hasServicesInCategory("Patent") && (
-                  <Card className="bg-white shadow-lg">
-                    <CardHeader className="bg-blue-50 rounded-t-lg">
-                      <CardTitle className="text-blue-900">Patent Service Details</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-4">
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Patent Field 1</Label>
-                          <Input
-                            value={serviceFields.patentField1}
-                            onChange={(e) => setServiceFields((prev) => ({ ...prev, patentField1: e.target.value }))}
-                            className="mt-1"
-                            placeholder="Enter details..."
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Patent Field 2</Label>
-                          <Input
-                            value={serviceFields.patentField2}
-                            onChange={(e) => setServiceFields((prev) => ({ ...prev, patentField2: e.target.value }))}
-                            className="mt-1"
-                            placeholder="Enter details..."
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-700">Patent Field 3</Label>
-                        <Textarea
-                          value={serviceFields.patentField3}
-                          onChange={(e) => setServiceFields((prev) => ({ ...prev, patentField3: e.target.value }))}
-                          className="mt-1"
-                          placeholder="Enter details..."
-                          rows={3}
-                        />
-                      </div>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Patent Field 4</Label>
-                          <Select
-                            value={serviceFields.patentField4}
-                            onValueChange={(value) => setServiceFields((prev) => ({ ...prev, patentField4: value }))}
-                          >
-                            <SelectTrigger className="mt-1">
-                              <SelectValue placeholder="Select option..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="option1">Option 1</SelectItem>
-                              <SelectItem value="option2">Option 2</SelectItem>
-                              <SelectItem value="option3">Option 3</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Patent Field 5</Label>
-                          <Input
-                            value={serviceFields.patentField5}
-                            onChange={(e) => setServiceFields((prev) => ({ ...prev, patentField5: e.target.value }))}
-                            className="mt-1"
-                            placeholder="Enter details..."
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {hasServicesInCategory("Trademark") && (
-                  <Card className="bg-white shadow-lg">
-                    <CardHeader className="bg-green-50 rounded-t-lg">
-                      <CardTitle className="text-green-900">Trademark Service Details</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-4">
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Trademark Field 1</Label>
-                          <Input
-                            value={serviceFields.trademarkField1}
-                            onChange={(e) => setServiceFields((prev) => ({ ...prev, trademarkField1: e.target.value }))}
-                            className="mt-1"
-                            placeholder="Enter details..."
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Trademark Field 2</Label>
-                          <Input
-                            value={serviceFields.trademarkField2}
-                            onChange={(e) => setServiceFields((prev) => ({ ...prev, trademarkField2: e.target.value }))}
-                            className="mt-1"
-                            placeholder="Enter details..."
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-700">Trademark Field 3</Label>
-                        <Textarea
-                          value={serviceFields.trademarkField3}
-                          onChange={(e) => setServiceFields((prev) => ({ ...prev, trademarkField3: e.target.value }))}
-                          className="mt-1"
-                          placeholder="Enter details..."
-                          rows={3}
-                        />
-                      </div>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Trademark Field 4</Label>
-                          <Select
-                            value={serviceFields.trademarkField4}
-                            onValueChange={(value) => setServiceFields((prev) => ({ ...prev, trademarkField4: value }))}
-                          >
-                            <SelectTrigger className="mt-1">
-                              <SelectValue placeholder="Select option..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="option1">Option 1</SelectItem>
-                              <SelectItem value="option2">Option 2</SelectItem>
-                              <SelectItem value="option3">Option 3</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Trademark Field 5</Label>
-                          <Input
-                            value={serviceFields.trademarkField5}
-                            onChange={(e) => setServiceFields((prev) => ({ ...prev, trademarkField5: e.target.value }))}
-                            className="mt-1"
-                            placeholder="Enter details..."
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {hasServicesInCategory("Copyright") && (
-                  <Card className="bg-white shadow-lg">
-                    <CardHeader className="bg-purple-50 rounded-t-lg">
-                      <CardTitle className="text-purple-900">Copyright Service Details</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-4">
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Copyright Field 1</Label>
-                          <Input
-                            value={serviceFields.copyrightField1}
-                            onChange={(e) => setServiceFields((prev) => ({ ...prev, copyrightField1: e.target.value }))}
-                            className="mt-1"
-                            placeholder="Enter details..."
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Copyright Field 2</Label>
-                          <Input
-                            value={serviceFields.copyrightField2}
-                            onChange={(e) => setServiceFields((prev) => ({ ...prev, copyrightField2: e.target.value }))}
-                            className="mt-1"
-                            placeholder="Enter details..."
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-700">Copyright Field 3</Label>
-                        <Textarea
-                          value={serviceFields.copyrightField3}
-                          onChange={(e) => setServiceFields((prev) => ({ ...prev, copyrightField3: e.target.value }))}
-                          className="mt-1"
-                          placeholder="Enter details..."
-                          rows={3}
-                        />
-                      </div>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Copyright Field 4</Label>
-                          <Select
-                            value={serviceFields.copyrightField4}
-                            onValueChange={(value) => setServiceFields((prev) => ({ ...prev, copyrightField4: value }))}
-                          >
-                            <SelectTrigger className="mt-1">
-                              <SelectValue placeholder="Select option..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="option1">Option 1</SelectItem>
-                              <SelectItem value="option2">Option 2</SelectItem>
-                              <SelectItem value="option3">Option 3</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Copyright Field 5</Label>
-                          <Input
-                            value={serviceFields.copyrightField5}
-                            onChange={(e) => setServiceFields((prev) => ({ ...prev, copyrightField5: e.target.value }))}
-                            className="mt-1"
-                            placeholder="Enter details..."
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {hasServicesInCategory("Design") && (
-                  <Card className="bg-white shadow-lg">
-                    <CardHeader className="bg-orange-50 rounded-t-lg">
-                      <CardTitle className="text-orange-900">Design Service Details</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-4">
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Design Field 1</Label>
-                          <Input
-                            value={serviceFields.designField1}
-                            onChange={(e) => setServiceFields((prev) => ({ ...prev, designField1: e.target.value }))}
-                            className="mt-1"
-                            placeholder="Enter details..."
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Design Field 2</Label>
-                          <Input
-                            value={serviceFields.designField2}
-                            onChange={(e) => setServiceFields((prev) => ({ ...prev, designField2: e.target.value }))}
-                            className="mt-1"
-                            placeholder="Enter details..."
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-sm font-medium text-gray-700">Design Field 3</Label>
-                        <Textarea
-                          value={serviceFields.designField3}
-                          onChange={(e) => setServiceFields((prev) => ({ ...prev, designField3: e.target.value }))}
-                          className="mt-1"
-                          placeholder="Enter details..."
-                          rows={3}
-                        />
-                      </div>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Design Field 4</Label>
-                          <Select
-                            value={serviceFields.designField4}
-                            onValueChange={(value) => setServiceFields((prev) => ({ ...prev, designField4: value }))}
-                          >
-                            <SelectTrigger className="mt-1">
-                              <SelectValue placeholder="Select option..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="option1">Option 1</SelectItem>
-                              <SelectItem value="option2">Option 2</SelectItem>
-                              <SelectItem value="option3">Option 3</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Design Field 5</Label>
-                          <Input
-                            value={serviceFields.designField5}
-                            onChange={(e) => setServiceFields((prev) => ({ ...prev, designField5: e.target.value }))}
-                            className="mt-1"
-                            placeholder="Enter details..."
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex gap-8">
+          {/* Left Side - Selected Services */}
+          <div className="flex-1">
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Your Selected Services</h1>
+              <p className="text-gray-600">
+                Review your selected IP protection services and customize your quote
+              </p>
             </div>
 
-            {/* Right Side - Fixed Calculator */}
-            <div className="w-80">
-              <div className="sticky top-24 space-y-6">
-                {/* Main Calculator */}
-                <Card className="bg-white shadow-lg">
-                  <CardHeader className="bg-blue-50 rounded-t-lg">
-                    <CardTitle className="flex items-center text-blue-900">
-                      <Calculator className="h-5 w-5 mr-2" />
-                      Quote Calculator
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6 space-y-6">
-                    {/* Urgency */}
-                    <div>
-                      <Label htmlFor="urgency" className="text-sm font-medium text-gray-700">
-                        Service Urgency
-                      </Label>
-                      <Select
-                        value={calculatorFields.urgency}
-                        onValueChange={(value) => setCalculatorFields((prev) => ({ ...prev, urgency: value }))}
-                      >
-                        <SelectTrigger className="mt-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="standard">Standard (No rush)</SelectItem>
-                          <SelectItem value="urgent">Urgent (+25%)</SelectItem>
-                          <SelectItem value="rush">Rush (+50%)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Complexity */}
-                    <div>
-                      <Label htmlFor="complexity" className="text-sm font-medium text-gray-700">
-                        Case Complexity
-                      </Label>
-                      <Select
-                        value={calculatorFields.complexity}
-                        onValueChange={(value) => setCalculatorFields((prev) => ({ ...prev, complexity: value }))}
-                      >
-                        <SelectTrigger className="mt-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="simple">Simple (-10%)</SelectItem>
-                          <SelectItem value="medium">Medium (Standard)</SelectItem>
-                          <SelectItem value="complex">Complex (+30%)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Consultation Hours */}
-                    <div>
-                      <Label htmlFor="consultation" className="text-sm font-medium text-gray-700">
-                        Consultation Hours
-                      </Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        max="10"
-                        value={calculatorFields.consultationHours}
-                        onChange={(e) =>
-                          setCalculatorFields((prev) => ({
-                            ...prev,
-                            consultationHours: Number.parseInt(e.target.value) || 1,
-                          }))
-                        }
-                        className="mt-1"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">First hour included, $150/hour additional</p>
-                    </div>
-
-                    {/* Additional Services */}
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="checkbox"
-                        id="additional"
-                        checked={calculatorFields.additionalServices}
-                        onChange={(e) =>
-                          setCalculatorFields((prev) => ({ ...prev, additionalServices: e.target.checked }))
-                        }
-                        className="rounded border-gray-300"
-                      />
-                      <Label htmlFor="additional" className="text-sm text-gray-700">
-                        Priority Support (+$500)
-                      </Label>
-                    </div>
-
-                    {/* Remove the Discount field entirely */}
-
-                    {/* Total Calculation */}
-                    <div className="border-t pt-4">
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span>Base Total:</span>
-                          <span>${getTotalPrice().toLocaleString()}</span>
+            <div className="space-y-6">
+              {cartItems.map((item) => (
+                <Card key={item.id} className="bg-white">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center mb-2">
+                          <span className="inline-block px-3 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full mr-3">
+                            {item.category}
+                          </span>
+                          <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
                         </div>
-                        <div className="flex justify-between">
-                          <span>Adjustments:</span>
-                          <span>${(calculateAdjustedTotal() - getTotalPrice()).toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between font-bold text-lg text-blue-600 border-t pt-2">
-                          <span>Final Total:</span>
-                          <span>${calculateAdjustedTotal().toLocaleString()}</span>
+                        <p className="text-gray-600 text-sm mb-3">
+                          Professional {item.category.toLowerCase()} service with comprehensive coverage and expert guidance.
+                        </p>
+                        {item.details && (
+                          <p className="text-xs text-gray-500 mb-2">Details: {item.details}</p>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl font-bold text-blue-600">
+                            ${item.price.toLocaleString()}
+                          </span>
+                          <Button
+                            onClick={() => removeFromCart(item.id)}
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            Remove
+                          </Button>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="space-y-3">
-                      <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                        <FileText className="h-4 w-4 mr-2" />
-                        Request Final Quote
-                      </Button>
-                      <Button
-                        onClick={downloadQuotationPDF}
-                        variant="outline"
-                        className="w-full border-green-600 text-green-600 hover:bg-green-50 bg-transparent"
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download PDF
-                      </Button>
-                      <Button
-                      className="w-full bg-blue-600 hover:bg-blue-700"
-                      onClick={handlePayment}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      Make Payment
-                    </Button>
                     </div>
                   </CardContent>
                 </Card>
-               
-                {/* Remove all Service-Specific Fields from here - they're now moved to the left side */}
-              </div>
+              ))}
+
+              {cartItems.length === 0 && (
+                <Card className="bg-white">
+                  <CardContent className="p-12 text-center">
+                    <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No services selected</h3>
+                    <p className="text-gray-600 mb-4">Add some services to create your quote</p>
+                    <Button onClick={backToMainPage} className="bg-blue-600 hover:bg-blue-700">
+                      Browse Services
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Make Payment Button */}
+            <div className="flex justify-center items-center mt-8">
+              <Button
+                className="w-full max-w-sm bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={handlePayment}
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Make Payment
+              </Button>
             </div>
           </div>
         </div>
       </div>
-    )
-  }
-   
+    </div>
+  );
+}
+
+ 
   return (
     <div className="min-h-screen bg-white">
       {/* Auth Modal */}
@@ -1942,10 +1720,7 @@ const handleAuth = async (e: React.FormEvent) => {
               >
                 Sign In
               </button>
-             
-              <button type="button" onClick={handleGoogleLogin}>
-                Continue with Google
-              </button>
+                   
              
               <button
                 onClick={() => { handleLogout(); setIsOpen(false); }}
@@ -2302,9 +2077,9 @@ const handleAuth = async (e: React.FormEvent) => {
                               <SelectValue placeholder="Choose specification" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="ps">Provisional Specification (PS) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
-                              <SelectItem value="cs">Complete Specification (CS) + {formatINR(computeTurnaroundTotal("expediated"))}</SelectItem>
-                              <SelectItem value="ps_cs">PS-CS + {formatINR(computeTurnaroundTotal("rush"))}</SelectItem>
+                              <SelectItem value="ps">Provisional Specification (PS) — {formatINR(computeDraftingPrice("ps", "standard"))}</SelectItem>
+                              <SelectItem value="cs">Complete Specification (CS) + {formatINR(computeDraftingPrice("cs", "standard"))}</SelectItem>
+                              <SelectItem value="ps_cs">PS-CS + {formatINR(computeDraftingPrice("ps_cs", "standard"))}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -2352,8 +2127,10 @@ const handleAuth = async (e: React.FormEvent) => {
                               <SelectValue placeholder="Choose applicant type" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="individual">Start-Up/Individuals/MSMEs/Educational Institute</SelectItem>
-                              <SelectItem value="others">Large Entity/Others</SelectItem>
+                              <SelectItem value="individual">SStart-Up/Individuals/MSMEs/Educational Institute{" "}
+                                  {applicantPrices.individual !== undefined ? `— ₹${applicantPrices.individual}` : ""}</SelectItem>
+                              <SelectItem value="others">Large Entity/Others{" "}
+                                  {applicantPrices.others !== undefined ? `— ₹${applicantPrices.others}` : ""}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -2366,10 +2143,10 @@ const handleAuth = async (e: React.FormEvent) => {
                                   <SelectValue placeholder="Choose filing type" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="provisional_filing">Provisional Filing (4 days) - Up to 30 pages of specification and drawing</SelectItem>
-                                  <SelectItem value="complete_specification_filing">Complete Specification Filing (4 days) - Up to 30 pages of specification and drawing</SelectItem>
-                                  <SelectItem value="ps_cs_filing">PS-CS Filing (4 days) - Up to 30 pages of specification and drawing</SelectItem>
-                                  <SelectItem value="pct_filing">PCT Filing</SelectItem>
+                                  <SelectItem value="provisional_filing">rovisional Filing (4 days) — {formatINR(computeFilingPrice("provisional_filing", optionsForm.searchType as any))}</SelectItem>
+                                  <SelectItem value="complete_specification_filing">Complete Specification Filing (4 days) — {formatINR(computeFilingPrice("complete_specification_filing", optionsForm.searchType as any))}</SelectItem>
+                                  <SelectItem value="ps_cs_filing">PS-CS Filing (4 days) — {formatINR(computeFilingPrice("ps_cs_filing", optionsForm.searchType as any))}</SelectItem>
+                                  <SelectItem value="pct_filing">PCT Filing — {formatINR(computeFilingPrice("pct_filing", optionsForm.searchType as any))}</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -2402,10 +2179,10 @@ const handleAuth = async (e: React.FormEvent) => {
                               <SelectValue placeholder="Choose option" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="base_fee">Base Fee (Response due date after 3 months)</SelectItem>
-                              <SelectItem value="response_due_anytime_after_15_days">Response due anytime after 15 days</SelectItem>
-                              <SelectItem value="response_due_within_11_15_days">Response due within 11-15 days</SelectItem>
-                              <SelectItem value="response_due_within_4_10_days">Response due within 4-10 days</SelectItem>
+                              <SelectItem value="base_fee">Base Fee (Response due date after 3 months) — {ferPrices.base_fee !== undefined ? formatINR(ferPrices.base_fee) : ""}</SelectItem>
+                              <SelectItem value="response_due_anytime_after_15_days">Response due anytime after 15 days — {ferPrices.response_due_anytime_after_15_days !== undefined ? formatINR(ferPrices.response_due_anytime_after_15_days) : ""}</SelectItem>
+                              <SelectItem value="response_due_within_11_15_days">Response due within 11-15 days — {ferPrices.response_due_within_11_15_days !== undefined ? formatINR(ferPrices.response_due_within_11_15_days) : ""}</SelectItem>
+                              <SelectItem value="response_due_within_4_10_days">Response due within 4-10 days — {ferPrices.response_due_within_4_10_days !== undefined ? formatINR(ferPrices.response_due_within_4_10_days) : ""}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
