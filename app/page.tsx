@@ -1715,6 +1715,12 @@ if (showQuotePage) {
               <a href="/profile" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Manage Profile</a>
               <a href="#" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">View Your Orders</a>
               <button
+                onClick={() => { window.location.href = '/forms'; setIsOpen(false); }}
+                className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+              >
+                View Forms
+              </button>
+              <button
                 onClick={() => { goToQuotePage(); setIsOpen(false); }}
                 className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
               >
