@@ -1,7 +1,3 @@
-//overview
-//page.tsx
-//green color
-
 "use client"
 
 import React, { useEffect, useState } from "react"
