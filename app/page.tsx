@@ -1138,160 +1138,95 @@ const handleAuth = async (e: React.FormEvent) => {
   document.body.appendChild(script);
 }, []);
 
-  const handlePayment = () => {
-  const amount = Math.round(calculateAdjustedTotal() * 100); // Razorpay expects paise
-  const key = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
-  //to be changed
-  const name = "John Doe";
-  const email = "saroshcruz@gmail.com";
-  const phone = "1234567890";
-  const message = "I need help with a patent application.";
-  const complexity = "Medium";
-  const urgency = "High";    
+  const handlePayment = async () => {
+    try {
+      const amount = Math.round(calculateAdjustedTotal() * 100); // paise
 
-const options = {
-    key: key,
-    amount: amount,
-    currency: "INR",
-    name: "LegalIP Pro",
-    description: "Patent Service Payment",
-    handler: async function (response: any) {
-      console.log(`Payment successful! ID: ${response.razorpay_payment_id}`);
-      alert(`Payment successful! ID: ${response.razorpay_payment_id}`);
+      // 1) create an order on the server so the secret key stays on the server
+      const orderResp = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, currency: 'INR' }),
+      });
 
-      // Insert into quotes table after payment (we will notify server after we have an internal payment id)
-      try {
-        // Get user info (assume session is available)
-        const user = (await supabase.auth.getUser()).data.user;
-        if (!user) {
-          alert("User not found. Quote not saved.");
-          return;
-        }
-        // Use first cart item for category/service, or adjust as needed
-        const firstItem = cartItems[0];
-        if (!firstItem) {
-          alert("No service in cart. Quote not saved.");
-          return;
-        }
-
-
-        // Debug: log what we're searching for
-        console.log("Looking up category:", firstItem.category, "service:", firstItem.name);
-
-        // Look up category_id and service_id (case-insensitive)
-        let category_id = null;
-        let service_id = null;
-        if (firstItem.category) {
-          const { data: catData, error: catErr } = await supabase
-            .from("categories")
-            .select("id")
-            .ilike("name", firstItem.category)
-            .maybeSingle();
-          if (catErr) throw catErr;
-          category_id = catData?.id || null;
-        }
-        if (firstItem.name) {
-          const { data: svcData, error: svcErr } = await supabase
-            .from("services")
-            .select("id")
-            .ilike("name", firstItem.name)
-            .maybeSingle();
-          if (svcErr) throw svcErr;
-          service_id = svcData?.id || null;
-        }
-
-        // Fallback: if not found, try to get the first available category/service
-        if (!category_id) {
-          const { data: catList } = await supabase.from("categories").select("id").limit(1);
-          if (catList && catList.length > 0) category_id = catList[0].id;
-        }
-        if (!service_id) {
-          const { data: svcList } = await supabase.from("services").select("id").limit(1);
-          if (svcList && svcList.length > 0) service_id = svcList[0].id;
-        }
-
-        if (!category_id || !service_id) {
-          alert("Could not find category or service in database. Quote not saved.");
-          return;
-        }
-
-        // 1. Insert payment record
-        const { data: paymentData, error: paymentError } = await supabase
-          .from("payments")
-          .insert([
-            {
-              user_id: user.id,
-              total_amount: amount / 100, // convert paise to INR
-              payment_status: "completed",
-              payment_date: new Date().toISOString(),
-              razorpay_payment_id: response.razorpay_payment_id
-            }
-          ])
-          .select("id")
-          .single();
-
-        if (paymentError) {
-          alert("Failed to save payment: " + paymentError.message);
-          return;
-        }
-
-        // 2. Insert quote with payment_id
-        const quoteData: any = {
-          user_id: user.id,
-          category_id,
-          service_id,
-          payment_id: paymentData.id,
-          form_id: null, // Add form_id if available
-          created_at: new Date().toISOString(),
-        };
-
-        const { error } = await supabase.from("quotes").insert([quoteData]);
-        if (error) {
-          alert("Failed to save quote: " + error.message);
-        }
-
-        // 3. Notify server AFTER payment and quote rows exist
-        try {
-          const notifyResp = await fetch('/api/notify-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name,
-              email,
-              phone,
-              message,
-              complexity,
-              urgency,
-              payment_id: paymentData.id, // internal payments.id
-              razorpay_payment_id: response.razorpay_payment_id, // provider id
-            }),
-          });
-          const notifyResult = await notifyResp.json();
-          if (notifyResult.success) console.log('Notify sent OK');
-          else console.error('Notify failed', notifyResult.message, notifyResult.error);
-        } catch (notifyErr) {
-          console.error('Network error notifying server:', notifyErr);
-        }
-      } catch (e: any) {
-        alert("Error saving quote: " + e.message);
+      if (!orderResp.ok) {
+        const errText = await orderResp.text();
+        console.error('create-order failed:', errText);
+        alert('Failed to start payment. Please try again.');
+        return;
       }
-    },
-    prefill: {
-      name: "",
-      email: "",
-      contact: "",
-    },
-    notes: {
-      service: "Quotation Payment"
-    },
-    theme: {
-      color: "#1e40af",
+
+      const order = await orderResp.json();
+
+      // 2) fetch authenticated user's details to prefill checkout
+      const userRes = await supabase.auth.getUser();
+      const user = (userRes && (userRes as any).data) ? (userRes as any).data.user : null;
+      const firstItem = cartItems[0];
+
+      // 3) Build Razorpay options; order.id comes from server (/api/create-order)
+      const options: any = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: order.amount || amount,
+        currency: order.currency || 'INR',
+        name: 'LegalIP Pro',
+        description: firstItem?.name || 'IP Service Payment',
+        order_id: order.id || order.id, // server-provided Razorpay order id
+        handler: async function (response: any) {
+          // response contains razorpay_payment_id, razorpay_order_id, razorpay_signature
+          try {
+            // Forward the payment result to the server for signature verification
+            const verifyResp = await fetch('/api/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                // include minimal customer/context data for server processing
+                name: user?.user_metadata?.full_name || user?.email || '',
+                email: user?.email || '',
+                phone: user?.phone || '',
+                message: options.description,
+                complexity: serviceFields.patentField1 || 'standard',
+                urgency: calculatorFields.urgency || 'standard',
+                cart: cartItems,
+              }),
+            });
+
+            const verifyJson = await verifyResp.json();
+            if (!verifyResp.ok || !verifyJson.success) {
+              console.error('verify-payment failed', verifyJson);
+              alert('Payment verification failed. Please contact support.');
+              return;
+            }
+
+            // Verified and persisted server-side
+            alert('Payment successful and verified. Thank you!');
+            // Optionally redirect to a receipts page or profile
+            // window.location.href = `/profile/overview`;
+          } catch (err) {
+            console.error('Error verifying payment:', err);
+            alert('Payment succeeded but verification failed. We will investigate.');
+          }
+        },
+        prefill: {
+          name: user?.user_metadata?.full_name || '',
+          email: user?.email || '',
+          contact: user?.phone || '',
+        },
+        notes: {
+          service: firstItem?.name || 'Quotation Payment',
+        },
+        theme: { color: '#1e40af' },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    } catch (err: any) {
+      console.error('handlePayment error:', err);
+      alert('An error occurred while initiating payment.');
     }
   };
-
-  const rzp = new (window as any).Razorpay(options);
-  rzp.open();
-};
 
  
    
