@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { useSearchParams } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
+import { useToast } from "@/components/hooks/use-toast"
 import formData from "/Users/sarosh/Downloads/legal-ip-website-2/app/data/forms-fields.json"
 
 type FormField = {
