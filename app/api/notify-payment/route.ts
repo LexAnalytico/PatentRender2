@@ -81,7 +81,29 @@ export async function POST(req: Request) {
       console.error('❌ Exception during payment resolution:', e);
     }
 
-    console.debug('notify-payment: resolved', { quoteData, paymentRow });
+      console.debug('notify-payment: resolved (initial)', { quoteData, paymentRow, incoming_service_id });
+
+      // Persist service_id onto the payments row early if we can determine it so subsequent
+      // resolution for service name always reads the persisted value (avoids race conditions)
+      try {
+        const resolvedServiceId = paymentRow?.service_id ?? incoming_service_id ?? (quoteData ? (quoteData as any).service_id ?? null : null);
+        console.debug('notify-payment: resolvedServiceId candidate', { resolvedServiceId });
+        if (paymentRow && !paymentRow.service_id && resolvedServiceId) {
+          const { data: updatedPay, error: updErr } = await serverSupabase
+            .from('payments')
+            .update({ service_id: resolvedServiceId })
+            .eq('id', paymentRow.id)
+            .select()
+            .maybeSingle();
+          if (updErr) console.error('❌ Failed to persist service_id on payment (early):', updErr);
+          else if (updatedPay) {
+            paymentRow = updatedPay as any;
+            console.debug('notify-payment: paymentRow updated with service_id', { paymentRow });
+          }
+        }
+      } catch (e) {
+        console.error('❌ Exception persisting service_id early on payment:', e);
+      }
 
     // Extra fallback: sometimes client sends the Razorpay id in `payment_id` (string like 'pay_...')
     try {
@@ -164,6 +186,7 @@ export async function POST(req: Request) {
         }
       }
     }
+    console.debug('notify-payment: final resolution', { paymentRowServiceId: paymentRow?.service_id, resolvedServiceName: serviceName, categoryName });
   } catch (e) {
     console.error('❌ Exception resolving service from paymentRow.service_id:', e);
   }
@@ -272,6 +295,14 @@ export async function POST(req: Request) {
       </ul>
 
   <h4>Payment details</h4>
+  <ul>
+    <li><strong>Category:</strong> ${categoryLabel}</li>
+    <li><strong>Service:</strong> ${serviceLabel}</li>
+    <li><strong>Payment Cost:</strong> ${typeof quoteTotal === 'number' ? quoteTotal.toLocaleString('en-IN') : quoteTotal}</li>
+    <li><strong>Date:</strong> ${quoteCreatedAt}</li>
+    <li><strong>Status:</strong> ${paymentRow?.payment_status ?? 'N/A'}</li>
+  </ul>
+
   ${paymentDetailsHtml}
 
       <p>For your reference, a copy of the form you filled out is attached to this email.</p>

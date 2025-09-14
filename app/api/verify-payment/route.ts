@@ -29,8 +29,29 @@ async function sendPaymentNotification(serverSupabase: any, opts: { paymentId: s
       if (payErr) console.error('Payment fetch error before email:', payErr);
       paymentRow = pay ?? null;
     }
-    // category and service from recent quote or payment
+    // category and service from payment (preferred) or recent quote
     let serviceLabel = 'N/A';
+    let categoryLabel = 'N/A';
+
+    // If payment row contains service_id, prefer that and resolve the name/category now
+    if (paymentRow?.service_id) {
+      try {
+        const { data: svc, error: svcErr } = await serverSupabase.from('services').select('name, category_id').eq('id', paymentRow.service_id).maybeSingle();
+        if (svc && !(svcErr)) {
+          serviceLabel = (svc as any)?.name ?? serviceLabel;
+          if ((svc as any).category_id) {
+            try {
+              const { data: cat } = await serverSupabase.from('categories').select('name').eq('id', (svc as any).category_id).maybeSingle();
+              categoryLabel = (cat as any)?.name ?? categoryLabel;
+            } catch (e) {
+              console.error('Category fetch error before email:', e);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Service fetch error before email:', e);
+      }
+    }
 
     let userRow: any = null;
     if (paymentRow?.user_id) {
@@ -39,8 +60,7 @@ async function sendPaymentNotification(serverSupabase: any, opts: { paymentId: s
       userRow = u ?? null;
     }
 
-    // category from recent quote
-    let categoryLabel = 'N/A';
+  // category from recent quote (may override if more recent quote exists)
     let quoteCreatedAt = paymentRow?.payment_date ? new Date(paymentRow.payment_date).toLocaleString() : 'N/A';
     if (paymentRow?.user_id) {
       const { data: recentQuote } = await serverSupabase

@@ -441,6 +441,7 @@ const patentServices = [
       price,
       category,
     }
+  console.debug('addToCart - newItem', newItem)
     setCartItems((prev) => [...prev, newItem])
   }
 
@@ -953,7 +954,7 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
     const detailsLabel = selectedServiceTitle === "Drafting" ? "Type" : "Search"
     const details = `${detailsLabel}: ${searchTypeLabel}; Turnaround: ${turnaroundLabel}`
 
-    const newItem = {
+  const newItem = {
       id: `${selectedServiceTitle}-${Date.now()}`,
       name: selectedServiceTitle,
   service_id: serviceIdByName[selectedServiceTitle as keyof typeof serviceIdByName] ?? null,
@@ -961,6 +962,7 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
       category: selectedServiceCategory,
       details,
     }
+  console.debug('options-panel add - newItem', newItem)
     setCartItems((prev) => [...prev, newItem])
     closeOptionsPanel()
   }
