@@ -24,17 +24,47 @@ export async function POST(req: Request) {
         ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '', process.env.SUPABASE_SERVICE_ROLE_KEY)
         : supabase;
 
-      const amtToStore = custom_price ?? amount ?? 0;
+      // Frontend sends `amount` in paise (integer). Store total_amount in rupees.
+      const amtToStore = custom_price != null
+        ? Number(custom_price)
+        : (amount != null ? Number(amount) / 100 : 0);
+
+  // Validate provided user_id exists; do not trust client-provided ids
+      let userToStore: string | null = null;
+      try {
+        if (user_id) {
+          const { data: userRow, error: userErr } = await serverSupabase.from('users').select('id').eq('id', user_id).maybeSingle();
+          if (userErr) console.debug('User lookup error when validating user_id for order:', userErr);
+          if (userRow && (userRow as any).id) userToStore = (userRow as any).id;
+        }
+      } catch (uEx) {
+        console.error('❌ Exception while validating user_id for order:', uEx);
+      }
+
+      // Validate provided service_id (optional) and store it on the payments row so
+      // verify/notify can show the selected service without needing to rely on quotes.
+      let serviceToStore: number | null = null;
+      try {
+        if (service_id != null) {
+          const { data: svcRow, error: svcErr } = await serverSupabase.from('services').select('id').eq('id', service_id).maybeSingle();
+          if (svcErr) console.debug('Service lookup error when validating service_id for order:', svcErr);
+          if (svcRow && (svcRow as any).id) serviceToStore = Number((svcRow as any).id);
+        }
+      } catch (sEx) {
+        console.error('❌ Exception while validating service_id for order:', sEx);
+      }
+
       const { data: inserted, error: insErr } = await serverSupabase
         .from('payments')
         .insert([
           {
-            user_id: user_id ?? null,
+            user_id: userToStore,
             total_amount: amtToStore,
             payment_status: 'created',
             payment_date: null,
             razorpay_order_id: order.id,
             razorpay_payment_id: null,
+            service_id: serviceToStore,
             created_at: new Date().toISOString(),
           },
         ])

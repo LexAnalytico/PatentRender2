@@ -435,7 +435,9 @@ const patentServices = [
     const price = servicePricing[serviceName as keyof typeof servicePricing] || 0
     const newItem = {
       id: `${serviceName}-${Date.now()}`,
-      name: serviceName,
+  name: serviceName,
+  // attempt to map human-readable service name to numeric service_id
+  service_id: serviceIdByName[serviceName as keyof typeof serviceIdByName] ?? null,
       price,
       category,
     }
@@ -954,6 +956,7 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
     const newItem = {
       id: `${selectedServiceTitle}-${Date.now()}`,
       name: selectedServiceTitle,
+  service_id: serviceIdByName[selectedServiceTitle as keyof typeof serviceIdByName] ?? null,
       price,
       category: selectedServiceCategory,
       details,
@@ -1142,11 +1145,15 @@ const handleAuth = async (e: React.FormEvent) => {
     try {
       const amount = Math.round(calculateAdjustedTotal() * 100); // paise
 
-      // 1) create an order on the server so the secret key stays on the server
+      // 1) fetch authenticated user's details so we can attach user_id to the order
+      const userRes = await supabase.auth.getUser();
+      const user = (userRes && (userRes as any).data) ? (userRes as any).data.user : null;
+
+      // 2) create an order on the server so the secret key stays on the server
       const orderResp = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, currency: 'INR' }),
+        body: JSON.stringify({ amount, currency: 'INR', user_id: user?.id || null, service_id: (cartItems[0] as any)?.service_id ?? null }),
       });
 
       if (!orderResp.ok) {
@@ -1157,10 +1164,6 @@ const handleAuth = async (e: React.FormEvent) => {
       }
 
       const order = await orderResp.json();
-
-      // 2) fetch authenticated user's details to prefill checkout
-      const userRes = await supabase.auth.getUser();
-      const user = (userRes && (userRes as any).data) ? (userRes as any).data.user : null;
       const firstItem = cartItems[0];
 
       // 3) Build Razorpay options; order.id comes from server (/api/create-order)
@@ -1174,7 +1177,7 @@ const handleAuth = async (e: React.FormEvent) => {
         handler: async function (response: any) {
           // response contains razorpay_payment_id, razorpay_order_id, razorpay_signature
           try {
-            // Forward the payment result to the server for signature verification
+      // Forward the payment result to the server for signature verification
             const verifyResp = await fetch('/api/verify-payment', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1182,6 +1185,10 @@ const handleAuth = async (e: React.FormEvent) => {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
+                // include authenticated user id so server can attach payment to profile
+                user_id: user?.id || null,
+        // include service selection so server can persist service_id reliably
+        service_id: (cartItems[0] as any)?.service_id ?? null,
                 // include minimal customer/context data for server processing
                 name: user?.user_metadata?.full_name || user?.email || '',
                 email: user?.email || '',

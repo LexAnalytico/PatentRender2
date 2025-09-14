@@ -23,12 +23,14 @@ async function sendPaymentNotification(serverSupabase: any, opts: { paymentId: s
     if (!paymentRow) {
       const { data: pay, error: payErr } = await serverSupabase
         .from('payments')
-        .select('id, user_id, total_amount, payment_status, payment_date, razorpay_payment_id')
+        .select('id, user_id, total_amount, payment_status, payment_date, razorpay_payment_id, service_id')
         .eq('razorpay_payment_id', paymentId)
         .maybeSingle();
       if (payErr) console.error('Payment fetch error before email:', payErr);
       paymentRow = pay ?? null;
     }
+    // category and service from recent quote or payment
+    let serviceLabel = 'N/A';
 
     let userRow: any = null;
     if (paymentRow?.user_id) {
@@ -37,76 +39,26 @@ async function sendPaymentNotification(serverSupabase: any, opts: { paymentId: s
       userRow = u ?? null;
     }
 
-    // Resolve category and service: prefer an orders row (linked to this payment), otherwise fall back to recent quote
+    // category from recent quote
     let categoryLabel = 'N/A';
-    let serviceLabel = 'N/A';
     let quoteCreatedAt = paymentRow?.payment_date ? new Date(paymentRow.payment_date).toLocaleString() : 'N/A';
-
-    // If payment row has service_id set (persisted at order creation), prefer that
-    if (paymentRow?.service_id) {
-      try {
-        const { data: svc } = await serverSupabase.from('services').select('name, category_id').eq('id', paymentRow.service_id).maybeSingle();
-        serviceLabel = (svc as any)?.name ?? serviceLabel;
-        if ((svc as any)?.category_id) {
-          const { data: cat } = await serverSupabase.from('categories').select('name').eq('id', (svc as any).category_id).maybeSingle();
-          categoryLabel = (cat as any)?.name ?? categoryLabel;
-        }
-      } catch (e) {
-        console.error('Error resolving service from paymentRow.service_id:', e);
-      }
-    }
-
-    if (paymentRow?.id) {
-      try {
-        const { data: orderRow } = await serverSupabase
-          .from('orders')
-          .select('service_id, category_id, created_at')
-          .eq('payment_id', paymentRow.id)
-          .maybeSingle();
-  if (orderRow) {
-          if ((orderRow as any).created_at) quoteCreatedAt = new Date((orderRow as any).created_at).toLocaleString();
-
-          if ((orderRow as any).service_id && serviceLabel === 'N/A') {
-            const { data: svc } = await serverSupabase.from('services').select('name, category_id').eq('id', (orderRow as any).service_id).maybeSingle();
-            serviceLabel = (svc as any)?.name ?? serviceLabel;
-            if ((svc as any)?.category_id) {
-              const { data: cat } = await serverSupabase.from('categories').select('name').eq('id', (svc as any).category_id).maybeSingle();
-              categoryLabel = (cat as any)?.name ?? categoryLabel;
-            }
-          }
-
-          if ((orderRow as any).category_id && categoryLabel === 'N/A') {
-            const { data: cat2 } = await serverSupabase.from('categories').select('name').eq('id', (orderRow as any).category_id).maybeSingle();
-            categoryLabel = (cat2 as any)?.name ?? categoryLabel;
-          }
-        }
-      } catch (e) {
-        console.error('Error resolving order/service/category for email:', e);
-      }
-    }
-
-    // If we still don't have category/service, fallback to a recent quote for context
-    if ((categoryLabel === 'N/A' || serviceLabel === 'N/A') && paymentRow?.user_id) {
+    if (paymentRow?.user_id) {
       const { data: recentQuote } = await serverSupabase
         .from('quotes')
-        .select('category_id, service_id, created_at, total')
+        .select('category_id, service_id, created_at')
         .eq('user_id', paymentRow.user_id)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
       if (recentQuote) {
         if ((recentQuote as any).created_at) quoteCreatedAt = new Date((recentQuote as any).created_at).toLocaleString();
-        if ((recentQuote as any).service_id && serviceLabel === 'N/A') {
-          const { data: svc2 } = await serverSupabase.from('services').select('name, category_id').eq('id', (recentQuote as any).service_id).maybeSingle();
-          serviceLabel = (svc2 as any)?.name ?? serviceLabel;
-          if ((svc2 as any)?.category_id) {
-            const { data: cat3 } = await serverSupabase.from('categories').select('name').eq('id', (svc2 as any).category_id).maybeSingle();
-            categoryLabel = (cat3 as any)?.name ?? categoryLabel;
-          }
+        if ((recentQuote as any).category_id) {
+          const { data: cat } = await serverSupabase.from('categories').select('name').eq('id', (recentQuote as any).category_id).maybeSingle();
+          categoryLabel = (cat as any)?.name ?? 'N/A';
         }
-        if ((recentQuote as any).category_id && categoryLabel === 'N/A') {
-          const { data: cat4 } = await serverSupabase.from('categories').select('name').eq('id', (recentQuote as any).category_id).maybeSingle();
-          categoryLabel = (cat4 as any)?.name ?? categoryLabel;
+        if ((recentQuote as any).service_id) {
+          const { data: svc } = await serverSupabase.from('services').select('name').eq('id', (recentQuote as any).service_id).maybeSingle();
+          serviceLabel = (svc as any)?.name ?? 'N/A';
         }
       }
     }
@@ -135,8 +87,8 @@ async function sendPaymentNotification(serverSupabase: any, opts: { paymentId: s
       <h4>Payment</h4>
       <ul>
   <li><strong>Category:</strong> ${categoryLabel}</li>
-  <li><strong>Service:</strong> ${serviceLabel}</li>
-  <li><strong>Payment Cost:</strong> ${displayTotal === 'N/A' ? 'N/A' : displayTotal.toLocaleString('en-IN')}</li>
+  <li><strong>Services:</strong> ${serviceLabel}</li>
+        <li><strong>Payment Cost:</strong> ${displayTotal === 'N/A' ? 'N/A' : displayTotal.toLocaleString('en-IN')}</li>
         <li><strong>Date:</strong> ${quoteCreatedAt}</li>
         <li><strong>Status:</strong> ${paymentStatus}</li>
         <li><strong>Payment ID:</strong> ${paymentIdLabel}</li>
@@ -195,11 +147,11 @@ export async function POST(req: NextRequest) {
       : supabase;
 
     // Try to reuse existing payment amount if present (created at order time)
-    let existingPaymentByOrder: any = null;
+  let existingPaymentByOrder: any = null;
     try {
       const { data: existingByOrder, error: existingByOrderErr } = await serverSupabase
-        .from('payments')
-        .select('id, user_id, total_amount')
+    .from('payments')
+    .select('id, user_id, total_amount, service_id')
         .eq('razorpay_order_id', razorpay_order_id)
         .maybeSingle();
       if (existingByOrderErr) console.debug('existingPaymentByOrder fetch error', existingByOrderErr);
@@ -208,8 +160,10 @@ export async function POST(req: NextRequest) {
       console.error('Exception checking existing payment by order:', e);
     }
 
-    // Determine amount to store: prefer existing payment.total_amount, otherwise custom_price, otherwise derive from body.amount (assume paise)
-    let amtToStore = existingPaymentByOrder?.total_amount ?? null;
+  // Determine amount to store: prefer existing payment.total_amount, otherwise custom_price, otherwise derive from body.amount (assume paise)
+  let amtToStore = existingPaymentByOrder?.total_amount ?? null;
+  // Determine service to store: prefer existing payment.service_id, then incoming payload service_id, will fallback to recent quote later
+  let serviceToStore: any = existingPaymentByOrder?.service_id ?? service_id ?? null;
     if (amtToStore == null) {
       if (custom_price != null) amtToStore = Number(custom_price);
       else if ((body as any).amount != null) amtToStore = Number((body as any).amount) / 100; // paise -> rupees
@@ -220,6 +174,7 @@ export async function POST(req: NextRequest) {
     let persistedPayment: any = null;
     try {
       if (razorpay_payment_id) {
+        // If we still don't have a serviceToStore, try to resolve from recent quote later (kept as variable)
         const { data: updated, error: updErr } = await serverSupabase
           .from('payments')
           .update({
@@ -229,6 +184,7 @@ export async function POST(req: NextRequest) {
             payment_date: new Date().toISOString(),
             razorpay_order_id: razorpay_order_id,
             razorpay_payment_id: razorpay_payment_id,
+            service_id: serviceToStore ?? null,
           })
           .eq('razorpay_payment_id', razorpay_payment_id)
           .select()
@@ -248,6 +204,7 @@ export async function POST(req: NextRequest) {
               payment_date: new Date().toISOString(),
               razorpay_order_id: razorpay_order_id,
               razorpay_payment_id: razorpay_payment_id,
+              service_id: serviceToStore ?? null,
               created_at: new Date().toISOString(),
             },
           ])
