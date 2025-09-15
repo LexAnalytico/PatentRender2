@@ -1211,8 +1211,19 @@ const handleAuth = async (e: React.FormEvent) => {
 
             // Verified and persisted server-side
             alert('Payment successful and verified. Thank you!');
-            // Optionally redirect to a receipts page or profile
-            // window.location.href = `/profile/overview`;
+            // Redirect user to profile overview and include the persisted payment id so the page can highlight the order
+            try {
+              const persisted = verifyJson.persistedPayment ?? null;
+              const paymentIdentifier = persisted?.razorpay_payment_id ?? persisted?.id ?? null;
+              if (paymentIdentifier) {
+                window.location.href = `/profile/overview?tab=overview&payment_id=${encodeURIComponent(String(paymentIdentifier))}`;
+              } else {
+                window.location.href = `/profile/overview?tab=overview`;
+              }
+            } catch (e) {
+              // fallback
+              window.location.href = `/profile/overview?tab=overview`;
+            }
           } catch (err) {
             console.error('Error verifying payment:', err);
             alert('Payment succeeded but verification failed. We will investigate.');
@@ -1657,6 +1668,7 @@ if (showQuotePage) {
           {isOpen && (
             <div className="absolute right-0 mt-2 w-56 bg-white shadow-lg rounded-lg py-2 border border-gray-200 z-50">
               <a href="/profile" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Manage Profile</a>
+              <a href="/profile/overview?tab=overview" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Profile Overview</a>
               <a href="#" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">View Your Orders</a>
               <button
                 onClick={() => { window.location.href = '/forms'; setIsOpen(false); }}

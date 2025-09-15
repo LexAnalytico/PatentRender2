@@ -363,6 +363,9 @@ export default function ProfilePage() {
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base">Quick Stats</CardTitle>
                         <CardDescription>Recent engagement</CardDescription>
+                        <div className="ml-auto">
+                          <a href="/profile/overview?tab=overview" className="inline-block text-sm text-blue-600 hover:underline">Open Profile Overview</a>
+                        </div>
                       </CardHeader>
                       <CardContent>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -530,11 +533,11 @@ export default function ProfilePage() {
                                           <span className="font-medium text-gray-900">{f.value}</span>
                                         </div>
                                       ))}
-                                      {o.details.form.attachments && (
+                                      {'attachments' in o.details.form && Array.isArray((o.details.form as any).attachments) && (o.details.form as any).attachments.length > 0 && (
                                         <div className="pt-2">
                                           <div className="text-xs text-gray-500 mb-1">Attachments</div>
                                           <div className="flex flex-wrap gap-2">
-                                            {o.details.form.attachments.map((a, idx) => (
+                                            {(((o.details.form as any).attachments) as string[]).map((a: string, idx: number) => (
                                               <span key={idx} className="text-xs px-2 py-1 bg-gray-100 rounded border">{a}</span>
                                             ))}
                                           </div>
