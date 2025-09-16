@@ -1,43 +1,38 @@
-service_pricind_rules
-47,1,individual,turnaround_standard,fixed,10500.00
-48,1,individual,turnaround_expediated,fixed,10500.00
-49,1,individual,turnaround_rush,fixed,15000.00
-50,1,individual,full_without_opinion_standard,fixed,15000.00
-51,1,individual,full_without_opinion_expediated,fixed,18000.00
-52,1,individual,full_without_opinion_rush,fixed,19500.00
-53,1,individual,full_with_opinion_standard,fixed,16500.00
-54,1,individual,full_with_opinion_expediated,fixed,19500.00
-55,1,individual,full_with_opinion_rush,fixed,21000.00
-56,2,individual,provisional_specification_standard,fixed,18000.00
-57,2,individual,provisional_specification_expediated,fixed,22000.00
-58,2,individual,provisional_specification_rush,fixed,24000.00
-59,2,individual,complete_specification_standard,fixed,30000.00
-60,2,individual,complete_specification_expediated,fixed,34000.00
-61,2,individual,complete_specification_rush,fixed,36000.00
-62,2,individual,ps_cs_standard,fixed,25000.00
-63,2,individual,ps_cs_expediated,fixed,29000.00
-64,2,individual,ps_cs_rush,fixed,31000.00
-65,3,individual,provisional_filing,fixed,6600.00
-66,3,individual,complete_specification_filing,fixed,6600.00
-67,3,individual,ps_cs_filing,fixed,5000.00
-68,3,individual,pct_filing,fixed,9600.00
-69,4,individual,base_fee,fixed,15000.00
-70,4,individual,response_due_anytime_after_15_days,fixed,15000.00
-71,4,individual,response_due_within_11_15_days,fixed,18000.00
-72,4,individual,response_due_within_4_10_days,fixed,21000.00
-73,3,others,complete_specification_filing,fixed,13000.00
-74,3,others,pct_filing,fixed,13000.00
-75,3,others,provisional_filing,fixed,5000.00
-76,3,others,ps_cs_filing,fixed,16000.00
-
-forms fields:
-patentability_search
-provisional_filing
-complete_provisional_filing
-pct_filing
-ps_cs
+The requirement ia as follows:
+When user selects category->service->dropdown (search type and turnaround type), user will select one of the fields listed ftom table below which should be written to type field in the payments table.
+There should be a mapping between the tyoe field and the forms selection column
+When user clicks download form button in profile->orders tab the forms/FormClient.tsx page is displayed and the dropdown should programatically select the form
 
 
-trademark
-copyrights
-design
+service_pricing_rules snapshot                                              Form selection
+
+47	1	individual	turnaround_standard	                 fixed	10500	    Patentability Search	    
+48	1	individual	turnaround_expediated	             fixed	13500		Patentability Search       
+49	1	individual	turnaround_rush	                     fixed	15000		Patentability Search       
+50	1	individual	full_without_opinion_standard	     fixed	15000		Patentability Search 
+51	1	individual	full_without_opinion_expediated	     fixed	18000		Patentability Search 
+52	1	individual	full_without_opinion_rush	         fixed	19500		Patentability Search 
+53	1	individual	full_with_opinion_standard	         fixed	16500		Patentability Search 
+54	1	individual	full_with_opinion_expediated	     fixed	19500		Patentability Search 
+55	1	individual	full_with_opinion_rush	             fixed	21000		Patentability Search 
+56	2	individual	provisional_specification_standard	 fixed	18000	    Patentability Search 
+57	2	individual	provisional_specification_expediated fixed	22000		Patentability Search 
+58	2	individual	provisional_specification_rush	    fixed	24000		Patentability Search 
+59	2	individual	complete_specification_standard	    fixed	30000		Patentability Search 
+60	2	individual	complete_specification_expediated	fixed	34000		Patentability Search 
+61	2	individual	complete_specification_rush	        fixed	36000		Patentability Search 
+62	2	individual	ps_cs_standard	                    fixed	25000		Patentability Search 
+63	2	individual	ps_cs_expediated	                fixed	29000		Patentability Search 
+64	2	individual	ps_cs_rush	                        fixed	31000		Patentability Search 
+65	3	individual	provisional_filing	                fixed	6600	    Provisional Filling
+66	3	individual	complete_specification_filing	    fixed	6600		Provisional Filling
+67	3	individual	ps_cs_filing	                    fixed	5000		PS-CS
+68	3	individual	pct_filing	                        fixed	9600		PCT Filling
+69	4	individual	base_fee	                        fixed	15000	    FER Response
+70	4	individual	response_due_anytime_after_15_days	fixed	15000		FER Response
+71	4	individual	response_due_within_11_15_days	    fixed	18000		FER Response
+72	4	individual	response_due_within_4_10_days	    fixed	21000		FER Response
+73	3	others	    complete_specification_filing	    fixed	13000		Complete non Provisional Filling
+74	3	others	    pct_filing	                        fixed	16000		PCT Filling
+75	3	others	    provisional_filing	                fixed	13000		Complete non Provisional Filling
+76	3	others	    ps_cs_filing	                    fixed	5000		PS-CS

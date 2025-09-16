@@ -15,24 +15,24 @@ import formData from "../data/forms-fields.json"
 type FormField = {
   field_title: string
   patentability_search: string
+  drafting: string
   provisional_filing: string
-  complete_provisional_filing: string
+  complete_non_provisional_filing: string
   pct_filing: string
   ps_cs: string
-  trademark: string
-  copyrights: string
-  design: string
+  fer_response: string
+  
 }
 
 const applicationTypes = [
   { key: "patentability_search", label: "Patentability Search" },
+  { key: "drafting", label: "Drafting" },  
   { key: "provisional_filing", label: "Provisional Filing" },
-  { key: "complete_provisional_filing", label: "Complete Provisional Filing" },
+  { key: "complete_non_provisional_filing", label: "Complete Non Provisional Filing" },
   { key: "pct_filing", label: "PCT Filing" },
   { key: "ps_cs", label: "PS CS" },
-  { key: "trademark", label: "Trademark" },
-  { key: "copyrights", label: "Copyrights" },
-  { key: "design", label: "Design" },
+  { key: "fer_response", label: "FER Response" },
+  
 ]
 
 export default function IPFormBuilderClient() {

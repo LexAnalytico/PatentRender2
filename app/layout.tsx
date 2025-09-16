@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Navbar from "@/components/Navbar"; // ✅ import your Navbar
+import AutoLogout from '@/components/AutoLogout'
 import "./globals.css"; // ✅ make sure Tailwind or CSS is applied
 
 export const metadata: Metadata = {
@@ -19,6 +20,7 @@ export default function RootLayout({
       <body>
         {/* ✅ Navbar appears on every page */}
         <Navbar />
+  <AutoLogout />
         <main>{children}</main>
       </body>
     </html>
