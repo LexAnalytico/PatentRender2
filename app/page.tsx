@@ -1126,7 +1126,7 @@ const handleAuth = async (e: React.FormEvent) => {
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(authForm.email, {
-    redirectTo: "https://patent-render2.vercel.app/reset-password", // or your domain
+    redirectTo: "http://localhost:3000/reset-password",
   });
 
   if (error) {
@@ -1219,10 +1219,22 @@ const handleAuth = async (e: React.FormEvent) => {
             try {
               const persisted = verifyJson.persistedPayment ?? null;
               const paymentIdentifier = persisted?.razorpay_payment_id ?? persisted?.id ?? null;
-              if (paymentIdentifier) {
-                window.location.href = `/profile?tab=orders&payment_id=${encodeURIComponent(String(paymentIdentifier))}`;
-              } else {
-                window.location.href = `/profile?tab=orders`;
+              try {
+                const base = (typeof window !== 'undefined')
+                  ? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin)
+                  : ''
+                if (paymentIdentifier) {
+                  window.location.href = `${base}/profile?tab=orders&payment_id=${encodeURIComponent(String(paymentIdentifier))}`;
+                } else {
+                  window.location.href = `${base}/profile?tab=orders`;
+                }
+              } catch (e) {
+                // fallback to relative path
+                if (paymentIdentifier) {
+                  window.location.href = `/profile?tab=orders&payment_id=${encodeURIComponent(String(paymentIdentifier))}`;
+                } else {
+                  window.location.href = `/profile?tab=orders`;
+                }
               }
             } catch (e) {
               // fallback

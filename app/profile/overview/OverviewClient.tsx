@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useEffect, useState } from "react"
@@ -178,13 +179,33 @@ export default function ProfileOverviewClient() {
     }
     // Open the first selected order's form type. Include order_id for possible prefill/use in the form.
     const first = selected[0]
-    const t = first.type ?? null
+    // prefer explicit order.type, fallback to payment.type, then derive from service name
+    let t = first.type ?? (first.payments ? first.payments.type ?? null : null)
+    if (!t) {
+      const svcName = (first.services as any)?.name ?? null
+      const mapping: Record<string, string> = {
+        'Patentability Search': 'patentability_search',
+        'Drafting': 'drafting',
+        'Provisional Filling': 'provisional_filing',
+        'Provisional Filing': 'provisional_filing',
+        'Complete Non Provisional Filing': 'complete_non_provisional_filing',
+        'PCT Filling': 'pct_filing',
+        'PCT Filing': 'pct_filing',
+        'PS-CS': 'ps_cs',
+        'PS CS': 'ps_cs',
+        'FER Response': 'fer_response',
+      }
+      if (svcName && mapping[svcName]) t = mapping[svcName]
+    }
     if (!t) {
       alert('Selected order does not have an associated form type')
       return
     }
     try {
-      router.push(`/forms?type=${encodeURIComponent(t)}&order_id=${encodeURIComponent(first.id)}`)
+      // open the form page in a new tab so FormClient mounts and can resolve order/type
+      const base = typeof window !== 'undefined' ? window.location.origin : ''
+      const url = `${base}/forms?type=${encodeURIComponent(t)}&order_id=${encodeURIComponent(first.id)}`
+      window.open(url, '_blank')
     } catch (e) {
       console.error('Navigation error opening form for order', e)
     }
@@ -204,7 +225,7 @@ export default function ProfileOverviewClient() {
             <CardDescription>Your account summary and recent activity.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="mb-4 flex items-center gap-3">
+              <div className="mb-4 flex items-center gap-3">
               <Input placeholder="Search by service, category or price" value={search} onChange={(e) => setSearch((e.target as HTMLInputElement).value)} />
               <Select value={sortBy} onValueChange={(v) => setSortBy(v)}>
                 <SelectTrigger>
@@ -217,7 +238,7 @@ export default function ProfileOverviewClient() {
                   <SelectItem value="price_asc">Price (low → high)</SelectItem>
                 </SelectContent>
               </Select>
-              <Button onClick={downloadSelected} disabled={!Object.values(selectedRows).some(Boolean)}>Download Form</Button>
+              <Button onClick={downloadSelected} disabled={!Object.values(selectedRows).some(Boolean)}>View Form</Button>
             </div>
 
             <div className="overflow-x-auto">
@@ -272,16 +293,19 @@ export default function ProfileOverviewClient() {
           <CardContent>
             <div className="max-w-md">
               <Label className="mb-2 block text-sm font-medium">Open Form</Label>
-              <Select value={selectedType} onValueChange={(v) => setSelectedType(v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a form" />
-                </SelectTrigger>
-                <SelectContent>
-                  {applicationTypes.map((t) => (
-                    <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-3">
+                <Select value={selectedType} onValueChange={(v) => setSelectedType(v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a form" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {applicationTypes.map((t) => (
+                      <SelectItem key={t.key} value={t.key}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button onClick={downloadSelected} disabled={!Object.values(selectedRows).some(Boolean)}>View Form</Button>
+              </div>
 
               <p className="mt-3 text-sm text-muted-foreground">Choosing an option will navigate to the Forms page for that application type.</p>
             </div>
@@ -291,3 +315,5 @@ export default function ProfileOverviewClient() {
     </div>
   )
 }
+
+

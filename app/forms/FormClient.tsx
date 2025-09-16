@@ -11,6 +11,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { useSearchParams } from "next/navigation"
 import { useToast } from "@/components/hooks/use-toast"
 import formData from "../data/forms-fields.json"
+import pricingToForm from '../data/service-pricing-to-form.json'
+
+const getPricingToForm = (k?: string | null) => {
+  if (!k) return null
+  const map = pricingToForm as unknown as Record<string, string>
+  return map[k] ?? null
+}
 
 type FormField = {
   field_title: string
@@ -71,6 +78,15 @@ export default function IPFormBuilderClient() {
             if (mounted && pay && pay.type && applicationTypes.some((t) => t.key === pay.type)) {
               setSelectedType(pay.type)
               return
+            }
+            // If payments.type is missing but we may have a pricing rule key stored elsewhere,
+            // attempt to map it via pricingToForm (this assumes payments.type may contain pricing key)
+            if (mounted && pay && pay.type) {
+              const mapped = getPricingToForm(pay.type as string)
+              if (mapped && applicationTypes.some((t) => t.key === mapped)) {
+                setSelectedType(mapped)
+                return
+              }
             }
           }
         } catch (e) {

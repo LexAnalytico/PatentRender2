@@ -11,6 +11,14 @@ import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from "@/components/ui/label"
+// mapping from service_pricing_rules.key -> form type key
+import pricingToForm from '../data/service-pricing-to-form.json'
+
+const getPricingToForm = (k?: string | null) => {
+  if (!k) return null
+  const map = pricingToForm as unknown as Record<string, string>
+  return map[k] ?? null
+}
 import {
   ArrowLeft,
   Building2,
@@ -80,6 +88,54 @@ export default function ProfilePage() {
     return filtered
   }
 
+  // Resolve form type key for an order:
+  // prefer explicit order.type, then payment.type, then try to derive from the service name
+  const resolveOrderTypeKey = (o: any): string | null => {
+    if (!o) return null
+    let t = o.type ?? (o.payments ? o.payments.type ?? null : null)
+  if (t) return t
+    // prefer canonical service_pricing_rules.key when present
+  if (o.service_pricing_key) {
+    const mapped = getPricingToForm(o.service_pricing_key as string)
+    // return the mapped form type if available, otherwise return the raw key
+    return mapped ?? o.service_pricing_key
+  }
+    const svcName = (o.services as any)?.name ?? null
+    if (!svcName) return null
+    const mapping: Record<string, string> = {
+      'Patentability Search': 'patentability_search',
+      'Patentability search': 'patentability_search',
+      'Patentability Search ': 'patentability_search',
+      'Drafting': 'drafting',
+      'Provisional Filing': 'provisional_filing',
+      'Provisional Filing ': 'provisional_filing',
+  'Provisional Filling': 'provisional_filing',
+      'Complete Non Provisional Filing': 'complete_non_provisional_filing',
+      'Complete non Provisional Filling': 'complete_non_provisional_filing',
+      'PCT Filling': 'pct_filing',
+      'PCT Filing': 'pct_filing',
+      'PS-CS': 'ps_cs',
+      'PS CS': 'ps_cs',
+      'PS-CS ': 'ps_cs',
+      'FER Response': 'fer_response',
+    }
+    return mapping[svcName] ?? null
+  }
+
+  const typeLabelFromKey = (k: string | null) => {
+    if (!k) return null
+    const labels: Record<string, string> = {
+      patentability_search: 'Patentability Search',
+      drafting: 'Drafting',
+      provisional_filing: 'Provisional Filing',
+      complete_non_provisional_filing: 'Complete Non-Provisional Filing',
+      pct_filing: 'PCT Filing',
+      ps_cs: 'PS-CS',
+      fer_response: 'FER Response',
+    }
+    return labels[k] ?? k
+  }
+
   // load user orders for Orders tab when the tab becomes active
   const loadUserOrders = async () => {
     setLoadingUserOrders(true)
@@ -91,7 +147,7 @@ export default function ProfilePage() {
       if (!user) return
       const { data, error } = await supabase
         .from('orders')
-        .select('id, created_at, service_id, category_id, payment_id')
+        .select('id, created_at, service_id, category_id, payment_id, type')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
       if (error) {
@@ -107,10 +163,11 @@ export default function ProfilePage() {
       const categoryIds = Array.from(new Set(ordersRaw.map((o: any) => o.category_id).filter(Boolean)))
       const paymentIds = Array.from(new Set(ordersRaw.map((o: any) => o.payment_id).filter(Boolean)))
 
-      const [servicesRes, categoriesRes, paymentsRes] = await Promise.all([
+      const [servicesRes, categoriesRes, paymentsRes, pricingRes] = await Promise.all([
         serviceIds.length ? supabase.from('services').select('id, name').in('id', serviceIds) : Promise.resolve({ data: [], error: null }),
         categoryIds.length ? supabase.from('categories').select('id, name').in('id', categoryIds) : Promise.resolve({ data: [], error: null }),
-        paymentIds.length ? supabase.from('payments').select('id, razorpay_payment_id, total_amount, payment_status, payment_date, service_id').in('id', paymentIds) : Promise.resolve({ data: [], error: null }),
+        paymentIds.length ? supabase.from('payments').select('id, razorpay_payment_id, total_amount, payment_status, payment_date, service_id, type').in('id', paymentIds) : Promise.resolve({ data: [], error: null }),
+        serviceIds.length ? supabase.from('service_pricing_rules').select('service_id, key').in('service_id', serviceIds) : Promise.resolve({ data: [], error: null }),
       ])
 
       if (servicesRes?.error) console.error('Failed to load services for orders', servicesRes.error)
@@ -120,12 +177,19 @@ export default function ProfilePage() {
       const servicesMap = new Map((servicesRes?.data ?? []).map((s: any) => [s.id, s]))
       const categoriesMap = new Map((categoriesRes?.data ?? []).map((c: any) => [c.id, c]))
       const paymentsMap = new Map((paymentsRes?.data ?? []).map((p: any) => [p.id, p]))
+      // build a simple map of service_id -> first pricing rule key
+      const pricingMap = new Map((pricingRes?.data ?? []).reduce((acc: any[], r: any) => {
+        if (!r) return acc
+        acc.push([r.service_id, r.key])
+        return acc
+      }, []))
 
       const merged = ordersRaw.map((o: any) => ({
         ...o,
         services: servicesMap.get(o.service_id) ?? null,
         categories: categoriesMap.get(o.category_id) ?? null,
         payments: paymentsMap.get(o.payment_id) ?? null,
+        service_pricing_key: pricingMap.get(o.service_id) ?? null,
       }))
 
       console.debug('loadUserOrders merged:', merged)
@@ -158,6 +222,42 @@ export default function ProfilePage() {
     }
   }
 
+  const downloadSelected = () => {
+    const selected = userOrders.filter(o => selectedOrderRows[o.id])
+    if (!selected || selected.length === 0) {
+      alert('Please select at least one order to open its form')
+      return
+    }
+    const first = selected[0]
+    // Resolve form type using the same helpers we use elsewhere:
+    // prefer explicit order.type, then payment.type, then service_pricing_key mapping, then service name mapping
+    let t = first.type ?? (first.payments ? first.payments.type ?? null : null)
+    if (!t) {
+      const candidate = resolveOrderTypeKey(first)
+      // If candidate is a pricing key, map to form key
+      if (candidate && !typeLabelFromKey(candidate)) {
+        const mapped = getPricingToForm(candidate)
+        if (mapped) t = mapped
+      }
+      // If still not set and candidate looks like a known form key (has a label), use it
+      if (!t && candidate && typeLabelFromKey(candidate)) {
+        t = candidate
+      }
+    }
+
+    if (!t) {
+      alert('Selected order does not have an associated form type')
+      return
+    }
+    try {
+      const base = typeof window !== 'undefined' ? window.location.origin : ''
+      const url = `${base}/forms?type=${encodeURIComponent(t)}&order_id=${encodeURIComponent(first.id)}`
+      window.open(url, '_blank')
+    } catch (e) {
+      console.error('Navigation error opening form for order', e)
+    }
+  }
+
   useEffect(() => {
     if (currentTab === 'orders') {
       loadUserOrders()
@@ -170,6 +270,16 @@ export default function ProfilePage() {
     const pid = searchParams?.get('payment_id') || null
     if (pid) setHighlightPaymentId(pid)
   }, [searchParams])
+
+  // When highlightPaymentId arrives (redirect after payment) or auth finishes,
+  // refresh orders if the Orders tab is active so new orders appear.
+  useEffect(() => {
+    if (currentTab !== 'orders') return
+    // avoid unnecessary reload while already loading
+    if (loadingUserOrders) return
+    loadUserOrders()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightPaymentId, authChecked])
   const orders = [
     {
       id: "TRX-10342",
@@ -283,6 +393,25 @@ export default function ProfilePage() {
     init()
     return () => {
       active = false
+    }
+  }, [])
+
+  // Keep auth state in sync while this page is mounted. This prevents transient
+  // logout-like behavior when the auth session changes or during client-side
+  // navigation; Navbar also listens but having a local listener here makes the
+  // page resilient and ensures dependent state (sessionEmail/userId) updates.
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      const email = session?.user?.email ?? null
+      const id = session?.user?.id ?? null
+      console.debug('ProfilePage onAuthStateChange', { event: _event, email, id })
+      setSessionEmail(email)
+      setUserId(id)
+      setAuthChecked(true)
+    })
+
+    return () => {
+      try { listener.subscription.unsubscribe() } catch (e) { /* ignore */ }
     }
   }, [])
 
@@ -612,8 +741,15 @@ export default function ProfilePage() {
                   <TabsContent value="orders">
                     <Card className="border">
                       <CardHeader>
-                        <CardTitle>Orders</CardTitle>
-                        <CardDescription>Your payments and orders</CardDescription>
+                        <div className="flex items-center justify-between w-full">
+                          <div>
+                            <CardTitle>Orders</CardTitle>
+                            <CardDescription>Your payments and orders</CardDescription>
+                          </div>
+                          <div>
+                            <Button onClick={downloadSelected} disabled={!Object.values(selectedOrderRows).some(Boolean)}>View Form</Button>
+                          </div>
+                        </div>
                       </CardHeader>
                       <CardContent>
                         <div className="mb-4 flex items-center gap-3">
@@ -629,16 +765,7 @@ export default function ProfilePage() {
                               <SelectItem value="amount_asc">Amount (low → high)</SelectItem>
                             </SelectContent>
                           </Select>
-                          <Button onClick={() => {
-                            const selected = userOrders.filter(o => selectedOrderRows[o.id])
-                            const blob = new Blob([JSON.stringify(selected, null, 2)], { type: 'application/json' })
-                            const url = URL.createObjectURL(blob)
-                            const a = document.createElement('a')
-                            a.href = url
-                            a.download = `orders-${Date.now()}.json`
-                            a.click()
-                            URL.revokeObjectURL(url)
-                          }} disabled={!Object.values(selectedOrderRows).some(Boolean)}>Download Form</Button>
+                          
                         </div>
 
                         <div className="overflow-x-auto">
@@ -666,7 +793,7 @@ export default function ProfilePage() {
                                   <td className="p-2"><input type="checkbox" checked={!!selectedOrderRows[r.id]} onChange={() => setSelectedOrderRows(prev => ({ ...prev, [r.id]: !prev[r.id]}))} /></td>
                                   <td className="p-2">{(r.categories as any)?.name ?? 'N/A'}</td>
                                   <td className="p-2">{(r.services as any)?.name ?? 'N/A'}</td>
-                                  <td className="p-2">{/* Type intentionally blank */}</td>
+                                  <td className="p-2">{(r.service_pricing_key ?? null) || (typeLabelFromKey(resolveOrderTypeKey(r)) ?? 'N/A')}</td>
                                   <td className="p-2">{(r.payments as any)?.total_amount ?? 'N/A'}</td>
                                   <td className="p-2">{(r.payments as any)?.razorpay_payment_id ?? (r.payments as any)?.id ?? 'N/A'}</td>
                                 </tr>

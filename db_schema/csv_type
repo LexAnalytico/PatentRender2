@@ -6,33 +6,43 @@ When user clicks download form button in profile->orders tab the forms/FormClien
 
 service_pricing_rules snapshot                                              Form selection
 
-47	1	individual	turnaround_standard	                 fixed	10500	    Patentability Search	    
-48	1	individual	turnaround_expediated	             fixed	13500		Patentability Search       
-49	1	individual	turnaround_rush	                     fixed	15000		Patentability Search       
-50	1	individual	full_without_opinion_standard	     fixed	15000		Patentability Search 
-51	1	individual	full_without_opinion_expediated	     fixed	18000		Patentability Search 
-52	1	individual	full_without_opinion_rush	         fixed	19500		Patentability Search 
-53	1	individual	full_with_opinion_standard	         fixed	16500		Patentability Search 
-54	1	individual	full_with_opinion_expediated	     fixed	19500		Patentability Search 
-55	1	individual	full_with_opinion_rush	             fixed	21000		Patentability Search 
-56	2	individual	provisional_specification_standard	 fixed	18000	    Patentability Search 
-57	2	individual	provisional_specification_expediated fixed	22000		Patentability Search 
-58	2	individual	provisional_specification_rush	    fixed	24000		Patentability Search 
-59	2	individual	complete_specification_standard	    fixed	30000		Patentability Search 
-60	2	individual	complete_specification_expediated	fixed	34000		Patentability Search 
-61	2	individual	complete_specification_rush	        fixed	36000		Patentability Search 
-62	2	individual	ps_cs_standard	                    fixed	25000		Patentability Search 
-63	2	individual	ps_cs_expediated	                fixed	29000		Patentability Search 
-64	2	individual	ps_cs_rush	                        fixed	31000		Patentability Search 
-65	3	individual	provisional_filing	                fixed	6600	    Provisional Filling
-66	3	individual	complete_specification_filing	    fixed	6600		Provisional Filling
-67	3	individual	ps_cs_filing	                    fixed	5000		PS-CS
-68	3	individual	pct_filing	                        fixed	9600		PCT Filling
-69	4	individual	base_fee	                        fixed	15000	    FER Response
-70	4	individual	response_due_anytime_after_15_days	fixed	15000		FER Response
-71	4	individual	response_due_within_11_15_days	    fixed	18000		FER Response
-72	4	individual	response_due_within_4_10_days	    fixed	21000		FER Response
-73	3	others	    complete_specification_filing	    fixed	13000		Complete non Provisional Filling
-74	3	others	    pct_filing	                        fixed	16000		PCT Filling
-75	3	others	    provisional_filing	                fixed	13000		Complete non Provisional Filling
-76	3	others	    ps_cs_filing	                    fixed	5000		PS-CS
+47	1	individual	turnaround_standard	                 patentability_search	    Patentability Search	    
+48	1	individual	turnaround_expediated	             patentability_search		Patentability Search       
+49	1	individual	turnaround_rush	                     patentability_search		Patentability Search       
+50	1	individual	full_without_opinion_standard	     patentability_search		Patentability Search 
+51	1	individual	full_without_opinion_expediated	     patentability_search		Patentability Search 
+52	1	individual	full_without_opinion_rush	         patentability_search		Patentability Search 
+53	1	individual	full_with_opinion_standard	         patentability_search		Patentability Search 
+54	1	individual	full_with_opinion_expediated	     patentability_search		Patentability Search 
+55	1	individual	full_with_opinion_rush	             patentability_search		Patentability Search 
+56	2	individual	provisional_specification_standard	 patentability_search	    Patentability Search 
+57	2	individual	provisional_specification_expediated patentability_search		Patentability Search 
+58	2	individual	provisional_specification_rush	     patentability_search		Patentability Search 
+59	2	individual	complete_specification_standard	     patentability_search		Patentability Search 
+60	2	individual	complete_specification_expediated	 patentability_search		Patentability Search 
+61	2	individual	complete_specification_rush	         patentability_search		Patentability Search 
+62	2	individual	ps_cs_standard	                     patentability_search		Patentability Search 
+63	2	individual	ps_cs_expediated	                 patentability_search		Patentability Search 
+64	2	individual	ps_cs_rush	                         patentability_search		Patentability Search 
+65	3	individual	provisional_filing	                 provisional_filing	    Provisional Filling
+66	3	individual	complete_specification_filing	     provisional_filing		Provisional Filling
+67	3	individual	ps_cs_filing	                     ps_cs		PS-CS
+68	3	individual	pct_filing	                         pct_filing		PCT Filling
+69	4	individual	base_fee	                         fer_response	    FER Response
+70	4	individual	response_due_anytime_after_15_days	 fer_response		FER Response
+71	4	individual	response_due_within_11_15_days	     fer_response		FER Response
+72	4	individual	response_due_within_4_10_days	     fer_response		FER Response
+73	3	others	    complete_specification_filing	     complete_non_provisional_filing		Complete non Provisional Filling
+74	3	others	    pct_filing	                         pct_filing		PCT Filling
+75	3	others	    provisional_filing	                 complete_non_provisional_filing		Complete non Provisional Filling
+76	3	others	    ps_cs_filing	                     ps_cs		PS-CS
+
+
+const applicationTypes = [
+  { key: "patentability_search", label: "Patentability Search" },
+  { key: "drafting", label: "Drafting" },  
+  { key: "provisional_filing", label: "Provisional Filing" },
+  { key: "complete_non_provisional_filing", label: "Complete Non Provisional Filing" },
+  { key: "pct_filing", label: "PCT Filing" },
+  { key: "ps_cs", label: "PS CS" },
+  { key: "fer_response", label: "FER Response" },
