@@ -23,12 +23,13 @@ async function sendPaymentNotification(serverSupabase: any, opts: { paymentId: s
     if (!paymentRow) {
       const { data: pay, error: payErr } = await serverSupabase
         .from('payments')
-        .select('id, user_id, total_amount, payment_status, payment_date, razorpay_payment_id, service_id')
+        .select('id, user_id, total_amount, payment_status, payment_date, razorpay_payment_id, service_id, type')
         .eq('razorpay_payment_id', paymentId)
         .maybeSingle();
       if (payErr) console.error('Payment fetch error before email:', payErr);
       paymentRow = pay ?? null;
     }
+
     // category and service from payment (preferred) or recent quote
     let serviceLabel = 'N/A';
     let categoryLabel = 'N/A';
@@ -60,7 +61,7 @@ async function sendPaymentNotification(serverSupabase: any, opts: { paymentId: s
       userRow = u ?? null;
     }
 
-  // category from recent quote (may override if more recent quote exists)
+    // category from recent quote (may override if more recent quote exists)
     let quoteCreatedAt = paymentRow?.payment_date ? new Date(paymentRow.payment_date).toLocaleString() : 'N/A';
     if (paymentRow?.user_id) {
       const { data: recentQuote } = await serverSupabase
@@ -144,6 +145,7 @@ export async function POST(req: NextRequest) {
       form_completed,
       form_response,
       option_id,
+      type,
     } = body;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
@@ -167,11 +169,11 @@ export async function POST(req: NextRequest) {
       : supabase;
 
     // Try to reuse existing payment amount if present (created at order time)
-  let existingPaymentByOrder: any = null;
+    let existingPaymentByOrder: any = null;
     try {
       const { data: existingByOrder, error: existingByOrderErr } = await serverSupabase
-    .from('payments')
-    .select('id, user_id, total_amount, service_id')
+        .from('payments')
+        .select('id, user_id, total_amount, service_id, type')
         .eq('razorpay_order_id', razorpay_order_id)
         .maybeSingle();
       if (existingByOrderErr) console.debug('existingPaymentByOrder fetch error', existingByOrderErr);
@@ -180,10 +182,11 @@ export async function POST(req: NextRequest) {
       console.error('Exception checking existing payment by order:', e);
     }
 
-  // Determine amount to store: prefer existing payment.total_amount, otherwise custom_price, otherwise derive from body.amount (assume paise)
-  let amtToStore = existingPaymentByOrder?.total_amount ?? null;
-  // Determine service to store: prefer existing payment.service_id, then incoming payload service_id, will fallback to recent quote later
-  let serviceToStore: any = existingPaymentByOrder?.service_id ?? service_id ?? null;
+    // Determine amount to store: prefer existing payment.total_amount, otherwise custom_price, otherwise derive from body.amount (assume paise)
+    let amtToStore = existingPaymentByOrder?.total_amount ?? null;
+    // Determine service to store: prefer existing payment.service_id, then incoming payload service_id, will fallback to recent quote later
+    let serviceToStore: any = existingPaymentByOrder?.service_id ?? service_id ?? null;
+    let typeToStore: any = existingPaymentByOrder?.type ?? type ?? null;
     if (amtToStore == null) {
       if (custom_price != null) amtToStore = Number(custom_price);
       else if ((body as any).amount != null) amtToStore = Number((body as any).amount) / 100; // paise -> rupees
@@ -205,6 +208,7 @@ export async function POST(req: NextRequest) {
             razorpay_order_id: razorpay_order_id,
             razorpay_payment_id: razorpay_payment_id,
             service_id: serviceToStore ?? null,
+            type: typeToStore ?? null,
           })
           .eq('razorpay_payment_id', razorpay_payment_id)
           .select()
@@ -225,6 +229,7 @@ export async function POST(req: NextRequest) {
               razorpay_order_id: razorpay_order_id,
               razorpay_payment_id: razorpay_payment_id,
               service_id: serviceToStore ?? null,
+              type: typeToStore ?? null,
               created_at: new Date().toISOString(),
             },
           ])
@@ -282,6 +287,7 @@ export async function POST(req: NextRequest) {
             service_id: resolvedServiceId,
             category_id: resolvedCategoryId,
             payment_id: persistedPayment.id,
+            type: typeToStore ?? persistedPayment.type ?? null,
             created_at: new Date().toISOString(),
           },
         ]).select().maybeSingle();

@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 
 export async function POST(req: Request) {
   try {
-  const { amount, currency, user_id, service_id, custom_price } = await req.json();
+  const { amount, currency, user_id, service_id, custom_price, type } = await req.json();
 
     const instance = new Razorpay({
       key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID as string,
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
         console.error('❌ Exception while validating service_id for order:', sEx);
       }
 
-      const { data: inserted, error: insErr } = await serverSupabase
+    const { data: inserted, error: insErr } = await serverSupabase
         .from('payments')
         .insert([
           {
@@ -64,7 +64,8 @@ export async function POST(req: Request) {
             payment_date: null,
             razorpay_order_id: order.id,
             razorpay_payment_id: null,
-            service_id: serviceToStore,
+    service_id: serviceToStore,
+  type: typeof type !== 'undefined' ? (type ?? null) : null,
             created_at: new Date().toISOString(),
           },
         ])

@@ -2,13 +2,14 @@
 
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "../../lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from "@/components/ui/label"
 import {
   ArrowLeft,
@@ -37,6 +38,7 @@ interface Profile {
 
 export default function ProfilePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [sessionEmail, setSessionEmail] = useState<string | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -45,6 +47,129 @@ export default function ProfilePage() {
   const [editProfile, setEditProfile] = useState<Profile>({} as Profile)
   const [saving, setSaving] = useState(false)
   const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({})
+  // Orders table state for the Orders tab
+  const [userOrders, setUserOrders] = useState<any[]>([])
+  const [loadingUserOrders, setLoadingUserOrders] = useState(false)
+  const [searchOrders, setSearchOrders] = useState<string>('')
+  const [sortOrders, setSortOrders] = useState<string>('date_desc')
+  const [selectedOrderRows, setSelectedOrderRows] = useState<Record<string, boolean>>({})
+  const [currentTab, setCurrentTab] = useState<string>('summary')
+  const [highlightPaymentId, setHighlightPaymentId] = useState<string | null>(null)
+
+  // initialize tab from query param if present
+  useEffect(() => {
+    const t = searchParams?.get('tab') || 'summary'
+    setCurrentTab(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  // helper to filter and sort orders locally
+  const filteredOrders = (items: any[], q: string, sort: string) => {
+    const filtered = items.filter((r) => {
+      if (!q) return true
+      const s = q.toLowerCase()
+      const cat = (r.categories as any)?.name ?? ''
+      const svc = (r.services as any)?.name ?? ''
+      const amt = String((r.payments as any)?.total_amount ?? '')
+      return cat.toLowerCase().includes(s) || svc.toLowerCase().includes(s) || amt.includes(s)
+    })
+    if (sort === 'date_desc') return filtered.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    if (sort === 'date_asc') return filtered.sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    if (sort === 'amount_desc') return filtered.sort((a,b) => Number((b.payments as any)?.total_amount ?? 0) - Number((a.payments as any)?.total_amount ?? 0))
+    if (sort === 'amount_asc') return filtered.sort((a,b) => Number((a.payments as any)?.total_amount ?? 0) - Number((b.payments as any)?.total_amount ?? 0))
+    return filtered
+  }
+
+  // load user orders for Orders tab when the tab becomes active
+  const loadUserOrders = async () => {
+    setLoadingUserOrders(true)
+    try {
+      const userRes = await supabase.auth.getUser()
+      const user = (userRes && (userRes as any).data) ? (userRes as any).data.user : null
+  console.debug('loadUserOrders session userRes:', userRes)
+  console.debug('loadUserOrders session user:', user)
+      if (!user) return
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, created_at, service_id, category_id, payment_id')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+      if (error) {
+        console.error('Failed to load user orders', error)
+        console.debug('loadUserOrders response', { data, error })
+      }
+      console.debug('loadUserOrders raw orders:', data)
+
+      const ordersRaw = (data as any) ?? []
+
+      // Batch fetch related rows (services, categories, payments) by their ids
+      const serviceIds = Array.from(new Set(ordersRaw.map((o: any) => o.service_id).filter(Boolean)))
+      const categoryIds = Array.from(new Set(ordersRaw.map((o: any) => o.category_id).filter(Boolean)))
+      const paymentIds = Array.from(new Set(ordersRaw.map((o: any) => o.payment_id).filter(Boolean)))
+
+      const [servicesRes, categoriesRes, paymentsRes] = await Promise.all([
+        serviceIds.length ? supabase.from('services').select('id, name').in('id', serviceIds) : Promise.resolve({ data: [], error: null }),
+        categoryIds.length ? supabase.from('categories').select('id, name').in('id', categoryIds) : Promise.resolve({ data: [], error: null }),
+        paymentIds.length ? supabase.from('payments').select('id, razorpay_payment_id, total_amount, payment_status, payment_date, service_id').in('id', paymentIds) : Promise.resolve({ data: [], error: null }),
+      ])
+
+      if (servicesRes?.error) console.error('Failed to load services for orders', servicesRes.error)
+      if (categoriesRes?.error) console.error('Failed to load categories for orders', categoriesRes.error)
+      if (paymentsRes?.error) console.error('Failed to load payments for orders', paymentsRes.error)
+
+      const servicesMap = new Map((servicesRes?.data ?? []).map((s: any) => [s.id, s]))
+      const categoriesMap = new Map((categoriesRes?.data ?? []).map((c: any) => [c.id, c]))
+      const paymentsMap = new Map((paymentsRes?.data ?? []).map((p: any) => [p.id, p]))
+
+      const merged = ordersRaw.map((o: any) => ({
+        ...o,
+        services: servicesMap.get(o.service_id) ?? null,
+        categories: categoriesMap.get(o.category_id) ?? null,
+        payments: paymentsMap.get(o.payment_id) ?? null,
+      }))
+
+      console.debug('loadUserOrders merged:', merged)
+      setUserOrders(merged)
+      // auto-select/scroll when redirected after payment
+      if (highlightPaymentId && merged && Array.isArray(merged) && merged.length > 0) {
+        try {
+          const matched = (merged as any[]).filter((r) => {
+            const pay = (r.payments as any)
+            if (!pay) return false
+            return String(pay.razorpay_payment_id || pay.id || '').toLowerCase() === String(highlightPaymentId).toLowerCase()
+          })
+          if (matched.length > 0) {
+            const sel: Record<string, boolean> = {}
+            matched.forEach((m:any) => { sel[m.id] = true })
+            setSelectedOrderRows(sel)
+            setTimeout(() => {
+              const el = document.querySelector(`[data-order-id="${matched[0].id}"]`)
+              if (el && (el as HTMLElement).scrollIntoView) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }, 150)
+          }
+        } catch (e) {
+          console.error('Auto-select orders error', e)
+        }
+      }
+    } catch (e) {
+      console.error('Exception loading user orders', e)
+    } finally {
+      setLoadingUserOrders(false)
+    }
+  }
+
+  useEffect(() => {
+    if (currentTab === 'orders') {
+      loadUserOrders()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTab])
+
+  // pick up payment_id from query so we can auto-select after redirect
+  useEffect(() => {
+    const pid = searchParams?.get('payment_id') || null
+    if (pid) setHighlightPaymentId(pid)
+  }, [searchParams])
   const orders = [
     {
       id: "TRX-10342",
@@ -285,6 +410,16 @@ export default function ProfilePage() {
                   <Mail className="h-4 w-4 text-gray-600" />
                   <span className="text-sm text-gray-700">{profile?.email || sessionEmail}</span>
                 </div>
+                {/* Debug panel: visible during development to show session and orders data */}
+                <div className="mt-3 p-3 rounded-md border bg-yellow-50">
+                  <div className="text-xs text-gray-600">Debug (dev):</div>
+                  <div className="text-sm text-gray-800">Session user id: <span className="font-mono">{userId ?? 'null'}</span></div>
+                  <div className="text-sm text-gray-800">Orders loaded (client): <span className="font-mono">{userOrders.length}</span></div>
+                  <details className="mt-2 text-xs">
+                    <summary className="cursor-pointer">Preview orders JSON</summary>
+                    <pre className="max-h-40 overflow-auto text-xs p-2 bg-white rounded mt-2">{JSON.stringify(userOrders.slice(0,10), null, 2)}</pre>
+                  </details>
+                </div>
                 <div className="flex items-center gap-3 p-3 rounded-lg border bg-gray-50">
                   <Building2 className="h-4 w-4 text-gray-600" />
                   <span className="text-sm text-gray-700">{profile?.company || "Company not set"}</span>
@@ -310,7 +445,7 @@ export default function ProfilePage() {
                 <CardDescription>Manage your account information and review recent activity</CardDescription>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue="summary" className="w-full">
+                <Tabs value={currentTab} onValueChange={(v) => setCurrentTab(v)} className="w-full">
                   <TabsList className="mb-4">
                     <TabsTrigger value="summary">Summary</TabsTrigger>
                     <TabsTrigger value="profile">Profile</TabsTrigger>
@@ -473,100 +608,74 @@ export default function ProfilePage() {
                     </Card>
                   </TabsContent>
 
-                  {/* Orders */}
+                  {/* Orders - Table view */}
                   <TabsContent value="orders">
-                    <div className="space-y-3">
-                      {orders.map((o) => (
-                        <Card key={o.id} className="border">
-                          <CardContent className="p-4">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <ClipboardList className="h-5 w-5 text-blue-700" />
-                                <div>
-                                  <div className="font-medium text-gray-900">{o.title}</div>
-                                  <div className="text-xs text-gray-500">Order #{o.id} • {o.status}</div>
-                                </div>
-                              </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  setExpandedOrderIds((prev) => ({ ...prev, [o.id]: !prev[o.id] }))
-                                }
-                              >
-                                {expandedOrderIds[o.id] ? "Hide" : "View"}
-                              </Button>
-                            </div>
+                    <Card className="border">
+                      <CardHeader>
+                        <CardTitle>Orders</CardTitle>
+                        <CardDescription>Your payments and orders</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="mb-4 flex items-center gap-3">
+                          <Input placeholder="Search by category, service or amount" value={searchOrders} onChange={(e) => setSearchOrders((e.target as HTMLInputElement).value)} />
+                          <Select value={sortOrders} onValueChange={(v) => setSortOrders(v)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sort" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="date_desc">Date (newest)</SelectItem>
+                              <SelectItem value="date_asc">Date (oldest)</SelectItem>
+                              <SelectItem value="amount_desc">Amount (high → low)</SelectItem>
+                              <SelectItem value="amount_asc">Amount (low → high)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button onClick={() => {
+                            const selected = userOrders.filter(o => selectedOrderRows[o.id])
+                            const blob = new Blob([JSON.stringify(selected, null, 2)], { type: 'application/json' })
+                            const url = URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = `orders-${Date.now()}.json`
+                            a.click()
+                            URL.revokeObjectURL(url)
+                          }} disabled={!Object.values(selectedOrderRows).some(Boolean)}>Download Form</Button>
+                        </div>
 
-                            {expandedOrderIds[o.id] && (
-                              <div className="mt-4 border-t pt-4 space-y-4">
-                                <div className="grid sm:grid-cols-3 gap-3 text-sm">
-                                  <div className="p-3 rounded-lg bg-gray-50 border">
-                                    <div className="text-xs text-gray-500">Placed</div>
-                                    <div className="font-medium text-gray-900">{o.placedAt}</div>
-                                  </div>
-                                  <div className="p-3 rounded-lg bg-gray-50 border">
-                                    <div className="text-xs text-gray-500">Status</div>
-                                    <div className="font-medium">{o.status}</div>
-                                  </div>
-                                  <div className="p-3 rounded-lg bg-gray-50 border">
-                                    <div className="text-xs text-gray-500">Total</div>
-                                    <div className="font-medium">{o.total}</div>
-                                  </div>
-                                </div>
-
-                                <div className="grid md:grid-cols-2 gap-4">
-                                  <div className="rounded-lg border p-4">
-                                    <div className="text-sm font-semibold mb-2">Items</div>
-                                    <ul className="list-disc pl-5 space-y-1 text-sm text-gray-700">
-                                      {o.details.items.map((it, idx) => (
-                                        <li key={idx}>{it}</li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                  <div className="rounded-lg border p-4">
-                                    <div className="text-sm font-semibold mb-2">Form Details</div>
-                                    <div className="space-y-2 text-sm text-gray-700">
-                                      {o.details.form.fields.map((f, idx) => (
-                                        <div key={idx} className="flex justify-between gap-4">
-                                          <span className="text-gray-500">{f.label}</span>
-                                          <span className="font-medium text-gray-900">{f.value}</span>
-                                        </div>
-                                      ))}
-                                      {'attachments' in o.details.form && Array.isArray((o.details.form as any).attachments) && (o.details.form as any).attachments.length > 0 && (
-                                        <div className="pt-2">
-                                          <div className="text-xs text-gray-500 mb-1">Attachments</div>
-                                          <div className="flex flex-wrap gap-2">
-                                            {(((o.details.form as any).attachments) as string[]).map((a: string, idx: number) => (
-                                              <span key={idx} className="text-xs px-2 py-1 bg-gray-100 rounded border">{a}</span>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="rounded-lg border p-4">
-                                  <div className="text-sm font-semibold mb-3">Timeline</div>
-                                  <div className="space-y-2">
-                                    {o.details.timeline.map((t, idx) => (
-                                      <div key={idx} className="flex items-center justify-between text-sm">
-                                        <div className="flex items-center gap-2 text-gray-700">
-                                          <Calendar className="h-4 w-4 text-gray-500" />
-                                          <span>{t.label}</span>
-                                        </div>
-                                        <span className="text-xs text-gray-500">{t.date}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full table-auto border-collapse">
+                            <thead>
+                              <tr>
+                                <th className="p-2 text-left"><input type="checkbox" onChange={(e) => {
+                                  const checked = (e.target as HTMLInputElement).checked
+                                  const newSel: Record<string, boolean> = {}
+                                  filteredOrders(userOrders, searchOrders, sortOrders).forEach((r:any) => { newSel[r.id] = checked })
+                                  setSelectedOrderRows(newSel)
+                                }} /></th>
+                                <th className="p-2 text-left">Category</th>
+                                <th className="p-2 text-left">Service</th>
+                                <th className="p-2 text-left">Type</th>
+                                <th className="p-2 text-left">Amount</th>
+                                <th className="p-2 text-left">Razorpay ID</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {loadingUserOrders && <tr><td colSpan={6} className="p-4">Loading...</td></tr>}
+                              {!loadingUserOrders && filteredOrders(userOrders, searchOrders, sortOrders).length === 0 && <tr><td colSpan={6} className="p-4">No orders found</td></tr>}
+                              {!loadingUserOrders && filteredOrders(userOrders, searchOrders, sortOrders).map((r:any) => (
+                                <tr key={r.id} className="border-t" data-order-id={r.id}>
+                                  <td className="p-2"><input type="checkbox" checked={!!selectedOrderRows[r.id]} onChange={() => setSelectedOrderRows(prev => ({ ...prev, [r.id]: !prev[r.id]}))} /></td>
+                                  <td className="p-2">{(r.categories as any)?.name ?? 'N/A'}</td>
+                                  <td className="p-2">{(r.services as any)?.name ?? 'N/A'}</td>
+                                  <td className="p-2">{/* Type intentionally blank */}</td>
+                                  <td className="p-2">{(r.payments as any)?.total_amount ?? 'N/A'}</td>
+                                  <td className="p-2">{(r.payments as any)?.razorpay_payment_id ?? (r.payments as any)?.id ?? 'N/A'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </TabsContent>
 
                   {/* Activity */}

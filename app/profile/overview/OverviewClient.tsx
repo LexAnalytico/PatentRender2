@@ -55,25 +55,74 @@ export default function ProfileOverviewClient() {
         setLoadingOrders(true)
         const userRes = await supabase.auth.getUser()
         const user = (userRes && (userRes as any).data) ? (userRes as any).data.user : null
+  console.debug('OverviewClient load orders session userRes:', userRes)
+  console.debug('OverviewClient load orders session user:', user)
         if (!user) return
 
-        // select orders joined with services, categories and payments
+        // select orders (ids) and then batch fetch related rows to avoid relying on PostgREST FK relationships
         const { data, error } = await supabase
           .from('orders')
-          .select('id, service_id, category_id, payment_id, created_at, services(name), categories(name), payments(id, razorpay_payment_id, total_amount)')
+          .select('id, created_at, service_id, category_id, payment_id, type')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
         if (error) {
           console.error('Failed to load orders', error)
+          console.debug('OverviewClient orders response', { data, error })
           return
         }
         if (!mounted) return
-        setOrders((data as any) ?? [])
-        // if we have a payment id in the query, try to auto-select the matching order(s)
-        if (mounted && highlightPaymentId) {
+
+        const ordersRaw = (data as any) ?? []
+
+        const serviceIds = Array.from(new Set(ordersRaw.map((o: any) => o.service_id).filter(Boolean)))
+        const categoryIds = Array.from(new Set(ordersRaw.map((o: any) => o.category_id).filter(Boolean)))
+        const paymentIds = Array.from(new Set(ordersRaw.map((o: any) => o.payment_id).filter(Boolean)))
+
+        const [servicesRes, categoriesRes, paymentsRes] = await Promise.all([
+          serviceIds.length ? supabase.from('services').select('id, name').in('id', serviceIds) : Promise.resolve({ data: [], error: null }),
+          categoryIds.length ? supabase.from('categories').select('id, name').in('id', categoryIds) : Promise.resolve({ data: [], error: null }),
+          paymentIds.length ? supabase.from('payments').select('id, razorpay_payment_id, total_amount, payment_status, payment_date, service_id, type').in('id', paymentIds) : Promise.resolve({ data: [], error: null }),
+        ])
+
+        if (servicesRes?.error) console.error('Failed to load services for orders', servicesRes.error)
+        if (categoriesRes?.error) console.error('Failed to load categories for orders', categoriesRes.error)
+        if (paymentsRes?.error) console.error('Failed to load payments for orders', paymentsRes.error)
+
+        const servicesMap = new Map((servicesRes?.data ?? []).map((s: any) => [s.id, s]))
+        const categoriesMap = new Map((categoriesRes?.data ?? []).map((c: any) => [c.id, c]))
+        const paymentsMap = new Map((paymentsRes?.data ?? []).map((p: any) => [p.id, p]))
+
+          // Debug: report payments with NULL type
           try {
-            const matches = (data as any) ?? []
-            const matched = matches.filter((r:any) => {
+            const paymentsList = (paymentsRes?.data ?? []) as any[]
+            const nullTypePayments = paymentsList.filter(p => p == null || p.type == null || typeof p.type === 'undefined')
+            if (nullTypePayments.length > 0) {
+              console.debug('IN supabase table payments->type = NULL', { count: nullTypePayments.length, ids: nullTypePayments.map(p => p?.id) })
+            } else {
+              console.debug('IN supabase table payments->type = NULL', { count: 0 })
+            }
+          } catch (e) {
+            console.error('Error computing null-type payments debug info', e)
+          }
+
+        const merged = ordersRaw.map((o: any) => {
+          const payment = paymentsMap.get(o.payment_id) ?? null
+          return {
+            ...o,
+            services: servicesMap.get(o.service_id) ?? null,
+            categories: categoriesMap.get(o.category_id) ?? null,
+            payments: payment,
+            // ensure order.type is present: prefer order.type, fallback to payment.type
+            type: o.type ?? (payment ? payment.type ?? null : null),
+          }
+        })
+
+        setOrders(merged)
+        // if we have a payment id in the query, try to auto-select the matching order(s)
+    if (mounted && highlightPaymentId) {
+          try {
+      const matches = (merged as any) ?? []
+      const matched = matches.filter((r:any) => {
               const pay = (r.payments as any)
               if (!pay) return false
               return String(pay.razorpay_payment_id || pay.id || '').toLowerCase() === String(highlightPaymentId).toLowerCase()
@@ -123,13 +172,22 @@ export default function ProfileOverviewClient() {
 
   const downloadSelected = () => {
     const selected = orders.filter(o => selectedRows[o.id])
-    const blob = new Blob([JSON.stringify(selected, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `orders-${Date.now()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
+    if (!selected || selected.length === 0) {
+      alert('Please select at least one order to open its form')
+      return
+    }
+    // Open the first selected order's form type. Include order_id for possible prefill/use in the form.
+    const first = selected[0]
+    const t = first.type ?? null
+    if (!t) {
+      alert('Selected order does not have an associated form type')
+      return
+    }
+    try {
+      router.push(`/forms?type=${encodeURIComponent(t)}&order_id=${encodeURIComponent(first.id)}`)
+    } catch (e) {
+      console.error('Navigation error opening form for order', e)
+    }
   }
 
   return (
@@ -187,7 +245,13 @@ export default function ProfileOverviewClient() {
                       <td className="p-2"><input type="checkbox" checked={!!selectedRows[o.id]} onChange={() => toggleRow(o.id)} /></td>
                       <td className="p-2">{(o.categories as any)?.name ?? 'N/A'}</td>
                       <td className="p-2">{(o.services as any)?.name ?? 'N/A'}</td>
-                      <td className="p-2">{applicationTypesMap[(o as any).type] ?? 'N/A'}</td>
+                      <td className="p-2">
+                        { (o as any).type ? (
+                          <span className="cursor-pointer text-blue-600" onClick={() => {
+                            try { router.push(`/forms?type=${encodeURIComponent((o as any).type)}`) } catch (e) { console.error(e) }
+                          }}>{applicationTypesMap[(o as any).type] ?? (o as any).type}</span>
+                        ) : 'N/A' }
+                      </td>
                       <td className="p-2">{(o.payments as any)?.total_amount ?? 'N/A'}</td>
                       <td className="p-2">{o.created_at ? new Date(o.created_at).toLocaleString() : 'N/A'}</td>
                     </tr>

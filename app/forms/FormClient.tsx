@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
@@ -43,11 +44,51 @@ export default function IPFormBuilderClient() {
 
   useEffect(() => {
     const type = searchParams?.get("type") || ""
+    const orderId = searchParams?.get("order_id") || ""
     if (type && applicationTypes.some((t) => t.key === type)) {
       setSelectedType(type)
+      return
+    }
+
+    // If we have an order_id but no type param, try to resolve the type from the DB
+    if (!type && orderId) {
+      let mounted = true
+      ;(async () => {
+        try {
+          // Try to read type from orders table
+          const { data: ord, error: ordErr } = await supabase.from('orders').select('type, payment_id').eq('id', orderId).maybeSingle()
+          if (ordErr) console.debug('Order lookup error resolving form type', ordErr)
+          if (mounted && ord && ord.type && applicationTypes.some((t) => t.key === ord.type)) {
+            setSelectedType(ord.type)
+            return
+          }
+
+          // Fallback: if order references a payment, try payments.type
+          const paymentId = ord?.payment_id ?? null
+          if (paymentId) {
+            const { data: pay, error: payErr } = await supabase.from('payments').select('type').eq('id', paymentId).maybeSingle()
+            if (payErr) console.debug('Payment lookup error resolving form type', payErr)
+            if (mounted && pay && pay.type && applicationTypes.some((t) => t.key === pay.type)) {
+              setSelectedType(pay.type)
+              return
+            }
+          }
+        } catch (e) {
+          console.error('Exception resolving form type from order_id', e)
+        }
+      })()
+      return
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
+
+  // remember last selected application type so checkout can pick it up
+  useEffect(() => {
+    try {
+      if (selectedType) localStorage.setItem('selected_application_type', selectedType)
+      else localStorage.removeItem('selected_application_type')
+    } catch (_) {}
+  }, [selectedType])
 
   const getRelevantFields = (type: string): FormField[] => {
     try {

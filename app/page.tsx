@@ -1152,10 +1152,12 @@ const handleAuth = async (e: React.FormEvent) => {
       const user = (userRes && (userRes as any).data) ? (userRes as any).data.user : null;
 
       // 2) create an order on the server so the secret key stays on the server
+      // read user-selected application type from localStorage if present
+      const selectedAppType = (typeof window !== 'undefined') ? (localStorage.getItem('selected_application_type') || null) : null
       const orderResp = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, currency: 'INR', user_id: user?.id || null, service_id: (cartItems[0] as any)?.service_id ?? null }),
+        body: JSON.stringify({ amount, currency: 'INR', user_id: user?.id || null, service_id: (cartItems[0] as any)?.service_id ?? null, type: selectedAppType }),
       });
 
       if (!orderResp.ok) {
@@ -1191,6 +1193,8 @@ const handleAuth = async (e: React.FormEvent) => {
                 user_id: user?.id || null,
         // include service selection so server can persist service_id reliably
         service_id: (cartItems[0] as any)?.service_id ?? null,
+                // include application form type (if the user selected one)
+                type: selectedAppType,
                 // include minimal customer/context data for server processing
                 name: user?.user_metadata?.full_name || user?.email || '',
                 email: user?.email || '',
@@ -1216,13 +1220,13 @@ const handleAuth = async (e: React.FormEvent) => {
               const persisted = verifyJson.persistedPayment ?? null;
               const paymentIdentifier = persisted?.razorpay_payment_id ?? persisted?.id ?? null;
               if (paymentIdentifier) {
-                window.location.href = `/profile/overview?tab=overview&payment_id=${encodeURIComponent(String(paymentIdentifier))}`;
+                window.location.href = `/profile?tab=orders&payment_id=${encodeURIComponent(String(paymentIdentifier))}`;
               } else {
-                window.location.href = `/profile/overview?tab=overview`;
+                window.location.href = `/profile?tab=orders`;
               }
             } catch (e) {
               // fallback
-              window.location.href = `/profile/overview?tab=overview`;
+              window.location.href = `/profile?tab=orders`;
             }
           } catch (err) {
             console.error('Error verifying payment:', err);
