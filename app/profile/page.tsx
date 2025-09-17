@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from "@/components/ui/label"
 // mapping from service_pricing_rules.key -> form type key
 import pricingToForm from '../data/service-pricing-to-form.json'
+// forms-fields import no longer needed after removing JSON download
 
 const getPricingToForm = (k?: string | null) => {
   if (!k) return null
@@ -21,14 +22,8 @@ const getPricingToForm = (k?: string | null) => {
 }
 import {
   ArrowLeft,
-  Building2,
-  Mail,
-  Settings,
-  ShieldCheck,
   User,
-  ClipboardList,
   LogOut,
-  Calendar,
 } from "lucide-react"
 
 interface Profile {
@@ -60,13 +55,14 @@ export default function ProfilePage() {
   const [loadingUserOrders, setLoadingUserOrders] = useState(false)
   const [searchOrders, setSearchOrders] = useState<string>('')
   const [sortOrders, setSortOrders] = useState<string>('date_desc')
-  const [selectedOrderRows, setSelectedOrderRows] = useState<Record<string, boolean>>({})
-  const [currentTab, setCurrentTab] = useState<string>('summary')
+  // Single-select order id for the Orders tab (radio selection)
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
+  const [currentTab, setCurrentTab] = useState<string>('orders')
   const [highlightPaymentId, setHighlightPaymentId] = useState<string | null>(null)
 
   // initialize tab from query param if present
   useEffect(() => {
-    const t = searchParams?.get('tab') || 'summary'
+    const t = searchParams?.get('tab') || 'orders'
     setCurrentTab(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])
@@ -194,7 +190,7 @@ export default function ProfilePage() {
 
       console.debug('loadUserOrders merged:', merged)
       setUserOrders(merged)
-      // auto-select/scroll when redirected after payment
+  // auto-select/scroll when redirected after payment
       if (highlightPaymentId && merged && Array.isArray(merged) && merged.length > 0) {
         try {
           const matched = (merged as any[]).filter((r) => {
@@ -203,9 +199,7 @@ export default function ProfilePage() {
             return String(pay.razorpay_payment_id || pay.id || '').toLowerCase() === String(highlightPaymentId).toLowerCase()
           })
           if (matched.length > 0) {
-            const sel: Record<string, boolean> = {}
-            matched.forEach((m:any) => { sel[m.id] = true })
-            setSelectedOrderRows(sel)
+            setSelectedOrderId(matched[0].id)
             setTimeout(() => {
               const el = document.querySelector(`[data-order-id="${matched[0].id}"]`)
               if (el && (el as HTMLElement).scrollIntoView) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -223,40 +217,66 @@ export default function ProfilePage() {
   }
 
   const downloadSelected = () => {
-    const selected = userOrders.filter(o => selectedOrderRows[o.id])
-    if (!selected || selected.length === 0) {
-      alert('Please select at least one order to open its form')
+    const first = userOrders.find(o => o.id === selectedOrderId)
+    if (!first) {
+      alert('Please select an order to open its form')
       return
     }
-    const first = selected[0]
-    // Resolve form type using the same helpers we use elsewhere:
-    // prefer explicit order.type, then payment.type, then service_pricing_key mapping, then service name mapping
-    let t = first.type ?? (first.payments ? first.payments.type ?? null : null)
+    console.log('Debug View Form - selected order:', first)
+    // New precedence: prefer the displayed key in the table (service_pricing_key),
+    // map it to canonical form key, then fall back to order/payment/derived
+    let t: string | null = null
+    if (first.service_pricing_key) {
+      const mappedFromDisplay = getPricingToForm(first.service_pricing_key as string)
+      console.log('Debug View Form - mapping service_pricing_key from table:', first.service_pricing_key, '->', mappedFromDisplay)
+      t = mappedFromDisplay ?? first.service_pricing_key
+    }
+    // If still not resolved, try order/payment types
     if (!t) {
+      t = first.type ?? (first.payments ? first.payments.type ?? null : null)
+      console.log('Debug View Form - fallback type from order.type/payment.type:', t)
+    }
+    
+  if (!t) {
       const candidate = resolveOrderTypeKey(first)
+      console.log('Debug View Form - candidate from resolveOrderTypeKey:', candidate)
+      
       // If candidate is a pricing key, map to form key
       if (candidate && !typeLabelFromKey(candidate)) {
         const mapped = getPricingToForm(candidate)
+        console.log('Debug View Form - mapped pricing key:', candidate, '->', mapped)
         if (mapped) t = mapped
       }
       // If still not set and candidate looks like a known form key (has a label), use it
       if (!t && candidate && typeLabelFromKey(candidate)) {
+        console.log('Debug View Form - using candidate as canonical key:', candidate)
         t = candidate
       }
     }
 
+    console.log('Debug View Form - final resolved type:', t)
+    
     if (!t) {
       alert('Selected order does not have an associated form type')
       return
     }
+    // If t is a pricing key (not a canonical form key), map it now to canonical
+    if (t && !typeLabelFromKey(t)) {
+      const mappedDirect = getPricingToForm(t)
+      if (mappedDirect) t = mappedDirect
+    }
     try {
       const base = typeof window !== 'undefined' ? window.location.origin : ''
-      const url = `${base}/forms?type=${encodeURIComponent(t)}&order_id=${encodeURIComponent(first.id)}`
+      const pk = first.service_pricing_key ? String(first.service_pricing_key) : ''
+      const url = `${base}/forms?${pk ? `pricing_key=${encodeURIComponent(pk)}&` : ''}type=${encodeURIComponent(t)}&order_id=${encodeURIComponent(first.id)}`
+      console.log('Debug View Form - opening URL:', url)
       window.open(url, '_blank')
     } catch (e) {
       console.error('Navigation error opening form for order', e)
     }
   }
+
+  // Removed JSON download and override functionality as per requirements
 
   useEffect(() => {
     if (currentTab === 'orders') {
@@ -524,51 +544,22 @@ export default function ProfilePage() {
 
         {/* State: Authenticated Dashboard */}
         {!loading && sessionEmail && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left column: Profile Card */}
-            <Card className="lg:col-span-1 bg-white border shadow-sm">
-              <CardHeader className="text-center">
-                <div className="mx-auto h-20 w-20 rounded-full bg-blue-100 flex items-center justify-center mb-3">
-                  <User className="h-10 w-10 text-blue-700" />
-                </div>
-                <CardTitle className="text-xl">{displayName}</CardTitle>
-                <CardDescription className="text-sm">Member</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-3 p-3 rounded-lg border bg-gray-50">
-                  <Mail className="h-4 w-4 text-gray-600" />
-                  <span className="text-sm text-gray-700">{profile?.email || sessionEmail}</span>
-                </div>
-                {/* Debug panel: visible during development to show session and orders data */}
-                <div className="mt-3 p-3 rounded-md border bg-yellow-50">
-                  <div className="text-xs text-gray-600">Debug (dev):</div>
-                  <div className="text-sm text-gray-800">Session user id: <span className="font-mono">{userId ?? 'null'}</span></div>
-                  <div className="text-sm text-gray-800">Orders loaded (client): <span className="font-mono">{userOrders.length}</span></div>
-                  <details className="mt-2 text-xs">
-                    <summary className="cursor-pointer">Preview orders JSON</summary>
-                    <pre className="max-h-40 overflow-auto text-xs p-2 bg-white rounded mt-2">{JSON.stringify(userOrders.slice(0,10), null, 2)}</pre>
-                  </details>
-                </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg border bg-gray-50">
-                  <Building2 className="h-4 w-4 text-gray-600" />
-                  <span className="text-sm text-gray-700">{profile?.company || "Company not set"}</span>
-                </div>
-                <Separator />
-                <div className="grid grid-cols-2 gap-3">
-                  <Button variant="outline" className="w-full">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Settings
-                  </Button>
-                  <Button variant="outline" className="w-full">
-                    <ShieldCheck className="h-4 w-4 mr-2" />
-                    Security
-                  </Button>
+          <div className="grid grid-cols-1 gap-6">
+            {/* Tabs and content (full width) */}
+            {/* Welcome card */}
+            <Card className="bg-white border shadow-sm">
+              <CardContent className="py-4">
+                <div className="flex items-center gap-3">
+                  <User className="h-5 w-5 text-blue-600" />
+                  <div className="text-sm text-gray-800">
+                    <span className="font-medium">Welcome{editProfile.first_name ? ", " : ""}</span>
+                    <span>{editProfile.first_name ?? displayName}</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Right column: Tabs and content */}
-            <Card className="lg:col-span-2 bg-white border shadow-sm">
+            <Card className="bg-white border shadow-sm">
               <CardHeader>
                 <CardTitle>Overview</CardTitle>
                 <CardDescription>Manage your account information and review recent activity</CardDescription>
@@ -576,83 +567,9 @@ export default function ProfilePage() {
               <CardContent>
                 <Tabs value={currentTab} onValueChange={(v) => setCurrentTab(v)} className="w-full">
                   <TabsList className="mb-4">
-                    <TabsTrigger value="summary">Summary</TabsTrigger>
                     <TabsTrigger value="profile">Profile</TabsTrigger>
                     <TabsTrigger value="orders">Orders</TabsTrigger>
-                    <TabsTrigger value="activity">Activity</TabsTrigger>
                   </TabsList>
-
-                  {/* Summary */}
-                  <TabsContent value="summary" className="space-y-4">
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <Card className="border bg-gradient-to-br from-blue-50 to-white">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-base">Account</CardTitle>
-                          <CardDescription>Basic account information</CardDescription>
-                        </CardHeader>
-                        <CardContent className="text-sm text-gray-700 space-y-1">
-                          <div>
-                            <span className="font-medium text-gray-900">Name: </span>
-                            {displayName}
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-900">Email: </span>
-                            {profile?.email || sessionEmail}
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-900">Company: </span>
-                            {profile?.company || "—"}
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card className="border">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-base">Plan</CardTitle>
-                          <CardDescription>Billing and subscription</CardDescription>
-                        </CardHeader>
-                        <CardContent className="text-sm text-gray-700">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="font-medium text-gray-900">Free</div>
-                              <div className="text-xs text-gray-500">Upgrade for more features</div>
-                            </div>
-                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700">Upgrade</Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    <Card className="border">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Quick Stats</CardTitle>
-                        <CardDescription>Recent engagement</CardDescription>
-                        <div className="ml-auto">
-                          <a href="/profile/overview?tab=overview" className="inline-block text-sm text-blue-600 hover:underline">Open Profile Overview</a>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                          <div className="p-4 rounded-lg bg-gray-50 border">
-                            <div className="text-2xl font-bold text-blue-700">3</div>
-                            <div className="text-xs text-gray-500">Open Quotes</div>
-                          </div>
-                          <div className="p-4 rounded-lg bg-gray-50 border">
-                            <div className="text-2xl font-bold text-blue-700">1</div>
-                            <div className="text-xs text-gray-500">Active Orders</div>
-                          </div>
-                          <div className="p-4 rounded-lg bg-gray-50 border">
-                            <div className="text-2xl font-bold text-blue-700">5</div>
-                            <div className="text-xs text-gray-500">Saved Services</div>
-                          </div>
-                          <div className="p-4 rounded-lg bg-gray-50 border">
-                            <div className="text-2xl font-bold text-blue-700">2025</div>
-                            <div className="text-xs text-gray-500">Member Since</div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
 
                   {/* Profile */}
                   <TabsContent value="profile">
@@ -746,8 +663,10 @@ export default function ProfilePage() {
                             <CardTitle>Orders</CardTitle>
                             <CardDescription>Your payments and orders</CardDescription>
                           </div>
-                          <div>
-                            <Button onClick={downloadSelected} disabled={!Object.values(selectedOrderRows).some(Boolean)}>View Form</Button>
+                          <div className="flex flex-col items-end gap-2">
+                            <div className="flex items-center gap-2">
+                              <Button onClick={downloadSelected} disabled={!selectedOrderId}>View Form</Button>
+                            </div>
                           </div>
                         </div>
                       </CardHeader>
@@ -772,12 +691,7 @@ export default function ProfilePage() {
                           <table className="w-full table-auto border-collapse">
                             <thead>
                               <tr>
-                                <th className="p-2 text-left"><input type="checkbox" onChange={(e) => {
-                                  const checked = (e.target as HTMLInputElement).checked
-                                  const newSel: Record<string, boolean> = {}
-                                  filteredOrders(userOrders, searchOrders, sortOrders).forEach((r:any) => { newSel[r.id] = checked })
-                                  setSelectedOrderRows(newSel)
-                                }} /></th>
+                                <th className="p-2 text-left"></th>
                                 <th className="p-2 text-left">Category</th>
                                 <th className="p-2 text-left">Service</th>
                                 <th className="p-2 text-left">Type</th>
@@ -788,9 +702,9 @@ export default function ProfilePage() {
                             <tbody>
                               {loadingUserOrders && <tr><td colSpan={6} className="p-4">Loading...</td></tr>}
                               {!loadingUserOrders && filteredOrders(userOrders, searchOrders, sortOrders).length === 0 && <tr><td colSpan={6} className="p-4">No orders found</td></tr>}
-                              {!loadingUserOrders && filteredOrders(userOrders, searchOrders, sortOrders).map((r:any) => (
+                {!loadingUserOrders && filteredOrders(userOrders, searchOrders, sortOrders).map((r:any) => (
                                 <tr key={r.id} className="border-t" data-order-id={r.id}>
-                                  <td className="p-2"><input type="checkbox" checked={!!selectedOrderRows[r.id]} onChange={() => setSelectedOrderRows(prev => ({ ...prev, [r.id]: !prev[r.id]}))} /></td>
+                  <td className="p-2"><input type="radio" name="order-select" checked={selectedOrderId === r.id} onChange={() => setSelectedOrderId(r.id)} /></td>
                                   <td className="p-2">{(r.categories as any)?.name ?? 'N/A'}</td>
                                   <td className="p-2">{(r.services as any)?.name ?? 'N/A'}</td>
                                   <td className="p-2">{(r.service_pricing_key ?? null) || (typeLabelFromKey(resolveOrderTypeKey(r)) ?? 'N/A')}</td>
@@ -805,25 +719,6 @@ export default function ProfilePage() {
                     </Card>
                   </TabsContent>
 
-                  {/* Activity */}
-                  <TabsContent value="activity">
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-3 p-3 rounded-md border bg-gray-50">
-                        <Calendar className="h-4 w-4 mt-0.5 text-gray-600" />
-                        <div>
-                          <div className="text-sm"><span className="font-medium text-gray-900">You</span> added a new service to cart</div>
-                          <div className="text-xs text-gray-500">2 days ago</div>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3 p-3 rounded-md border bg-gray-50">
-                        <Calendar className="h-4 w-4 mt-0.5 text-gray-600" />
-                        <div>
-                          <div className="text-sm"><span className="font-medium text-gray-900">Order</span> PSA-98761 marked as completed</div>
-                          <div className="text-xs text-gray-500">Last week</div>
-                        </div>
-                      </div>
-                    </div>
-                  </TabsContent>
                 </Tabs>
               </CardContent>
             </Card>

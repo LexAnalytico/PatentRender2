@@ -1,0 +1,66 @@
+In the sample code below I have used service-pricing-to-form.json for the 
+./mapping and form-fields.json for the ./fields file
+This is just an example of my requirement where field type will select the correct 
+form field labels and text boxes to be provided for user to enter his data
+we can style the form later and can you modify the code to get this requirement 
+for the forms
+
+"use client"
+
+import { useState } from "react"
+import { fieldToColumnMap } from "./mapping"
+import { fieldRows } from "./fields"
+import { data } from "autoprefixer"
+
+export default function FieldLookup() {
+  const [input, setInput] = useState("")
+  const [results, setResults] = useState<string[]>([])
+
+  const handleSearch = () => {
+    // find which JSON column this field maps to
+    const column = fieldToColumnMap[input.trim()]
+    if (!column) {
+      setResults([])
+      alert("No mapping found for that field type")
+      return
+    }
+
+    // filter all rows where that column is "TRUE"
+    const labels = fieldRows
+      .filter(row => String(row[column]).toUpperCase() === "TRUE")
+      .map(row => row.field_title)
+
+    setResults(labels)
+  }
+
+  return (
+    <div className="space-y-4 p-4">
+      <label className="block text-sm font-medium">
+        Enter field type
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          placeholder="e.g. response_due_anytime_after_15_days"
+          className="mt-1 w-full border rounded p-2"
+        />
+      </label>
+
+      <button
+        onClick={handleSearch}
+        className="bg-blue-600 text-white px-4 py-2 rounded"
+      >
+        Search
+      </button>
+
+      {results.length > 0 && (
+        <ul className="list-disc pl-5">
+          {results.map(label => (
+            <li key={label}>{label}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+

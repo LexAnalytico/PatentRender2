@@ -50,50 +50,101 @@ export default function IPFormBuilderClient() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    const type = searchParams?.get("type") || ""
+  const urlPricingKey = searchParams?.get("pricing_key") || ""
+  const urlType = searchParams?.get("type") || ""
     const orderId = searchParams?.get("order_id") || ""
-    if (type && applicationTypes.some((t) => t.key === type)) {
-      setSelectedType(type)
-      return
+
+  console.log('Debug FormClient - URL params:', { pricing_key: urlPricingKey, type: urlType, orderId })
+
+    // Priority 1: pricing_key in URL (pricing rule key) -> map to canonical
+    if (urlPricingKey) {
+      const mapped = getPricingToForm(urlPricingKey)
+      console.log('Debug FormClient - mapping pricing_key from URL:', urlPricingKey, '->', mapped)
+      if (mapped && applicationTypes.some((t) => t.key === mapped)) {
+        setSelectedType(mapped)
+        return
+      }
     }
 
-    // If we have an order_id but no type param, try to resolve the type from the DB
-    if (!type && orderId) {
-      let mounted = true
-      ;(async () => {
-        try {
-          // Try to read type from orders table
-          const { data: ord, error: ordErr } = await supabase.from('orders').select('type, payment_id').eq('id', orderId).maybeSingle()
-          if (ordErr) console.debug('Order lookup error resolving form type', ordErr)
-          if (mounted && ord && ord.type && applicationTypes.some((t) => t.key === ord.type)) {
-            setSelectedType(ord.type)
-            return
-          }
+    // Priority 2: Normalize URL type to canonical (if pricing key is provided)
+    let urlCanonical: string | null = null
+    if (urlType) {
+      if (applicationTypes.some((t) => t.key === urlType)) {
+        urlCanonical = urlType
+      } else {
+        const mapped = getPricingToForm(urlType)
+        console.log('Debug FormClient - mapping pricing key from URL:', urlType, '->', mapped)
+        if (mapped && applicationTypes.some((t) => t.key === mapped)) {
+          urlCanonical = mapped
+        }
+      }
+    }
 
-          // Fallback: if order references a payment, try payments.type
-          const paymentId = ord?.payment_id ?? null
-          if (paymentId) {
-            const { data: pay, error: payErr } = await supabase.from('payments').select('type').eq('id', paymentId).maybeSingle()
-            if (payErr) console.debug('Payment lookup error resolving form type', payErr)
-            if (mounted && pay && pay.type && applicationTypes.some((t) => t.key === pay.type)) {
-              setSelectedType(pay.type)
-              return
-            }
-            // If payments.type is missing but we may have a pricing rule key stored elsewhere,
-            // attempt to map it via pricingToForm (this assumes payments.type may contain pricing key)
-            if (mounted && pay && pay.type) {
-              const mapped = getPricingToForm(pay.type as string)
+    let mounted = true
+    ;(async () => {
+      try {
+        let resolved: string | null = null
+
+        // If we have an order_id, resolve authoritative type from DB
+        if (orderId) {
+          const { data: ord, error: ordErr } = await supabase
+            .from('orders')
+            .select('type, payment_id')
+            .eq('id', orderId)
+            .maybeSingle()
+          if (ordErr) console.debug('Order lookup error resolving form type', ordErr)
+
+          // Try order.type as canonical or mapped pricing key
+          const ordType = ord?.type ?? null
+          if (ordType) {
+            if (applicationTypes.some((t) => t.key === ordType)) {
+              resolved = ordType
+            } else {
+              const mapped = getPricingToForm(ordType)
+              console.log('Debug FormClient - mapping order.type:', ordType, '->', mapped)
               if (mapped && applicationTypes.some((t) => t.key === mapped)) {
-                setSelectedType(mapped)
-                return
+                resolved = mapped
               }
             }
           }
-        } catch (e) {
-          console.error('Exception resolving form type from order_id', e)
+
+          // Fallback: try payments.type
+          if (!resolved && ord?.payment_id) {
+            const { data: pay, error: payErr } = await supabase
+              .from('payments')
+              .select('type')
+              .eq('id', ord.payment_id)
+              .maybeSingle()
+            if (payErr) console.debug('Payment lookup error resolving form type', payErr)
+            const payType = pay?.type ?? null
+            if (payType) {
+              if (applicationTypes.some((t) => t.key === payType)) {
+                resolved = payType
+              } else {
+                const mapped = getPricingToForm(payType)
+                console.log('Debug FormClient - mapping payments.type:', payType, '->', mapped)
+                if (mapped && applicationTypes.some((t) => t.key === mapped)) {
+                  resolved = mapped
+                }
+              }
+            }
+          }
         }
-      })()
-      return
+
+        // Choose final: prefer resolved-from-order/payment; else fallback to URL; else do nothing
+        const finalType = resolved || urlCanonical
+        console.log('Debug FormClient - final selected type:', finalType)
+        if (mounted && finalType && applicationTypes.some((t) => t.key === finalType)) {
+          setSelectedType(finalType)
+          return
+        }
+      } catch (e) {
+        console.error('Exception resolving form type', e)
+      }
+    })()
+
+    return () => {
+      mounted = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams])

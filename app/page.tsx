@@ -918,6 +918,64 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
       computedPrice: price,
     })
 
+    // Determine the pricing key that corresponds to the selected options
+    // This will be used as the type for the order/payment
+    let pricingKey: string | null = null
+    
+    if (selectedServiceTitle === "Patentability Search") {
+      const st = optionsForm.searchType
+      const t = selectedTurnaround
+      
+      if (st === "full_without_opinion" && t) {
+        pricingKey = `full_without_opinion_${t}`
+      } else if (st === "full_with_opinion" && t) {
+        pricingKey = `full_with_opinion_${t}`
+      } else if (st === "quick" && t) {
+        pricingKey = `turnaround_${t}`
+      }
+    } else if (selectedServiceTitle === "Drafting") {
+      const st = optionsForm.searchType // ps, cs, ps_cs
+      const t = selectedTurnaround
+      
+      if ((st === "ps" || st === "cs" || st === "ps_cs") && t) {
+        const base = st === "ps" ? "provisional_specification" : st === "cs" ? "complete_specification" : "ps_cs"
+        pricingKey = `${base}_${t}`
+      }
+    } else if (selectedServiceTitle === "Patent Application Filing") {
+      // For filing, the turnaround dropdown contains direct keys
+      const filingKeys = new Set([
+        "provisional_filing",
+        "complete_specification_filing", 
+        "ps_cs_filing",
+        "pct_filing",
+      ])
+      if (selectedTurnaround && filingKeys.has(selectedTurnaround)) {
+        pricingKey = selectedTurnaround
+      }
+    } else if (selectedServiceTitle === "First Examination Response") {
+      // For FER, the searchType contains direct keys
+      const ferKeys = new Set([
+        "base_fee",
+        "response_due_anytime_after_15_days",
+        "response_due_within_11_15_days", 
+        "response_due_within_4_10_days",
+      ])
+      if (optionsForm.searchType && ferKeys.has(optionsForm.searchType)) {
+        pricingKey = optionsForm.searchType
+      }
+    }
+    
+    console.log("[Cart] Determined pricing key:", pricingKey)
+    
+    // Store the pricing key in localStorage so checkout can use it
+    if (pricingKey) {
+      try {
+        localStorage.setItem('selected_pricing_key', pricingKey)
+      } catch (e) {
+        console.warn('Failed to store pricing key in localStorage:', e)
+      }
+    }
+
     const prettySearchTypeMap = {
       // Patentability Search types
       quick: "Quick Knockout Search",
@@ -1152,12 +1210,14 @@ const handleAuth = async (e: React.FormEvent) => {
       const user = (userRes && (userRes as any).data) ? (userRes as any).data.user : null;
 
       // 2) create an order on the server so the secret key stays on the server
-      // read user-selected application type from localStorage if present
-      const selectedAppType = (typeof window !== 'undefined') ? (localStorage.getItem('selected_application_type') || null) : null
+      // read pricing key determined when adding to cart
+      const selectedPricingKey = (typeof window !== 'undefined') ? (localStorage.getItem('selected_pricing_key') || null) : null
+      console.log("[Checkout] Using pricing key:", selectedPricingKey)
+      
       const orderResp = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, currency: 'INR', user_id: user?.id || null, service_id: (cartItems[0] as any)?.service_id ?? null, type: selectedAppType }),
+        body: JSON.stringify({ amount, currency: 'INR', user_id: user?.id || null, service_id: (cartItems[0] as any)?.service_id ?? null, type: selectedPricingKey }),
       });
 
       if (!orderResp.ok) {
@@ -1193,8 +1253,8 @@ const handleAuth = async (e: React.FormEvent) => {
                 user_id: user?.id || null,
         // include service selection so server can persist service_id reliably
         service_id: (cartItems[0] as any)?.service_id ?? null,
-                // include application form type (if the user selected one)
-                type: selectedAppType,
+                // include application form type (if the user selected one) 
+                type: selectedPricingKey,
                 // include minimal customer/context data for server processing
                 name: user?.user_metadata?.full_name || user?.email || '',
                 email: user?.email || '',
