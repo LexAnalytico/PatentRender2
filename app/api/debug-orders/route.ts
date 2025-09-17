@@ -22,20 +22,24 @@ export async function GET(req: Request) {
 
     const paymentIds = Array.from(new Set((orders ?? []).map((o: any) => o.payment_id).filter(Boolean)))
     const paymentsRes = paymentIds.length
-      ? await serverSupabase.from('payments').select('id,user_id,total_amount,payment_status,razorpay_payment_id,service_id,created_at').in('id', paymentIds)
+      ? await serverSupabase.from('payments').select('id,user_id,total_amount,payment_status,razorpay_payment_id,service_id,type,created_at').in('id', paymentIds)
       : { data: [], error: null }
     const payments = paymentsRes.data
     if (paymentsRes.error) console.error('debug-orders: paymentsErr', paymentsRes.error)
 
-    const serviceIds = Array.from(new Set((orders ?? []).map((o: any) => o.service_id).filter(Boolean)))
-    const servicesRes = serviceIds.length ? await serverSupabase.from('services').select('id,name,category_id').in('id', serviceIds) : { data: [] }
+  const serviceIds = Array.from(new Set((orders ?? []).map((o: any) => o.service_id).filter(Boolean)))
+  const servicesRes = serviceIds.length ? await serverSupabase.from('services').select('id,name,category_id').in('id', serviceIds) : { data: [] }
     const services = servicesRes.data
+
+  // Also fetch service_pricing_rules for these services so we can inspect pricing keys
+  const pricingRes = serviceIds.length ? await serverSupabase.from('service_pricing_rules').select('service_id,key').in('service_id', serviceIds) : { data: [] }
+  const pricing = pricingRes.data
 
     const categoryIds = Array.from(new Set((orders ?? []).map((o: any) => o.category_id).filter(Boolean)))
     const categoriesRes = categoryIds.length ? await serverSupabase.from('categories').select('id,name').in('id', categoryIds) : { data: [] }
     const categories = categoriesRes.data
 
-    return NextResponse.json({ orders, payments, services, categories })
+  return NextResponse.json({ orders, payments, services, categories, pricing })
   } catch (e) {
     console.error('debug-orders exception', e)
     return NextResponse.json({ error: String(e) }, { status: 500 })

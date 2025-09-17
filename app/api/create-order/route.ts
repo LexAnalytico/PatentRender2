@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
 import { supabase } from '@/lib/supabase';
+import pricingToForm from '@/app/data/service-pricing-to-form.json'
 import { createClient } from '@supabase/supabase-js';
 
 export async function POST(req: Request) {
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
       receipt: `receipt_order_${Date.now()}`,
     });
 
-    // Persist a payment row so verify/notify flows can resolve details
+  // Persist a payment row so verify/notify flows can resolve details
     try {
       const serverSupabase = process.env.SUPABASE_SERVICE_ROLE_KEY
         ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '', process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -28,6 +29,13 @@ export async function POST(req: Request) {
       const amtToStore = custom_price != null
         ? Number(custom_price)
         : (amount != null ? Number(amount) / 100 : 0);
+
+  // Map incoming `type` (which may be a pricing key) to canonical form key
+      const map = pricingToForm as unknown as Record<string,string>
+      let mappedType: string | null = null
+      if (typeof type !== 'undefined' && type != null) {
+        mappedType = map[type] ?? type
+      }
 
   // Validate provided user_id exists; do not trust client-provided ids
       let userToStore: string | null = null;
@@ -65,7 +73,7 @@ export async function POST(req: Request) {
             razorpay_order_id: order.id,
             razorpay_payment_id: null,
     service_id: serviceToStore,
-  type: typeof type !== 'undefined' ? (type ?? null) : null,
+  type: mappedType ?? null,
             created_at: new Date().toISOString(),
           },
         ])

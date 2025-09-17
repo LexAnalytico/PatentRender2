@@ -96,9 +96,9 @@ export default function ProfilePage() {
   if (t) return t
     // prefer canonical service_pricing_rules.key when present
   if (o.service_pricing_key) {
-    const mapped = getPricingToForm(o.service_pricing_key as string)
-    // return the mapped form type if available, otherwise return the raw key
-    return mapped ?? o.service_pricing_key
+  const mapped = getPricingToForm(o.service_pricing_key as string)
+  // return the mapped form type if available, otherwise return the raw key
+  return mapped ?? o.service_pricing_key
   }
     const svcName = (o.services as any)?.name ?? null
     if (!svcName) return null

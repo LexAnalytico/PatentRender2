@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { supabase } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
+import pricingToForm from '@/app/data/service-pricing-to-form.json'
 
 export const runtime = 'nodejs';
 
@@ -185,8 +186,10 @@ export async function POST(req: NextRequest) {
     // Determine amount to store: prefer existing payment.total_amount, otherwise custom_price, otherwise derive from body.amount (assume paise)
     let amtToStore = existingPaymentByOrder?.total_amount ?? null;
     // Determine service to store: prefer existing payment.service_id, then incoming payload service_id, will fallback to recent quote later
-    let serviceToStore: any = existingPaymentByOrder?.service_id ?? service_id ?? null;
-    let typeToStore: any = existingPaymentByOrder?.type ?? type ?? null;
+  let serviceToStore: any = existingPaymentByOrder?.service_id ?? service_id ?? null;
+  // Map incoming type (can be pricing key) to canonical form key
+  const map = pricingToForm as unknown as Record<string,string>
+  let typeToStore: any = existingPaymentByOrder?.type ?? (type ? (map[type] ?? type) : type) ?? null;
     if (amtToStore == null) {
       if (custom_price != null) amtToStore = Number(custom_price);
       else if ((body as any).amount != null) amtToStore = Number((body as any).amount) / 100; // paise -> rupees
@@ -200,7 +203,7 @@ export async function POST(req: NextRequest) {
         // If we still don't have a serviceToStore, try to resolve from recent quote later (kept as variable)
         const { data: updated, error: updErr } = await serverSupabase
           .from('payments')
-          .update({
+            .update({
             user_id: existingPaymentByOrder?.user_id ?? user_id ?? null,
             total_amount: amtToStore,
             payment_status: 'paid',
@@ -208,7 +211,7 @@ export async function POST(req: NextRequest) {
             razorpay_order_id: razorpay_order_id,
             razorpay_payment_id: razorpay_payment_id,
             service_id: serviceToStore ?? null,
-            type: typeToStore ?? null,
+              type: typeToStore ?? null,
           })
           .eq('razorpay_payment_id', razorpay_payment_id)
           .select()
@@ -281,13 +284,13 @@ export async function POST(req: NextRequest) {
           if (svc) resolvedCategoryId = (svc as any).category_id ?? resolvedCategoryId;
         }
 
-        const { data: orderInserted, error: orderErr } = await serverSupabase.from('orders').insert([
+    const { data: orderInserted, error: orderErr } = await serverSupabase.from('orders').insert([
           {
             user_id: persistedPayment.user_id,
             service_id: resolvedServiceId,
             category_id: resolvedCategoryId,
             payment_id: persistedPayment.id,
-            type: typeToStore ?? persistedPayment.type ?? null,
+      type: typeToStore ?? persistedPayment.type ?? null,
             created_at: new Date().toISOString(),
           },
         ]).select().maybeSingle();
