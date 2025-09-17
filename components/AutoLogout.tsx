@@ -1,15 +1,27 @@
 "use client"
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
-// Intentionally disabled AutoLogout behavior. Signing users out automatically
-// on `beforeunload` or `pagehide` caused users to be logged out when they
-// returned from the external payment provider. Keep this component as a
-// no-op to avoid accidental sign-outs. If you want a server-side revoke on
-// close, implement a beacon endpoint and call it here (without clearing
-// client-side session data).
-
+// Global auth watcher:
+// - We DO NOT auto-logout on close/refresh to avoid breaking payment redirects.
+// - We DO redirect to home on SIGNED_OUT so protected pages clear quickly.
 export default function AutoLogout() {
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        try {
+          // Hard redirect to ensure state is reset across the app
+          window.location.assign('/')
+        } catch {
+          // no-op
+        }
+      }
+    })
+    return () => {
+      try { listener.subscription.unsubscribe() } catch { /* no-op */ }
+    }
+  }, [])
+
   return null
 }
