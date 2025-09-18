@@ -43,45 +43,24 @@ export function Footer() {
           <div>
             <h3 className="text-lg font-semibold mb-4">Company</h3>
             <ul className="space-y-2 text-gray-400">
-              <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  About Us
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  Our Team
-                </a>
-              </li>
+              <li><span className="cursor-default">About Us</span></li>
+              <li><span className="cursor-default">Our Team</span></li>
               <li>
                 <Link href="/privacy" className="hover:text-white transition-colors">
                   Privacy Policy
                 </Link>
               </li>
-              <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  Terms of Service
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  Careers
-                </a>
-              </li>
-              <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  Contact
-                </a>
-              </li>
+              <li><span className="cursor-default">Terms of Service</span></li>
+              <li><span className="cursor-default">Careers</span></li>
+              <li><span className="cursor-default">Contact</span></li>
             </ul>
           </div>
           <div>
             <h3 className="text-lg font-semibold mb-4">Contact Info</h3>
             <div className="space-y-2 text-gray-400">
-              <p>123 Legal Street</p>
-              <p>IP City, LC 12345</p>
-              <p>Phone: (555) 123-4567</p>
-              <p>Email: info@legalippro.com</p>
+              <p>8th Floor, A 10, Shilpitha Tech Park- iSprout, Devarabisanahalli Rd, Kariyammana Agrahara, Bellandur, Bengaluru, Karnataka 560103</p>
+              <p>Phone: +91 99161 93248</p>
+              <p>Email: info@lexanalytico.com</p>
             </div>
           </div>
         </div>
