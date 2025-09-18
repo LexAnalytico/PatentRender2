@@ -68,15 +68,15 @@ export function ServiceTabs({ activeServiceTab, setActiveServiceTab, addToCart }
         </TabsContent>
 
         <TabsContent value="trademark">
-          <section id="trademark-services" className="bg-green-50 py-12 rounded-lg">
+          <section id="trademark-services" className="bg-neutral-50 py-12 rounded-lg border border-neutral-200">
             <div className="px-4 sm:px-6 lg:px-8 text-center">
-              <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-green-100 ring-2 ring-green-200 flex items-center justify-center">
-                <Clock className="h-8 w-8 text-green-600" />
+              <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
+                <Clock className="h-8 w-8 text-neutral-600" />
               </div>
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">Trademark Services</h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto">We’re polishing a great set of trademark services to secure your brand. Launching soon.</p>
+              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">Trademark Services</h2>
+              <p className="text-base text-gray-600 max-w-2xl mx-auto">We’re polishing a great set of trademark services to secure your brand. Launching soon.</p>
               <div className="mt-6 flex items-center justify-center gap-3">
-                <Button className="bg-green-600 hover:bg-green-700 text-white">
+                <Button className="bg-neutral-700 hover:bg-neutral-800 text-white">
                   <Sparkles className="h-4 w-4 mr-2" /> Notify me
                 </Button>
                 <Button variant="outline" onClick={() => setActiveServiceTab("patent")}>Explore Patent Services</Button>
@@ -86,15 +86,15 @@ export function ServiceTabs({ activeServiceTab, setActiveServiceTab, addToCart }
         </TabsContent>
 
         <TabsContent value="copyright">
-          <section id="copyright-services" className="bg-purple-50 py-12 rounded-lg">
+          <section id="copyright-services" className="bg-neutral-50 py-12 rounded-lg border border-neutral-200">
             <div className="px-4 sm:px-6 lg:px-8 text-center">
-              <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-purple-100 ring-2 ring-purple-200 flex items-center justify-center">
-                <Clock className="h-8 w-8 text-purple-600" />
+              <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
+                <Clock className="h-8 w-8 text-neutral-600" />
               </div>
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">Copyright Services</h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto">We’re crafting copyright offerings to protect your creative work. Coming soon.</p>
+              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">Copyright Services</h2>
+              <p className="text-base text-gray-600 max-w-2xl mx-auto">We’re crafting copyright offerings to protect your creative work. Coming soon.</p>
               <div className="mt-6 flex items-center justify-center gap-3">
-                <Button className="bg-purple-600 hover:bg-purple-700 text-white">
+                <Button className="bg-neutral-700 hover:bg-neutral-800 text-white">
                   <Sparkles className="h-4 w-4 mr-2" /> Notify me
                 </Button>
                 <Button variant="outline" onClick={() => setActiveServiceTab("patent")}>Explore Patent Services</Button>
@@ -104,15 +104,15 @@ export function ServiceTabs({ activeServiceTab, setActiveServiceTab, addToCart }
         </TabsContent>
 
         <TabsContent value="design">
-          <section id="design-services" className="bg-orange-50 py-12 rounded-lg">
+          <section id="design-services" className="bg-neutral-50 py-12 rounded-lg border border-neutral-200">
             <div className="px-4 sm:px-6 lg:px-8 text-center">
-              <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-orange-100 ring-2 ring-orange-200 flex items-center justify-center">
-                <Clock className="h-8 w-8 text-orange-600" />
+              <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
+                <Clock className="h-8 w-8 text-neutral-600" />
               </div>
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-3">Design Services</h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto">Beautiful design protection services are on the way. Stay tuned!</p>
+              <h2 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3">Design Services</h2>
+              <p className="text-base text-gray-600 max-w-2xl mx-auto">Beautiful design protection services are on the way. Stay tuned!</p>
               <div className="mt-6 flex items-center justify-center gap-3">
-                <Button className="bg-orange-600 hover:bg-orange-700 text-white">
+                <Button className="bg-neutral-700 hover:bg-neutral-800 text-white">
                   <Sparkles className="h-4 w-4 mr-2" /> Notify me
                 </Button>
                 <Button variant="outline" onClick={() => setActiveServiceTab("patent")}>Explore Patent Services</Button>

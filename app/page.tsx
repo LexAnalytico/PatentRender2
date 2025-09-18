@@ -1911,9 +1911,9 @@ if (showQuotePage) {
           {/* Scrollable nav styled as tabs */}
           <div className="grid w-full grid-cols-2 md:grid-cols-4 gap-2 mb-8">
             <button onClick={() => scrollToSection('patent-services')} className="px-3 py-2 rounded bg-blue-50 text-blue-700 hover:bg-blue-100">Patent Services</button>
-            <button onClick={() => scrollToSection('trademark-services')} className="px-3 py-2 rounded bg-green-50 text-green-700 hover:bg-green-100">Trademark Services</button>
-            <button onClick={() => scrollToSection('copyright-services')} className="px-3 py-2 rounded bg-purple-50 text-purple-700 hover:bg-purple-100">Copyright Services</button>
-            <button onClick={() => scrollToSection('design-services')} className="px-3 py-2 rounded bg-orange-50 text-orange-700 hover:bg-orange-100">Design Services</button>
+            <button onClick={() => scrollToSection('trademark-services')} className="px-3 py-2 rounded bg-neutral-50 text-neutral-700 hover:bg-neutral-100">Trademark Services</button>
+            <button onClick={() => scrollToSection('copyright-services')} className="px-3 py-2 rounded bg-neutral-50 text-neutral-700 hover:bg-neutral-100">Copyright Services</button>
+            <button onClick={() => scrollToSection('design-services')} className="px-3 py-2 rounded bg-neutral-50 text-neutral-700 hover:bg-neutral-100">Design Services</button>
           </div>
 
           {/* Patent Services */}
@@ -1948,20 +1948,20 @@ if (showQuotePage) {
           </section>
 
           {/* Trademark Services */}
-          <section id="trademark-services" className="bg-green-50 py-8 rounded-lg mt-8">
+          <section id="trademark-services" className="bg-neutral-50 py-8 rounded-lg mt-8 border border-neutral-200">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Trademark Services</h2>
                 <p className="text-lg text-gray-600 max-w-3xl">Protect your brand identity with tailored search, filing, and monitoring solutions.</p>
               </div>
               <div className="text-center py-12">
-                <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-green-100 ring-2 ring-green-200 flex items-center justify-center">
-                  <Clock className="h-8 w-8 text-green-600" />
+                <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
+                  <Clock className="h-8 w-8 text-neutral-600" />
                 </div>
                 <h3 className="text-2xl font-semibold text-gray-900 mb-2">Coming soon</h3>
                 <p className="text-gray-600 max-w-2xl mx-auto">We’re polishing our trademark offerings. Meanwhile, explore our fully available patent services.</p>
                 <div className="mt-6">
-                  <Button variant="outline" className="border-green-200" onClick={() => scrollToSection('patent-services')}>
+                  <Button variant="outline" className="border-neutral-200" onClick={() => scrollToSection('patent-services')}>
                     Explore Patent Services
                   </Button>
                 </div>
@@ -1970,20 +1970,20 @@ if (showQuotePage) {
           </section>
 
           {/* Copyright Services */}
-          <section id="copyright-services" className="bg-purple-50 py-8 rounded-lg mt-8">
+          <section id="copyright-services" className="bg-neutral-50 py-8 rounded-lg mt-8 border border-neutral-200">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Copyright Services</h2>
                 <p className="text-lg text-gray-600 max-w-3xl">Safeguard creative works with registration, licensing, and enforcement support.</p>
               </div>
               <div className="text-center py-12">
-                <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-purple-100 ring-2 ring-purple-200 flex items-center justify-center">
-                  <Clock className="h-8 w-8 text-purple-600" />
+                  <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
+                  <Clock className="h-8 w-8 text-neutral-600" />
                 </div>
                 <h3 className="text-2xl font-semibold text-gray-900 mb-2">Coming soon</h3>
                 <p className="text-gray-600 max-w-2xl mx-auto">We’re crafting copyright solutions to protect your creative work. Check back shortly.</p>
                 <div className="mt-6">
-                  <Button variant="outline" className="border-purple-200" onClick={() => scrollToSection('patent-services')}>
+                  <Button variant="outline" className="border-neutral-200" onClick={() => scrollToSection('patent-services')}>
                     Explore Patent Services
                   </Button>
                 </div>
@@ -1992,20 +1992,20 @@ if (showQuotePage) {
           </section>
 
           {/* Design Services */}
-          <section id="design-services" className="bg-orange-50 py-8 rounded-lg mt-8">
+          <section id="design-services" className="bg-neutral-50 py-8 rounded-lg mt-8 border border-neutral-200">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Design Services</h2>
                 <p className="text-lg text-gray-600 max-w-3xl">Protect unique designs with strategic search, filing, and portfolio support.</p>
               </div>
               <div className="text-center py-12">
-                <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-orange-100 ring-2 ring-orange-200 flex items-center justify-center">
-                  <Clock className="h-8 w-8 text-orange-600" />
+                <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
+                  <Clock className="h-8 w-8 text-neutral-600" />
                 </div>
                 <h3 className="text-2xl font-semibold text-gray-900 mb-2">Coming soon</h3>
                 <p className="text-gray-600 max-w-2xl mx-auto">Our design protection services are nearly ready. Stay tuned!</p>
                 <div className="mt-6">
-                  <Button variant="outline" className="border-orange-200" onClick={() => scrollToSection('patent-services')}>
+                  <Button variant="outline" className="border-neutral-200" onClick={() => scrollToSection('patent-services')}>
                     Explore Patent Services
                   </Button>
                 </div>

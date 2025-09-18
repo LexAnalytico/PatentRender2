@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { Suspense, useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "../../lib/supabase"
@@ -39,7 +39,7 @@ interface Profile {
   country?: string | null
 }
 
-export default function ProfilePage() {
+function ProfilePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
@@ -59,6 +59,8 @@ export default function ProfilePage() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [currentTab, setCurrentTab] = useState<string>('orders')
   const [highlightPaymentId, setHighlightPaymentId] = useState<string | null>(null)
+  // Map of order_id -> status string (Not Started | Draft | Completed)
+  const [orderStatuses, setOrderStatuses] = useState<Record<string, string>>({})
 
   // initialize tab from query param if present
   useEffect(() => {
@@ -159,7 +161,7 @@ export default function ProfilePage() {
       const categoryIds = Array.from(new Set(ordersRaw.map((o: any) => o.category_id).filter(Boolean)))
       const paymentIds = Array.from(new Set(ordersRaw.map((o: any) => o.payment_id).filter(Boolean)))
 
-      const [servicesRes, categoriesRes, paymentsRes, pricingRes] = await Promise.all([
+  const [servicesRes, categoriesRes, paymentsRes, pricingRes] = await Promise.all([
         serviceIds.length ? supabase.from('services').select('id, name').in('id', serviceIds) : Promise.resolve({ data: [], error: null }),
         categoryIds.length ? supabase.from('categories').select('id, name').in('id', categoryIds) : Promise.resolve({ data: [], error: null }),
         paymentIds.length ? supabase.from('payments').select('id, razorpay_payment_id, total_amount, payment_status, payment_date, service_id, type').in('id', paymentIds) : Promise.resolve({ data: [], error: null }),
@@ -190,6 +192,37 @@ export default function ProfilePage() {
 
       console.debug('loadUserOrders merged:', merged)
       setUserOrders(merged)
+      // After loading orders, fetch form statuses for these orders
+      try {
+        const orderIds = merged.map((m: any) => m.id).filter(Boolean)
+        if (orderIds.length > 0) {
+          const { data: fr, error: frErr } = await supabase
+            .from('form_responses')
+            .select('order_id, form_type, completed')
+            .in('order_id', orderIds)
+          if (frErr) {
+            console.error('Failed to load form statuses', frErr)
+          } else if (fr) {
+            // Build a status map per order, matching the canonical type where possible
+            const map: Record<string, string> = {}
+            for (const row of fr as any[]) {
+              const oid = row.order_id
+              const comp = !!row.completed
+              // If an order has multiple forms, prefer Completed over Draft
+              const current = map[oid]
+              const candidate = comp ? 'Completed' : 'Draft'
+              if (!current || (current === 'Draft' && candidate === 'Completed')) {
+                map[oid] = candidate
+              }
+            }
+            setOrderStatuses(map)
+          }
+        } else {
+          setOrderStatuses({})
+        }
+      } catch (e) {
+        console.error('Compute form statuses error', e)
+      }
   // auto-select/scroll when redirected after payment
       if (highlightPaymentId && merged && Array.isArray(merged) && merged.length > 0) {
         try {
@@ -695,19 +728,21 @@ export default function ProfilePage() {
                                 <th className="p-2 text-left">Category</th>
                                 <th className="p-2 text-left">Service</th>
                                 <th className="p-2 text-left">Type</th>
+                                <th className="p-2 text-left">Status</th>
                                 <th className="p-2 text-left">Amount</th>
                                 <th className="p-2 text-left">Razorpay ID</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {loadingUserOrders && <tr><td colSpan={6} className="p-4">Loading...</td></tr>}
-                              {!loadingUserOrders && filteredOrders(userOrders, searchOrders, sortOrders).length === 0 && <tr><td colSpan={6} className="p-4">No orders found</td></tr>}
+                              {loadingUserOrders && <tr><td colSpan={7} className="p-4">Loading...</td></tr>}
+                              {!loadingUserOrders && filteredOrders(userOrders, searchOrders, sortOrders).length === 0 && <tr><td colSpan={7} className="p-4">No orders found</td></tr>}
                 {!loadingUserOrders && filteredOrders(userOrders, searchOrders, sortOrders).map((r:any) => (
                                 <tr key={r.id} className="border-t" data-order-id={r.id}>
                   <td className="p-2"><input type="radio" name="order-select" checked={selectedOrderId === r.id} onChange={() => setSelectedOrderId(r.id)} /></td>
                                   <td className="p-2">{(r.categories as any)?.name ?? 'N/A'}</td>
                                   <td className="p-2">{(r.services as any)?.name ?? 'N/A'}</td>
                                   <td className="p-2">{(r.service_pricing_key ?? null) || (typeLabelFromKey(resolveOrderTypeKey(r)) ?? 'N/A')}</td>
+                                  <td className="p-2">{orderStatuses[r.id] ?? 'Not Started'}</td>
                                   <td className="p-2">{(r.payments as any)?.total_amount ?? 'N/A'}</td>
                                   <td className="p-2">{(r.payments as any)?.razorpay_payment_id ?? (r.payments as any)?.id ?? 'N/A'}</td>
                                 </tr>
@@ -726,5 +761,13 @@ export default function ProfilePage() {
         )}
       </main>
     </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading…</div>}>
+      <ProfilePageInner />
+    </Suspense>
   )
 }

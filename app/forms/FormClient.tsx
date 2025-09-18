@@ -12,6 +12,7 @@ import { useSearchParams } from "next/navigation"
 import { useToast } from "@/components/hooks/use-toast"
 import formData from "../data/forms-fields.json"
 import pricingToForm from '../data/service-pricing-to-form.json'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 const getPricingToForm = (k?: string | null) => {
   if (!k) return null
@@ -45,6 +46,8 @@ const applicationTypes = [
 export default function IPFormBuilderClient() {
   const [selectedType, setSelectedType] = useState<string>("")
   const [formValues, setFormValues] = useState<Record<string, string>>({})
+  const [prefillOpen, setPrefillOpen] = useState(false)
+  const [prefillCandidate, setPrefillCandidate] = useState<Record<string, string> | null>(null)
   const toastHook = useToast?.()
   const toast = toastHook ?? { toast: (opts: any) => { if (opts?.title) alert(`${opts.title}\n${opts?.description || ""}`) } }
   const searchParams = useSearchParams()
@@ -185,12 +188,35 @@ export default function IPFormBuilderClient() {
     const relevantFields = getRelevantFields(selectedType)
     const filledFields = relevantFields.filter((field) => formValues[field.field_title]?.trim())
 
-    toast.toast?.({
-      title: "Form Saved Successfully",
-      description: `Saved ${filledFields.length} of ${relevantFields.length} fields for ${applicationTypes.find((t) => t.key === selectedType)?.label}.`,
-    })
+    ;(async () => {
+      try {
+        const { data: sessionRes } = await supabase.auth.getSession()
+        const userId = sessionRes?.session?.user?.id || null
+        if (!userId) throw new Error('Not signed in')
 
-    try { localStorage.setItem(`form_${selectedType}`, JSON.stringify(formValues)) } catch (_){ }
+        const orderId = searchParams?.get('order_id') || null
+        const payload = {
+          user_id: userId,
+          order_id: orderId,
+          form_type: selectedType,
+          data: formValues,
+          fields_filled_count: filledFields.length,
+          fields_total: relevantFields.length,
+          completed: filledFields.length === relevantFields.length,
+        }
+        const { error } = await supabase
+          .from('form_responses')
+          .upsert(payload, { onConflict: 'user_id,order_id,form_type' })
+        if (error) throw error
+        toast.toast?.({
+          title: 'Form Saved',
+          description: `Saved ${filledFields.length}/${relevantFields.length} fields${payload.completed ? ' (Completed)' : ''}.`,
+        })
+      } catch (e: any) {
+        console.error('Save error', e)
+        toast.toast?.({ title: 'Save failed', description: e?.message || 'Unable to save form', variant: 'destructive' })
+      }
+    })()
   }
 
   const handleCancel = () => {
@@ -201,19 +227,91 @@ export default function IPFormBuilderClient() {
     })
   }
 
+  // Load form values when type changes: pull DB for this order+type; else offer prefill from any existing form for this user
   useEffect(() => {
     if (!selectedType) return
-    try {
-      const raw = localStorage.getItem(`form_${selectedType}`)
-      if (raw) setFormValues(JSON.parse(raw))
-      else setFormValues({})
-    } catch { setFormValues({}) }
+    let active = true
+    ;(async () => {
+      try {
+        const { data: sessionRes } = await supabase.auth.getSession()
+        const userId = sessionRes?.session?.user?.id || null
+        if (!userId) { setFormValues({}); return }
+        const orderId = searchParams?.get('order_id') || null
+        // Try exact match first: this order + this type
+        let exactData: any = null
+        if (orderId) {
+          const { data: exact, error: exactErr } = await supabase
+            .from('form_responses')
+            .select('data')
+            .eq('user_id', userId)
+            .eq('order_id', orderId)
+            .eq('form_type', selectedType)
+            .maybeSingle()
+          if (!exactErr && exact?.data) exactData = exact.data
+        } else {
+          // No order id: pick latest for this type
+          const { data: latest, error: latestErr } = await supabase
+            .from('form_responses')
+            .select('data, updated_at')
+            .eq('user_id', userId)
+            .eq('form_type', selectedType)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+          if (!latestErr && latest && latest.length > 0) exactData = (latest[0] as any).data
+        }
+        if (exactData) { if (active) setFormValues(exactData as any); return }
+
+        // No exact data: look for any other form to prefill
+        const { data: anyData, error: anyErr } = await supabase
+          .from('form_responses')
+          .select('data, updated_at')
+          .eq('user_id', userId)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+        if (!anyErr && anyData && anyData.length > 0 && (anyData[0] as any).data) {
+          // Extract matching fields only
+          const relevant = getRelevantFields(selectedType)
+          const keys = new Set(relevant.map(r => r.field_title))
+          const candidate: Record<string, string> = {}
+          Object.entries((anyData[0] as any).data as Record<string,string>).forEach(([k,v]) => {
+            if (keys.has(k) && v) candidate[k] = v as string
+          })
+          if (Object.keys(candidate).length > 0) {
+            setPrefillCandidate(candidate)
+            setPrefillOpen(true)
+          } else {
+            if (active) setFormValues({})
+          }
+        } else {
+          if (active) setFormValues({})
+        }
+      } catch (e) {
+        console.error('Load form values error', e)
+        if (active) setFormValues({})
+      }
+    })()
+    return () => { active = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedType])
 
   const relevantFields = selectedType ? getRelevantFields(selectedType) : []
 
   return (
     <div className="container mx-auto p-6 max-w-4xl">
+      <Dialog open={prefillOpen} onOpenChange={setPrefillOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Use your saved details?</DialogTitle>
+            <DialogDescription>
+              We found existing information from a previous form. Would you like to pre-fill matching fields?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPrefillOpen(false); setPrefillCandidate(null) }}>No, thanks</Button>
+            <Button onClick={() => { if (prefillCandidate) setFormValues(prev => ({ ...prefillCandidate, ...prev })); setPrefillOpen(false) }}>Yes, pre-fill</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-balance">IP Application Form Builder</CardTitle>

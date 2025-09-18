@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Navbar from "@/components/Navbar"; // ✅ import your Navbar
 import AutoLogout from '@/components/AutoLogout'
 import "./globals.css"; // ✅ make sure Tailwind or CSS is applied
+import { GeistSans } from "geist/font/sans"
 
 export const metadata: Metadata = {
   title: "v0 App",
@@ -17,7 +18,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head />
-      <body>
+      <body className={GeistSans.className}>
         {/* ✅ Navbar appears on every page */}
         <Navbar />
   <AutoLogout />
