@@ -4,7 +4,7 @@
 create table if not exists public.form_responses (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  order_id uuid references public.orders(id) on delete cascade,
+  order_id bigint references public.orders(id) on delete cascade,
   form_type text not null,
   data jsonb not null default '{}',
   fields_filled_count integer not null default 0,
@@ -24,16 +24,20 @@ create index if not exists form_responses_data_gin on public.form_responses usin
 -- Row Level Security
 alter table public.form_responses enable row level security;
 
--- Policies: users can see and modify only their rows
-create policy if not exists "form_responses_select_own"
+-- Note: Postgres (incl. Supabase) doesn't support IF NOT EXISTS on CREATE POLICY
+-- Make these idempotent by dropping first, then creating.
+drop policy if exists "form_responses_select_own" on public.form_responses;
+create policy "form_responses_select_own"
   on public.form_responses for select
   using (auth.uid() = user_id);
 
-create policy if not exists "form_responses_insert_own"
+drop policy if exists "form_responses_insert_own" on public.form_responses;
+create policy "form_responses_insert_own"
   on public.form_responses for insert
   with check (auth.uid() = user_id);
 
-create policy if not exists "form_responses_update_own"
+drop policy if exists "form_responses_update_own" on public.form_responses;
+create policy "form_responses_update_own"
   on public.form_responses for update
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);

@@ -55,9 +55,10 @@ export default function IPFormBuilderClient() {
   useEffect(() => {
   const urlPricingKey = searchParams?.get("pricing_key") || ""
   const urlType = searchParams?.get("type") || ""
-    const orderId = searchParams?.get("order_id") || ""
+    const orderIdRaw = searchParams?.get("order_id") || ""
+    const orderIdNum = orderIdRaw ? Number(orderIdRaw) : null
 
-  console.log('Debug FormClient - URL params:', { pricing_key: urlPricingKey, type: urlType, orderId })
+  console.log('Debug FormClient - URL params:', { pricing_key: urlPricingKey, type: urlType, orderId: orderIdNum })
 
     // Priority 1: pricing_key in URL (pricing rule key) -> map to canonical
     if (urlPricingKey) {
@@ -89,11 +90,11 @@ export default function IPFormBuilderClient() {
         let resolved: string | null = null
 
         // If we have an order_id, resolve authoritative type from DB
-        if (orderId) {
+    if (orderIdNum != null && !Number.isNaN(orderIdNum)) {
           const { data: ord, error: ordErr } = await supabase
             .from('orders')
             .select('type, payment_id')
-            .eq('id', orderId)
+      .eq('id', orderIdNum)
             .maybeSingle()
           if (ordErr) console.debug('Order lookup error resolving form type', ordErr)
 
@@ -194,7 +195,8 @@ export default function IPFormBuilderClient() {
         const userId = sessionRes?.session?.user?.id || null
         if (!userId) throw new Error('Not signed in')
 
-        const orderId = searchParams?.get('order_id') || null
+  const orderIdParam = searchParams?.get('order_id') || null
+  const orderId = orderIdParam != null ? Number(orderIdParam) : null
         const payload = {
           user_id: userId,
           order_id: orderId,
@@ -236,10 +238,10 @@ export default function IPFormBuilderClient() {
         const { data: sessionRes } = await supabase.auth.getSession()
         const userId = sessionRes?.session?.user?.id || null
         if (!userId) { setFormValues({}); return }
-        const orderId = searchParams?.get('order_id') || null
+  const orderId = (() => { const v = searchParams?.get('order_id'); const n = v != null ? Number(v) : null; return (n != null && !Number.isNaN(n)) ? n : null })()
         // Try exact match first: this order + this type
         let exactData: any = null
-        if (orderId) {
+  if (orderId != null) {
           const { data: exact, error: exactErr } = await supabase
             .from('form_responses')
             .select('data')
