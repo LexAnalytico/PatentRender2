@@ -237,9 +237,7 @@ function ProfilePageInner() {
           if (matched.length > 0) {
             setSelectedOrderId(matched[0].id)
             const pid = matched[0]?.payment_id ? String(matched[0].payment_id) : null
-            if (pid) {
-              setExpandedPayments((p) => ({ ...p, [pid]: true }))
-            }
+            if (pid) setExpandedPayments((p) => ({ ...p, [pid]: true }))
             setTimeout(() => {
               const el = document.querySelector(`[data-order-id="${matched[0].id}"]`)
               if (el && (el as HTMLElement).scrollIntoView) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -820,7 +818,7 @@ function ProfilePageInner() {
                                             <td className="p-2">{g.payment?.razorpay_payment_id ?? g.payment?.id ?? 'N/A'}</td>
                                           </tr>
                                           {isOpen && g.rows.map((r:any) => (
-                                            <tr key={r.id} className="border-t">
+                                            <tr key={r.id} className="border-t text-blue-700">
                                               <td className="p-2 align-top">
                                                 <input type="radio" name="order-select" checked={selectedOrderId === r.id} onChange={() => setSelectedOrderId(r.id)} />
                                               </td>
@@ -836,8 +834,8 @@ function ProfilePageInner() {
                                               <td className="p-2">
                                                 <div className="text-sm">{orderStatuses[r.id] ?? 'Not Started'}</div>
                                               </td>
-                                              <td className="p-2 text-gray-500">—</td>
-                                              <td className="p-2 text-gray-500">{g.payment?.razorpay_payment_id ?? g.payment?.id ?? 'N/A'}</td>
+                                              <td className="p-2">—</td>
+                                              <td className="p-2">{g.payment?.razorpay_payment_id ?? g.payment?.id ?? 'N/A'}</td>
                                             </tr>
                                           ))}
                                         </React.Fragment>
