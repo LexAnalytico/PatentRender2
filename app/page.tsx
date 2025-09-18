@@ -1515,7 +1515,7 @@ const handleAuth = async (e: React.FormEvent) => {
               <tr>
                 <td>${item.name}</td>
                 <td>${item.category}</td>
-                <td class="price">$${item.price.toLocaleString()}</td>
+                <td class="price">${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(item.price)}</td>
               </tr>
             `,
               )
@@ -1526,15 +1526,15 @@ const handleAuth = async (e: React.FormEvent) => {
         <div class="total-section">
           <div class="total-row">
             <span>Subtotal:</span>
-            <span>$${getTotalPrice().toLocaleString()}</span>
+            <span>${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(getTotalPrice())}</span>
           </div>
           <div class="total-row">
             <span>Consultation (Included):</span>
-            <span>$0</span>
+            <span>${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(0)}</span>
           </div>
           <div class="total-row total-final">
             <span>Total Estimated Cost:</span>
-            <span>$${getTotalPrice().toLocaleString()}</span>
+            <span>${new Intl.NumberFormat('en-IN', { style: 'currency', 'currency': 'INR', maximumFractionDigits: 0 }).format(getTotalPrice())}</span>
           </div>
         </div>
 
@@ -1643,7 +1643,7 @@ if (showQuotePage) {
                         )}
                         <div className="flex items-center justify-between">
                           <span className="text-2xl font-bold text-blue-600">
-                            ${item.price.toLocaleString()}
+                            {formatINR(item.price)}
                           </span>
                           <Button
                             onClick={() => removeFromCart(item.id)}
@@ -2042,7 +2042,7 @@ if (showQuotePage) {
                       {item.details && (
                         <p className="text-[11px] text-gray-600 mt-1">{item.details}</p>
                       )}
-                      <p className="text-sm font-semibold text-blue-600">${item.price.toLocaleString()}</p>
+                      <p className="text-sm font-semibold text-blue-600">{formatINR(item.price)}</p>
                     </div>
                     <Button
                       onClick={() => removeFromCart(item.id)}
@@ -2062,7 +2062,7 @@ if (showQuotePage) {
           <div className="pt-4 border-t mt-4 bg-gray-50">
             <div className="flex justify-between items-center mb-3">
               <span className="font-semibold text-gray-900">Total Estimate:</span>
-              <span className="text-xl font-bold text-blue-600">${getTotalPrice().toLocaleString()}</span>
+              <span className="text-xl font-bold text-blue-600">{formatINR(getTotalPrice())}</span>
             </div>
             <div className="space-y-2">
               <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={goToQuotePage}>

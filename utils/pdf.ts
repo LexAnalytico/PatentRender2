@@ -171,7 +171,7 @@ export const downloadQuotationPDF = (cartItems: CartItem[], getTotalPrice: () =>
             <tr>
               <td>${item.name}</td>
               <td>${item.category}</td>
-              <td class="price">$${item.price.toLocaleString()}</td>
+              <td class="price">${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(item.price)}</td>
             </tr>
           `,
             )
@@ -182,15 +182,15 @@ export const downloadQuotationPDF = (cartItems: CartItem[], getTotalPrice: () =>
       <div class="total-section">
         <div class="total-row">
           <span>Subtotal:</span>
-          <span>$${getTotalPrice().toLocaleString()}</span>
+          <span>${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(getTotalPrice())}</span>
         </div>
         <div class="total-row">
           <span>Consultation (Included):</span>
-          <span>$0</span>
+          <span>${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(0)}</span>
         </div>
         <div class="total-row total-final">
           <span>Total Estimated Cost:</span>
-          <span>$${getTotalPrice().toLocaleString()}</span>
+          <span>${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(getTotalPrice())}</span>
         </div>
       </div>
 

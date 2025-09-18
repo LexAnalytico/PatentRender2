@@ -268,37 +268,81 @@ export async function POST(req: NextRequest) {
       console.error('Exception attaching user to payment:', e);
     }
 
-    // Create order row if we have a user
+    // Create order rows from cart items (multi-service). Fallback to a single order if cart missing.
     try {
       if (persistedPayment && persistedPayment.user_id) {
-        let resolvedServiceId = service_id ?? null;
-        let resolvedCategoryId = null;
-        if (!resolvedServiceId) {
-          const { data: recentQuote } = await serverSupabase.from('quotes').select('service_id, category_id').eq('user_id', persistedPayment.user_id).order('created_at', { ascending: false }).limit(1).maybeSingle();
-          if (recentQuote) {
-            resolvedServiceId = (recentQuote as any).service_id ?? resolvedServiceId;
-            resolvedCategoryId = (recentQuote as any).category_id ?? resolvedCategoryId;
+        const cartItems = Array.isArray((body as any)?.cart) ? (body as any).cart : []
+        if (cartItems.length > 0) {
+          // Resolve service/category info for each item
+          const svcIds = Array.from(new Set(cartItems.map((it:any) => it.service_id).filter((v:any) => v != null)))
+          const svcNames = Array.from(new Set(cartItems.map((it:any) => it.name).filter(Boolean)))
+
+          // Load services by ids and names to build a map
+          const [byId, byName] = await Promise.all([
+            svcIds.length ? serverSupabase.from('services').select('id,name,category_id').in('id', svcIds) : Promise.resolve({ data: [], error: null }),
+            svcNames.length ? serverSupabase.from('services').select('id,name,category_id').in('name', svcNames) : Promise.resolve({ data: [], error: null }),
+          ])
+          const serviceRows: any[] = ([] as any[]).concat(byId?.data || []).concat(byName?.data || [])
+          const serviceById = new Map(serviceRows.map((r:any) => [r.id, r]))
+          const serviceByName = new Map(serviceRows.map((r:any) => [String(r.name), r]))
+
+          const rowsToInsert = cartItems.map((it:any) => {
+            let svcId = it.service_id ?? null
+            let catId = null
+            if (svcId && serviceById.has(svcId)) {
+              catId = serviceById.get(svcId)?.category_id ?? null
+            } else if (it.name && serviceByName.has(String(it.name))) {
+              const row = serviceByName.get(String(it.name))
+              svcId = row?.id ?? svcId
+              catId = row?.category_id ?? null
+            }
+            return {
+              user_id: persistedPayment.user_id,
+              service_id: svcId ?? null,
+              category_id: catId ?? null,
+              payment_id: persistedPayment.id,
+              // We do not have per-item type reliably from client; leave null or fallback to payment type
+              type: null,
+              created_at: new Date().toISOString(),
+            }
+          })
+
+          if (rowsToInsert.length > 0) {
+            const { data: insertedOrders, error: insOrdersErr } = await serverSupabase.from('orders').insert(rowsToInsert).select()
+            if (insOrdersErr) console.error('order insert (multi) error', insOrdersErr)
+            else console.debug('Orders created (multi)', insertedOrders)
           }
         } else {
-          const { data: svc } = await serverSupabase.from('services').select('category_id').eq('id', resolvedServiceId).maybeSingle();
-          if (svc) resolvedCategoryId = (svc as any).category_id ?? resolvedCategoryId;
-        }
+          // Fallback: create a single order using resolved service/category
+          let resolvedServiceId = service_id ?? null;
+          let resolvedCategoryId = null;
+          if (!resolvedServiceId) {
+            const { data: recentQuote } = await serverSupabase.from('quotes').select('service_id, category_id').eq('user_id', persistedPayment.user_id).order('created_at', { ascending: false }).limit(1).maybeSingle();
+            if (recentQuote) {
+              resolvedServiceId = (recentQuote as any).service_id ?? resolvedServiceId;
+              resolvedCategoryId = (recentQuote as any).category_id ?? resolvedCategoryId;
+            }
+          } else {
+            const { data: svc } = await serverSupabase.from('services').select('category_id').eq('id', resolvedServiceId).maybeSingle();
+            if (svc) resolvedCategoryId = (svc as any).category_id ?? resolvedCategoryId;
+          }
 
-    const { data: orderInserted, error: orderErr } = await serverSupabase.from('orders').insert([
-          {
-            user_id: persistedPayment.user_id,
-            service_id: resolvedServiceId,
-            category_id: resolvedCategoryId,
-            payment_id: persistedPayment.id,
-      type: typeToStore ?? persistedPayment.type ?? null,
-            created_at: new Date().toISOString(),
-          },
-        ]).select().maybeSingle();
-        if (orderErr) console.error('order insert error', orderErr);
-        else console.debug('Order created', orderInserted);
+          const { data: orderInserted, error: orderErr } = await serverSupabase.from('orders').insert([
+            {
+              user_id: persistedPayment.user_id,
+              service_id: resolvedServiceId,
+              category_id: resolvedCategoryId,
+              payment_id: persistedPayment.id,
+              type: typeToStore ?? persistedPayment.type ?? null,
+              created_at: new Date().toISOString(),
+            },
+          ]).select().maybeSingle();
+          if (orderErr) console.error('order insert error', orderErr);
+          else console.debug('Order created', orderInserted);
+        }
       }
     } catch (e) {
-      console.error('Exception creating order row:', e);
+      console.error('Exception creating order row(s):', e);
     }
 
     // Send notification using persistedPayment to avoid race

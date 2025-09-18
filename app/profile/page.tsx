@@ -25,6 +25,7 @@ import {
   User,
   LogOut,
 } from "lucide-react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 
 interface Profile {
   id?: string | null
@@ -61,6 +62,8 @@ function ProfilePageInner() {
   const [highlightPaymentId, setHighlightPaymentId] = useState<string | null>(null)
   // Map of order_id -> status string (Not Started | Draft | Completed)
   const [orderStatuses, setOrderStatuses] = useState<Record<string, string>>({})
+  // Expanded state for consolidated (multi-service) payments
+  const [expandedPayments, setExpandedPayments] = useState<Record<string, boolean>>({})
 
   // initialize tab from query param if present
   useEffect(() => {
@@ -233,6 +236,10 @@ function ProfilePageInner() {
           })
           if (matched.length > 0) {
             setSelectedOrderId(matched[0].id)
+            const pid = matched[0]?.payment_id ? String(matched[0].payment_id) : null
+            if (pid) {
+              setExpandedPayments((p) => ({ ...p, [pid]: true }))
+            }
             setTimeout(() => {
               const el = document.querySelector(`[data-order-id="${matched[0].id}"]`)
               if (el && (el as HTMLElement).scrollIntoView) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -734,19 +741,111 @@ function ProfilePageInner() {
                               </tr>
                             </thead>
                             <tbody>
-                              {loadingUserOrders && <tr><td colSpan={7} className="p-4">Loading...</td></tr>}
-                              {!loadingUserOrders && filteredOrders(userOrders, searchOrders, sortOrders).length === 0 && <tr><td colSpan={7} className="p-4">No orders found</td></tr>}
-                {!loadingUserOrders && filteredOrders(userOrders, searchOrders, sortOrders).map((r:any) => (
-                                <tr key={r.id} className="border-t" data-order-id={r.id}>
-                  <td className="p-2"><input type="radio" name="order-select" checked={selectedOrderId === r.id} onChange={() => setSelectedOrderId(r.id)} /></td>
-                                  <td className="p-2">{(r.categories as any)?.name ?? 'N/A'}</td>
-                                  <td className="p-2">{(r.services as any)?.name ?? 'N/A'}</td>
-                                  <td className="p-2">{(r.service_pricing_key ?? null) || (typeLabelFromKey(resolveOrderTypeKey(r)) ?? 'N/A')}</td>
-                                  <td className="p-2">{orderStatuses[r.id] ?? 'Not Started'}</td>
-                                  <td className="p-2">{(r.payments as any)?.total_amount ?? 'N/A'}</td>
-                                  <td className="p-2">{(r.payments as any)?.razorpay_payment_id ?? (r.payments as any)?.id ?? 'N/A'}</td>
-                                </tr>
-                              ))}
+                              {(() => {
+                                if (loadingUserOrders) return (<tr><td colSpan={7} className="p-4">Loading...</td></tr>)
+                                const items = filteredOrders(userOrders, searchOrders, sortOrders)
+                                if (!items || items.length === 0) return (<tr><td colSpan={7} className="p-4">No orders found</td></tr>)
+
+                                // Group by payment_id; items without payment_id are singletons
+                                const groupsMap = new Map<string, any[]>()
+                                for (const r of items as any[]) {
+                                  const key = r.payment_id ? String(r.payment_id) : `nopay-${r.id}`
+                                  if (!groupsMap.has(key)) groupsMap.set(key, [])
+                                  groupsMap.get(key)!.push(r)
+                                }
+
+                                // Build an array with sorting by payment date/amount similar to current sort
+                                const groups = Array.from(groupsMap.entries()).map(([key, rows]) => {
+                                  const payment = rows[0]?.payments ?? null
+                                  const paymentDate = payment?.payment_date ?? rows[0]?.created_at ?? null
+                                  const totalAmount = Number(payment?.total_amount ?? 0)
+                                  return { key, rows, payment, paymentDate, totalAmount }
+                                })
+
+                                const sortedGroups = groups.sort((a, b) => {
+                                  if (sortOrders === 'amount_desc') return (b.totalAmount || 0) - (a.totalAmount || 0)
+                                  if (sortOrders === 'amount_asc') return (a.totalAmount || 0) - (b.totalAmount || 0)
+                                  // default: date
+                                  const ad = new Date(a.paymentDate || 0).getTime()
+                                  const bd = new Date(b.paymentDate || 0).getTime()
+                                  return sortOrders === 'date_asc' ? (ad - bd) : (bd - ad)
+                                })
+
+                                return (
+                                  <>
+                                    {sortedGroups.map((g) => {
+                                      const multiple = g.rows.length > 1
+                                      if (!multiple) {
+                                        const r = g.rows[0]
+                                        return (
+                                          <tr key={r.id} className="border-t" data-order-id={r.id}>
+                                            <td className="p-2"><input type="radio" name="order-select" checked={selectedOrderId === r.id} onChange={() => setSelectedOrderId(r.id)} /></td>
+                                            <td className="p-2">{(r.categories as any)?.name ?? 'N/A'}</td>
+                                            <td className="p-2">{(r.services as any)?.name ?? 'N/A'}</td>
+                                            <td className="p-2">{(r.service_pricing_key ?? null) || (typeLabelFromKey(resolveOrderTypeKey(r)) ?? 'N/A')}</td>
+                                            <td className="p-2">{orderStatuses[r.id] ?? 'Not Started'}</td>
+                                            <td className="p-2">{(r.payments as any)?.total_amount ?? 'N/A'}</td>
+                                            <td className="p-2">{(r.payments as any)?.razorpay_payment_id ?? (r.payments as any)?.id ?? 'N/A'}</td>
+                                          </tr>
+                                        )
+                                      }
+
+                                      // Consolidated row for multi-service payment
+                                      const isOpen = !!expandedPayments[g.key]
+                                      const uniqueCats = Array.from(new Set(g.rows.map((r:any) => (r.categories as any)?.name).filter(Boolean)))
+                                      const aggStatus = (() => {
+                                        // Completed if any completed; else Draft if any draft; else Not Started
+                                        const statuses = g.rows.map((r:any) => orderStatuses[r.id] ?? 'Not Started')
+                                        if (statuses.includes('Completed')) return 'Completed'
+                                        if (statuses.includes('Draft')) return 'Draft'
+                                        return 'Not Started'
+                                      })()
+                                      return (
+                                        <React.Fragment key={g.key}>
+                                          <tr className="border-t bg-gray-50/60">
+                                            <td className="p-2 align-top">
+                                              <button
+                                                className="inline-flex items-center justify-center rounded border px-1.5 py-0.5 text-xs hover:bg-gray-100"
+                                                onClick={() => setExpandedPayments((p) => ({ ...p, [g.key]: !isOpen }))}
+                                                aria-label={isOpen ? 'Collapse' : 'Expand'}
+                                              >
+                                                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                              </button>
+                                            </td>
+                                            <td className="p-2 font-medium">{uniqueCats.length === 1 ? uniqueCats[0] : `Multiple (${uniqueCats.length})`}</td>
+                                            <td className="p-2 text-gray-700">Multiple ({g.rows.length})</td>
+                                            <td className="p-2 text-gray-500">—</td>
+                                            <td className="p-2">{aggStatus}</td>
+                                            <td className="p-2 font-medium">{g.payment?.total_amount ?? 'N/A'}</td>
+                                            <td className="p-2">{g.payment?.razorpay_payment_id ?? g.payment?.id ?? 'N/A'}</td>
+                                          </tr>
+                                          {isOpen && g.rows.map((r:any) => (
+                                            <tr key={r.id} className="border-t">
+                                              <td className="p-2 align-top">
+                                                <input type="radio" name="order-select" checked={selectedOrderId === r.id} onChange={() => setSelectedOrderId(r.id)} />
+                                              </td>
+                                              <td className="p-2 pl-6">
+                                                <div className="text-sm">{(r.categories as any)?.name ?? 'N/A'}</div>
+                                              </td>
+                                              <td className="p-2">
+                                                <div className="text-sm font-medium">{(r.services as any)?.name ?? 'N/A'}</div>
+                                              </td>
+                                              <td className="p-2">
+                                                <div className="text-sm">{(r.service_pricing_key ?? null) || (typeLabelFromKey(resolveOrderTypeKey(r)) ?? 'N/A')}</div>
+                                              </td>
+                                              <td className="p-2">
+                                                <div className="text-sm">{orderStatuses[r.id] ?? 'Not Started'}</div>
+                                              </td>
+                                              <td className="p-2 text-gray-500">—</td>
+                                              <td className="p-2 text-gray-500">{g.payment?.razorpay_payment_id ?? g.payment?.id ?? 'N/A'}</td>
+                                            </tr>
+                                          ))}
+                                        </React.Fragment>
+                                      )
+                                    })}
+                                  </>
+                                )
+                              })()}
                             </tbody>
                           </table>
                         </div>
