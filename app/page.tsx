@@ -264,7 +264,7 @@ useEffect(() => {
   }, [])
 
 
-  const bannerSlides = [
+  const defaultBannerSlides = [
     {
       title: "Protect Your Intellectual Property",
       description:
@@ -287,6 +287,31 @@ useEffect(() => {
       image: "/placeholder.svg?height=400&width=600&text=Copyright+Protection",
     },
   ]
+  const [bannerSlides, setBannerSlides] = useState(defaultBannerSlides)
+
+  useEffect(() => {
+    let cancelled = false
+    const loadBanners = async () => {
+      try {
+        const res = await fetch('/api/banner-images', { cache: 'no-store' })
+        if (!res.ok) return
+        const json = await res.json()
+        const images: Array<{ url: string; filename: string }> = Array.isArray(json.images) ? json.images : []
+        if (!cancelled) {
+          // Keep original titles/descriptions; only replace the images for the first N slides
+          const slides = defaultBannerSlides.map((s) => ({ ...s }))
+          const n = Math.min(images.length, slides.length)
+          for (let i = 0; i < n; i++) {
+            slides[i].image = images[i].url
+          }
+          setBannerSlides(slides as any)
+          setCurrentSlide(0)
+        }
+      } catch {}
+    }
+    loadBanners()
+    return () => { cancelled = true }
+  }, [])
 
 const patentServices = [
     {
@@ -395,10 +420,10 @@ const patentServices = [
   const [reviewIndex, setReviewIndex] = useState(0)
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % bannerSlides.length)
+      setCurrentSlide((prev) => (prev + 1) % Math.max(1, bannerSlides.length))
     }, 5000)
     return () => clearInterval(interval)
-  }, [])
+  }, [bannerSlides.length])
   useEffect(() => {
     const id = setInterval(() => setReviewIndex((i) => (i + 1) % reviews.length), 4000)
     return () => clearInterval(id)
