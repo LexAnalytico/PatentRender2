@@ -62,26 +62,42 @@ export async function POST(req: Request) {
         console.error('❌ Exception while validating service_id for order:', sEx);
       }
 
-    const { data: inserted, error: insErr } = await serverSupabase
+    let inserted: any = null
+    let insErr: any = null
+    const insertPayload = [
+      {
+        user_id: userToStore,
+        total_amount: amtToStore,
+        payment_status: 'created',
+        payment_date: null,
+        razorpay_order_id: order.id,
+        razorpay_payment_id: null,
+        service_id: serviceToStore,
+        type: mappedType ?? null,
+        created_at: new Date().toISOString(),
+      },
+    ]
+    ;({ data: inserted, error: insErr } = await serverSupabase
         .from('payments')
-        .insert([
-          {
-            user_id: userToStore,
-            total_amount: amtToStore,
-            payment_status: 'created',
-            payment_date: null,
-            razorpay_order_id: order.id,
-            razorpay_payment_id: null,
-    service_id: serviceToStore,
-  type: mappedType ?? null,
-            created_at: new Date().toISOString(),
-          },
-        ])
+        .insert(insertPayload)
         .select()
-        .maybeSingle();
+        .maybeSingle());
 
-      if (insErr) console.error('❌ Payment insert after order creation error:', JSON.stringify(insErr, Object.getOwnPropertyNames(insErr)));
-      else console.debug('Payment row created for order', { order: order.id, paymentRow: inserted });
+      // Retry without type if a CHECK constraint fails
+      if (insErr && insErr.code === '23514') {
+        try {
+          ;({ data: inserted, error: insErr } = await serverSupabase
+            .from('payments')
+            .insert([{ ...insertPayload[0], type: null }])
+            .select()
+            .maybeSingle())
+        } catch (retryErr) {
+          console.error('Retry insert payment without type failed:', retryErr)
+        }
+      }
+
+  if (insErr && !inserted) console.error('❌ Payment insert after order creation error:', JSON.stringify(insErr, Object.getOwnPropertyNames(insErr)));
+  else console.debug('Payment row created for order', { order: order.id, paymentRow: inserted });
     } catch (e) {
       console.error('❌ Exception while inserting payment row after order creation:', e);
     }

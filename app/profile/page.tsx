@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -64,6 +65,12 @@ function ProfilePageInner() {
   const [orderStatuses, setOrderStatuses] = useState<Record<string, string>>({})
   // Expanded state for consolidated (multi-service) payments
   const [expandedPayments, setExpandedPayments] = useState<Record<string, boolean>>({})
+  // Thank You modal state
+  const [showThankYou, setShowThankYou] = useState(false)
+  const [thankYouOrders, setThankYouOrders] = useState<any[]>([])
+  const [thankYouPayment, setThankYouPayment] = useState<any | null>(null)
+  const [showFormOptions, setShowFormOptions] = useState(false)
+  const [hasShownThankYou, setHasShownThankYou] = useState(false)
 
   // initialize tab from query param if present
   useEffect(() => {
@@ -195,7 +202,7 @@ function ProfilePageInner() {
 
       console.debug('loadUserOrders merged:', merged)
       setUserOrders(merged)
-      // After loading orders, fetch form statuses for these orders
+  // After loading orders, fetch form statuses for these orders
       try {
         const orderIds = merged.map((m: any) => m.id).filter(Boolean)
         if (orderIds.length > 0) {
@@ -226,15 +233,74 @@ function ProfilePageInner() {
       } catch (e) {
         console.error('Compute form statuses error', e)
       }
-  // auto-select/scroll when redirected after payment
-      if (highlightPaymentId && merged && Array.isArray(merged) && merged.length > 0) {
+  // Auto-select/scroll and populate Thank You modal when redirected after payment
+  if (highlightPaymentId) {
         try {
-          const matched = (merged as any[]).filter((r) => {
+          // 1) Try to match against the currently loaded orders
+          let matched = (merged as any[]).filter((r) => {
             const pay = (r.payments as any)
             if (!pay) return false
             return String(pay.razorpay_payment_id || pay.id || '').toLowerCase() === String(highlightPaymentId).toLowerCase()
           })
-          if (matched.length > 0) {
+
+          // 2) If nothing matched (or we have zero orders yet), resolve the payment row directly and use it for the modal
+          if (!matched || matched.length === 0) {
+            try {
+              const userRes2 = await supabase.auth.getUser()
+              const user2 = (userRes2 && (userRes2 as any).data) ? (userRes2 as any).data.user : null
+              if (user2) {
+                // First, try by Razorpay payment id
+                const { data: payByRz, error: payByRzErr } = await supabase
+                  .from('payments')
+                  .select('id, razorpay_payment_id, total_amount, payment_status, payment_date, type')
+                  .eq('user_id', user2.id)
+                  .eq('razorpay_payment_id', highlightPaymentId)
+                  .maybeSingle()
+                let resolvedPayment: any | null = null
+                if (!payByRzErr && payByRz) {
+                  resolvedPayment = payByRz
+                } else {
+                  // If highlightPaymentId might be a numeric internal id
+                  const maybeId = Number(highlightPaymentId)
+                  if (!Number.isNaN(maybeId)) {
+                    const { data: payById, error: payByIdErr } = await supabase
+                      .from('payments')
+                      .select('id, razorpay_payment_id, total_amount, payment_status, payment_date, type')
+                      .eq('user_id', user2.id)
+                      .eq('id', maybeId)
+                      .maybeSingle()
+                    if (!payByIdErr && payById) resolvedPayment = payById
+                  }
+                }
+                if (resolvedPayment) {
+                  // Update Thank You payment immediately even if orders aren't yet visible
+                  setThankYouPayment(resolvedPayment)
+                  const rowsForPayment = (merged as any[]).filter((r) => String(r.payment_id) === String(resolvedPayment.id))
+                  setThankYouOrders(rowsForPayment)
+                  if (rowsForPayment.length > 0) {
+                    setSelectedOrderId(rowsForPayment[0].id)
+                    setExpandedPayments((p) => ({ ...p, [String(resolvedPayment.id)]: true }))
+                  }
+                  setShowThankYou(true)
+                  if (!hasShownThankYou) setHasShownThankYou(true)
+                  try {
+                    const pid = resolvedPayment.razorpay_payment_id || resolvedPayment.id
+                    if (pid && typeof window !== 'undefined') {
+                      localStorage.setItem(`shown_thankyou_pay_${pid}`, '1')
+                      const url = new URL(window.location.href)
+                      url.searchParams.delete('payment_id')
+                      window.history.replaceState({}, '', url.toString())
+                    }
+                  } catch {}
+                }
+              }
+            } catch (e) {
+              console.warn('Fallback payment resolution failed', e)
+            }
+          }
+
+          // 3) If we have matched orders, select and populate modal from them
+          if (matched && matched.length > 0) {
             setSelectedOrderId(matched[0].id)
             const pid = matched[0]?.payment_id ? String(matched[0].payment_id) : null
             if (pid) setExpandedPayments((p) => ({ ...p, [pid]: true }))
@@ -242,9 +308,68 @@ function ProfilePageInner() {
               const el = document.querySelector(`[data-order-id="${matched[0].id}"]`)
               if (el && (el as HTMLElement).scrollIntoView) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' })
             }, 150)
+            if (!hasShownThankYou) {
+              try {
+                const samePay = (merged as any[]).filter((r) => {
+                  const pay = (r.payments as any)
+                  if (!pay) return false
+                  return String(pay.razorpay_payment_id || pay.id || '').toLowerCase() === String(highlightPaymentId).toLowerCase()
+                })
+                setThankYouOrders(samePay)
+                setThankYouPayment((samePay[0] as any)?.payments ?? null)
+                setShowThankYou(true)
+                setHasShownThankYou(true)
+                try {
+                  const pid = (samePay[0] as any)?.payments?.razorpay_payment_id || (samePay[0] as any)?.payments?.id
+                  if (pid && typeof window !== 'undefined') {
+                    localStorage.setItem(`shown_thankyou_pay_${pid}`, '1')
+                    const url = new URL(window.location.href)
+                    url.searchParams.delete('payment_id')
+                    window.history.replaceState({}, '', url.toString())
+                  }
+                } catch {}
+              } catch (e) { /* ignore */ }
+            }
           }
         } catch (e) {
           console.error('Auto-select orders error', e)
+        }
+        // Ensure modal is open while we resolve details
+        if (!showThankYou) setShowThankYou(true)
+      }
+
+      // If no payment_id was provided, auto-populate the popup from the latest payment group
+      if (!highlightPaymentId && merged && Array.isArray(merged) && merged.length > 0 && !hasShownThankYou) {
+        try {
+          // Group by payment_id and pick the latest by payment_date (fallback: created_at)
+          const groupsMap = new Map<string, any[]>()
+          for (const r of merged as any[]) {
+            if (!r || !r.payment_id) continue
+            const key = String(r.payment_id)
+            if (!groupsMap.has(key)) groupsMap.set(key, [])
+            groupsMap.get(key)!.push(r)
+          }
+          const groups = Array.from(groupsMap.entries()).map(([key, rows]) => {
+            const pay = rows[0]?.payments ?? null
+            const dt = pay?.payment_date ?? rows[0]?.created_at ?? null
+            const ts = dt ? new Date(dt).getTime() : 0
+            return { key, rows, payment: pay, ts }
+          }).filter(g => !!g.payment)
+
+          if (groups.length > 0) {
+            groups.sort((a,b) => b.ts - a.ts)
+            const latest = groups[0]
+            setThankYouOrders(latest.rows)
+            setThankYouPayment(latest.payment)
+            if (latest.rows[0]) {
+              setSelectedOrderId(latest.rows[0].id)
+              setExpandedPayments((p) => ({ ...p, [String(latest.rows[0].payment_id)]: true }))
+            }
+            setShowThankYou(true)
+            setHasShownThankYou(true)
+          }
+        } catch (e) {
+          console.warn('Failed to resolve latest payment for popup', e)
         }
       }
     } catch (e) {
@@ -314,6 +439,47 @@ function ProfilePageInner() {
     }
   }
 
+  // Build canonical form key for an order and return a URL for opening the form
+  const buildFormUrlForOrder = (o: any): string | null => {
+    if (!o) return null
+    let t: string | null = null
+    // Prefer the displayed pricing key mapped to canonical
+    if (o.service_pricing_key) {
+      const mappedFromDisplay = getPricingToForm(String(o.service_pricing_key))
+      t = mappedFromDisplay ?? String(o.service_pricing_key)
+    }
+    // Fallback to order/payment types
+    if (!t) t = o.type ?? (o.payments ? o.payments.type ?? null : null)
+    // Derive from service name or raw key and map if needed
+    if (!t) {
+      const candidate = resolveOrderTypeKey(o)
+      if (candidate && !typeLabelFromKey(candidate)) {
+        const mapped = getPricingToForm(candidate)
+        if (mapped) t = mapped
+      }
+      if (!t && candidate && typeLabelFromKey(candidate)) t = candidate
+    }
+    if (!t) return null
+    // If t still looks like a pricing key (no label), map to canonical
+    if (t && !typeLabelFromKey(t)) {
+      const mappedDirect = getPricingToForm(t)
+      if (mappedDirect) t = mappedDirect
+    }
+    const base = typeof window !== 'undefined' ? window.location.origin : ''
+    const pk = o.service_pricing_key ? String(o.service_pricing_key) : ''
+    const url = `${base}/forms?${pk ? `pricing_key=${encodeURIComponent(pk)}&` : ''}type=${encodeURIComponent(t)}&order_id=${encodeURIComponent(o.id)}`
+    return url
+  }
+
+  const openFormForOrder = (o: any) => {
+    const url = buildFormUrlForOrder(o)
+    if (!url) {
+      alert('Selected order does not have an associated form type')
+      return
+    }
+    window.open(url, '_blank')
+  }
+
   // Removed JSON download and override functionality as per requirements
 
   useEffect(() => {
@@ -326,7 +492,17 @@ function ProfilePageInner() {
   // pick up payment_id from query so we can auto-select after redirect
   useEffect(() => {
     const pid = searchParams?.get('payment_id') || null
-    if (pid) setHighlightPaymentId(pid)
+    if (pid) {
+      setHighlightPaymentId(pid)
+      // ensure Orders tab is active
+      setCurrentTab('orders')
+      // Only trigger auto-open if we haven't shown this payment before in this browser
+      try {
+        const key = `shown_thankyou_pay_${pid}`
+        const already = typeof window !== 'undefined' ? localStorage.getItem(key) : null
+        if (!already && !hasShownThankYou) setShowThankYou(true)
+      } catch {}
+    }
   }, [searchParams])
 
   // When highlightPaymentId arrives (redirect after payment) or auth finishes,
@@ -849,6 +1025,97 @@ function ProfilePageInner() {
                         </div>
                       </CardContent>
                     </Card>
+
+                    {/* Thank You modal after redirect with payment_id */}
+                    <Dialog open={showThankYou} onOpenChange={(v) => setShowThankYou(v)}>
+                      <DialogContent className="sm:max-w-2xl">
+                        <DialogHeader>
+                          <DialogTitle>Thank you for your order</DialogTitle>
+                          <DialogDescription>
+                            Your payment was successful. Here are your order details.
+                          </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="space-y-3 text-sm">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <div className="text-gray-500">Payment ID</div>
+                              <div className="font-medium">{thankYouPayment?.razorpay_payment_id ?? thankYouPayment?.id ?? '—'}</div>
+                            </div>
+                            <div>
+                              <div className="text-gray-500">Date</div>
+                              <div className="font-medium">{thankYouPayment?.payment_date ? new Date(thankYouPayment.payment_date).toLocaleString() : '—'}</div>
+                            </div>
+                            <div>
+                              <div className="text-gray-500">Amount</div>
+                              <div className="font-medium">{thankYouPayment?.total_amount ?? '—'}</div>
+                            </div>
+                            <div>
+                              <div className="text-gray-500">Status</div>
+                              <div className="font-medium">{thankYouPayment?.payment_status ?? '—'}</div>
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-gray-500 mb-1">Services</div>
+                            {thankYouOrders && thankYouOrders.length > 0 ? (
+                              <ul className="list-disc pl-5 space-y-1">
+                                {thankYouOrders.map((o) => (
+                                  <li key={o.id} className="text-gray-800">
+                                    {(o.categories as any)?.name ?? 'N/A'} · {(o.services as any)?.name ?? 'N/A'} · {(o.service_pricing_key ?? null) || (typeLabelFromKey(resolveOrderTypeKey(o)) ?? 'N/A')}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <div className="text-gray-700">No services found for this payment.</div>
+                            )}
+                          </div>
+
+                          {/* Tabs for multiple forms */}
+                          {thankYouOrders && thankYouOrders.length > 1 ? (
+                            <div className="mt-4">
+                              <Tabs defaultValue={String(thankYouOrders[0]?.id)} className="w-full">
+                                <TabsList className="flex flex-wrap">
+                                  {thankYouOrders.map((o) => (
+                                    <TabsTrigger key={o.id} value={String(o.id)}>
+                                      {(o.services as any)?.name ?? 'Service'}
+                                    </TabsTrigger>
+                                  ))}
+                                </TabsList>
+                                {thankYouOrders.map((o) => (
+                                  <TabsContent key={o.id} value={String(o.id)}>
+                                    <div className="flex items-center justify-between rounded-md border p-3">
+                                      <div className="text-sm">
+                                        <div className="font-medium">{(o.services as any)?.name ?? 'Service'}</div>
+                                        <div className="text-gray-600">{(o.categories as any)?.name ?? 'Category'} · {(o.service_pricing_key ?? null) || (typeLabelFromKey(resolveOrderTypeKey(o)) ?? 'N/A')}</div>
+                                      </div>
+                                      <Button onClick={() => openFormForOrder(o)}>Proceed to Form</Button>
+                                    </div>
+                                  </TabsContent>
+                                ))}
+                              </Tabs>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <DialogFooter className="sm:justify-between">
+                          {thankYouOrders && thankYouOrders.length === 1 ? (
+                            <Button onClick={() => openFormForOrder(thankYouOrders[0])}>Proceed to Form</Button>
+                          ) : (
+                            thankYouOrders && thankYouOrders.length > 1 ? (
+                              <Button onClick={() => {
+                                try {
+                                  thankYouOrders.forEach((o) => openFormForOrder(o))
+                                } catch (e) { console.error('Open forms error', e) }
+                              }}>Proceed to Forms</Button>
+                            ) : (
+                              <div />
+                            )
+                          )}
+                          <Button variant="outline" onClick={() => setShowThankYou(false)}>Close</Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
                   </TabsContent>
 
                 </Tabs>

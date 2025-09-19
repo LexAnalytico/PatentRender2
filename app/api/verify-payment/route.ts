@@ -216,29 +216,68 @@ export async function POST(req: NextRequest) {
           .eq('razorpay_payment_id', razorpay_payment_id)
           .select()
           .maybeSingle();
-        if (updErr) console.debug('payment update error', updErr);
-        persistedPayment = updated ?? null;
+        if (updErr) {
+          console.debug('payment update error', updErr)
+          // Retry update without type on CHECK constraint failure
+          if ((updErr as any).code === '23514') {
+            const { data: updated2, error: updErr2 } = await serverSupabase
+              .from('payments')
+              .update({
+                user_id: existingPaymentByOrder?.user_id ?? user_id ?? null,
+                total_amount: amtToStore,
+                payment_status: 'paid',
+                payment_date: new Date().toISOString(),
+                razorpay_order_id: razorpay_order_id,
+                razorpay_payment_id: razorpay_payment_id,
+                service_id: serviceToStore ?? null,
+                type: null,
+              })
+              .eq('razorpay_payment_id', razorpay_payment_id)
+              .select()
+              .maybeSingle();
+            if (!updErr2) {
+              persistedPayment = updated2 ?? null
+            }
+          }
+        } else {
+          persistedPayment = updated ?? null;
+        }
       }
 
       if (!persistedPayment) {
-        const { data: inserted, error: insErr } = await serverSupabase
+        let inserted: any = null
+        let insErr: any = null
+        const baseRow = {
+          user_id: existingPaymentByOrder?.user_id ?? user_id ?? null,
+          total_amount: amtToStore,
+          payment_status: 'paid',
+          payment_date: new Date().toISOString(),
+          razorpay_order_id: razorpay_order_id,
+          razorpay_payment_id: razorpay_payment_id,
+          service_id: serviceToStore ?? null,
+          type: typeToStore ?? null,
+          created_at: new Date().toISOString(),
+        }
+        ;({ data: inserted, error: insErr } = await serverSupabase
           .from('payments')
-          .insert([
-            {
-              user_id: existingPaymentByOrder?.user_id ?? user_id ?? null,
-              total_amount: amtToStore,
-              payment_status: 'paid',
-              payment_date: new Date().toISOString(),
-              razorpay_order_id: razorpay_order_id,
-              razorpay_payment_id: razorpay_payment_id,
-              service_id: serviceToStore ?? null,
-              type: typeToStore ?? null,
-              created_at: new Date().toISOString(),
-            },
-          ])
+          .insert([baseRow])
           .select()
-          .maybeSingle();
-        if (insErr) console.error('payment insert error', insErr);
+          .maybeSingle());
+        if (insErr && (insErr as any).code === '23514') {
+          // Retry without type
+          const { data: inserted2, error: insErr2 } = await serverSupabase
+            .from('payments')
+            .insert([{ ...baseRow, type: null }])
+            .select()
+            .maybeSingle();
+          if (!insErr2) {
+            inserted = inserted2
+          } else {
+            console.error('payment insert retry without type failed', insErr2)
+          }
+        } else if (insErr) {
+          console.error('payment insert error', insErr);
+        }
         persistedPayment = inserted ?? null;
       }
     } catch (e) {
@@ -269,7 +308,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Create order rows from cart items (multi-service). Fallback to a single order if cart missing.
-    try {
+  let createdOrders: any[] = []
+  let createdOrdersClient: any[] = []
+  try {
       if (persistedPayment && persistedPayment.user_id) {
         const cartItems = Array.isArray((body as any)?.cart) ? (body as any).cart : []
         if (cartItems.length > 0) {
@@ -310,7 +351,22 @@ export async function POST(req: NextRequest) {
           if (rowsToInsert.length > 0) {
             const { data: insertedOrders, error: insOrdersErr } = await serverSupabase.from('orders').insert(rowsToInsert).select()
             if (insOrdersErr) console.error('order insert (multi) error', insOrdersErr)
-            else console.debug('Orders created (multi)', insertedOrders)
+            else {
+              console.debug('Orders created (multi)', insertedOrders)
+              createdOrders = insertedOrders as any[]
+              // Build a client-friendly payload with service labels
+              const svcMap = new Map(serviceRows.map((r: any) => [r.id, r]))
+              createdOrdersClient = (createdOrders || []).map((o: any) => ({
+                id: o.id,
+                service_id: o.service_id,
+                category_id: o.category_id,
+                payment_id: o.payment_id,
+                type: o.type ?? (persistedPayment?.type ?? null),
+                created_at: o.created_at,
+                services: svcMap.get(o.service_id) ? { name: String((svcMap.get(o.service_id) as any).name || 'Service') } : null,
+                service_pricing_key: null,
+              }))
+            }
           }
         } else {
           // Fallback: create a single order using resolved service/category
@@ -338,7 +394,30 @@ export async function POST(req: NextRequest) {
             },
           ]).select().maybeSingle();
           if (orderErr) console.error('order insert error', orderErr);
-          else console.debug('Order created', orderInserted);
+          else {
+            console.debug('Order created', orderInserted);
+            if (orderInserted) {
+              createdOrders = [orderInserted]
+              // Fetch service label for the single order
+              let svcName: string | null = null
+              try {
+                if (orderInserted.service_id) {
+                  const { data: svc } = await serverSupabase.from('services').select('name').eq('id', orderInserted.service_id).maybeSingle()
+                  if (svc) svcName = (svc as any).name ?? null
+                }
+              } catch {}
+              createdOrdersClient = [{
+                id: orderInserted.id,
+                service_id: orderInserted.service_id,
+                category_id: orderInserted.category_id,
+                payment_id: orderInserted.payment_id,
+                type: orderInserted.type ?? (persistedPayment?.type ?? null),
+                created_at: orderInserted.created_at,
+                services: svcName ? { name: svcName } : null,
+                service_pricing_key: null,
+              }]
+            }
+          }
         }
       }
     } catch (e) {
@@ -348,7 +427,7 @@ export async function POST(req: NextRequest) {
     // Send notification using persistedPayment to avoid race
     const notifyResult = await sendPaymentNotification(serverSupabase, { paymentId: razorpay_payment_id, dbPayment: persistedPayment });
 
-    return NextResponse.json({ success: true, persistedPayment, notifyResult }, { status: 200 });
+  return NextResponse.json({ success: true, persistedPayment, createdOrders, createdOrdersClient: createdOrdersClient, notifyResult }, { status: 200 });
   } catch (err) {
     console.error('Payment verification error:', err);
     return NextResponse.json({ verified: false, error: 'Internal Server Error' }, { status: 500 });

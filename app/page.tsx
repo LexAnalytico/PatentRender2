@@ -189,6 +189,31 @@ const services = [
 
   const [servicePricing, setServicePricing] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
+  // Checkout Thank You modal (immediate) to open forms right after payment
+  const [showCheckoutThankYou, setShowCheckoutThankYou] = useState(false)
+  const [checkoutPayment, setCheckoutPayment] = useState<any | null>(null)
+  const [checkoutOrders, setCheckoutOrders] = useState<any[]>([])
+
+  // Map an order-like object to a canonical form type using the same logic as profile
+  const resolveFormTypeFromOrderLike = (o: any): string => {
+    if (!o) return 'patentability_search'
+    // Prefer explicit type
+    let t: string | null = o.type ?? null
+    // If we only have a pricing key, leave as-is (forms page maps it)
+    if (!t && o.service_pricing_key) t = String(o.service_pricing_key)
+    // Derive from service name fallback
+    if (!t && o.services && (o.services as any).name) {
+      const svcName = String((o.services as any).name)
+      const map: Record<string, string> = {
+        'Patentability Search': 'patentability_search',
+        'Drafting': 'drafting',
+        'Patent Application Filing': 'provisional_filing',
+        'First Examination Response': 'fer_response',
+      }
+      t = map[svcName] ?? null
+    }
+    return t || 'patentability_search'
+  }
 
   // Fallback mapping if services table lookup by name is unavailable
   const serviceIdByName: Record<string, number> = {
@@ -1240,7 +1265,7 @@ const handleAuth = async (e: React.FormEvent) => {
         name: 'LegalIP Pro',
         description: firstItem?.name || 'IP Service Payment',
         order_id: order.id || order.id, // server-provided Razorpay order id
-        handler: async function (response: any) {
+  handler: async function (response: any) {
           // response contains razorpay_payment_id, razorpay_order_id, razorpay_signature
           try {
       // Forward the payment result to the server for signature verification
@@ -1274,34 +1299,32 @@ const handleAuth = async (e: React.FormEvent) => {
               alert('Payment verification failed. Please contact support.');
               return;
             }
-
-            // Verified and persisted server-side
-            alert('Payment successful and verified. Thank you!');
-            // Redirect user to profile overview and include the persisted payment id so the page can highlight the order
-            try {
-              const persisted = verifyJson.persistedPayment ?? null;
-              const paymentIdentifier = persisted?.razorpay_payment_id ?? persisted?.id ?? null;
-              try {
-                const base = (typeof window !== 'undefined')
-                  ? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin)
-                  : ''
-                if (paymentIdentifier) {
-                  window.location.href = `${base}/profile?tab=orders&payment_id=${encodeURIComponent(String(paymentIdentifier))}`;
-                } else {
-                  window.location.href = `${base}/profile?tab=orders`;
-                }
-              } catch (e) {
-                // fallback to relative path
-                if (paymentIdentifier) {
-                  window.location.href = `/profile?tab=orders&payment_id=${encodeURIComponent(String(paymentIdentifier))}`;
-                } else {
-                  window.location.href = `/profile?tab=orders`;
-                }
-              }
-            } catch (e) {
-              // fallback
-              window.location.href = `/profile?tab=orders`;
+            // Show local Thank You modal so the user can open forms immediately
+            const persisted = verifyJson.persistedPayment ?? null
+            const createdOrders = Array.isArray(verifyJson.createdOrdersClient) ? verifyJson.createdOrdersClient : (Array.isArray(verifyJson.createdOrders) ? verifyJson.createdOrders : [])
+            const paymentIdentifier = persisted?.razorpay_payment_id ?? persisted?.id ?? null
+            setCheckoutPayment(persisted)
+            setCheckoutOrders(createdOrders)
+            setShowCheckoutThankYou(true)
+            // Fallbacks:
+            // 1) If no orders were created on server (unexpected), redirect to Profile Orders so the server-side Thank You can load.
+            if (!createdOrders || createdOrders.length === 0) {
+              const base = (typeof window !== 'undefined') ? window.location.origin : ''
+              if (paymentIdentifier) window.location.href = `${base}/profile?tab=orders&payment_id=${encodeURIComponent(String(paymentIdentifier))}`
+              else window.location.href = `${base}/profile?tab=orders`
+              return
             }
+            // 2) If the popup somehow fails to render in time, redirect as a safety net.
+            setTimeout(() => {
+              try {
+                const el = document.getElementById('checkout-thankyou-modal')
+                if (!el) {
+                  const base = (typeof window !== 'undefined') ? window.location.origin : ''
+                  if (paymentIdentifier) window.location.href = `${base}/profile?tab=orders&payment_id=${encodeURIComponent(String(paymentIdentifier))}`
+                  else window.location.href = `${base}/profile?tab=orders`
+                }
+              } catch {}
+            }, 1200)
           } catch (err) {
             console.error('Error verifying payment:', err);
             alert('Payment succeeded but verification failed. We will investigate.');
@@ -2416,6 +2439,104 @@ if (showQuotePage) {
 
       {/* Footer */}
       <Footer />
+
+      {/* Checkout Thank You Modal: open forms immediately */}
+      {showCheckoutThankYou && (
+        <div id="checkout-thankyou-modal" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold">Thank you for your order</h2>
+              <p className="text-sm text-gray-600">Payment verified. You can proceed to the forms now.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm mb-4">
+              <div>
+                <div className="text-gray-500">Payment ID</div>
+                <div className="font-medium">{checkoutPayment?.razorpay_payment_id ?? checkoutPayment?.id ?? '—'}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Date</div>
+                <div className="font-medium">{checkoutPayment?.payment_date ? new Date(checkoutPayment.payment_date).toLocaleString() : '—'}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Amount</div>
+                <div className="font-medium">{checkoutPayment?.total_amount ?? '—'}</div>
+              </div>
+              <div>
+                <div className="text-gray-500">Status</div>
+                <div className="font-medium">{checkoutPayment?.payment_status ?? '—'}</div>
+              </div>
+            </div>
+
+            {checkoutOrders.length > 1 ? (
+              <div>
+                <div className="mb-2 text-sm text-gray-600">Multiple services detected. Open each form below:</div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {checkoutOrders.map((o) => (
+                    <button
+                      key={o.id}
+                      className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
+                      onClick={() => {
+                        try {
+                          const base = typeof window !== 'undefined' ? window.location.origin : ''
+                          const type = resolveFormTypeFromOrderLike(o)
+                          const pk = o.service_pricing_key ? String(o.service_pricing_key) : ''
+                          const url = `${base}/forms?${pk ? `pricing_key=${encodeURIComponent(pk)}&` : ''}type=${encodeURIComponent(type)}&order_id=${encodeURIComponent(o.id)}`
+                          window.open(url, '_blank')
+                        } catch (e) { console.error('Open form error', e) }
+                      }}
+                    >
+                      {(o.services as any)?.name || 'Service'}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center justify-end">
+                  <button
+                    className="inline-flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                    onClick={() => {
+                      try {
+                        const base = typeof window !== 'undefined' ? window.location.origin : ''
+                        checkoutOrders.forEach((o) => {
+                          const type = resolveFormTypeFromOrderLike(o)
+                          const pk = o.service_pricing_key ? String(o.service_pricing_key) : ''
+                          const url = `${base}/forms?${pk ? `pricing_key=${encodeURIComponent(pk)}&` : ''}type=${encodeURIComponent(type)}&order_id=${encodeURIComponent(o.id)}`
+                          window.open(url, '_blank')
+                        })
+                      } catch (e) { console.error('Open all forms error', e) }
+                    }}
+                  >
+                    Proceed to Forms
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {checkoutOrders.length === 1 ? (
+              <div className="flex items-center justify-between">
+                <div />
+                <button
+                  className="inline-flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                  onClick={() => {
+                    const o = checkoutOrders[0]
+                    try {
+                      const base = typeof window !== 'undefined' ? window.location.origin : ''
+                      const type = resolveFormTypeFromOrderLike(o)
+                      const pk = o.service_pricing_key ? String(o.service_pricing_key) : ''
+                      const url = `${base}/forms?${pk ? `pricing_key=${encodeURIComponent(pk)}&` : ''}type=${encodeURIComponent(type)}&order_id=${encodeURIComponent(o.id)}`
+                      window.open(url, '_blank')
+                    } catch (e) { console.error('Open form error', e) }
+                  }}
+                >
+                  Proceed to Form
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-end">
+                <button className="rounded border px-3 py-2 text-sm" onClick={() => setShowCheckoutThankYou(false)}>Close</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
