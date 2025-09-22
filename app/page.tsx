@@ -7,6 +7,7 @@ import { fetchServicePricingRules, computePriceFromRules } from "@/utils/pricing
 import AuthModal from "@/components/AuthModal"; // Adjust path
 import { Footer } from "@/components/layout/Footer"
 import { UserCircleIcon } from "@heroicons/react/24/outline";
+import { PaymentProcessingModal } from "@/components/PaymentProcessingModal";
 
 
 const services = [
@@ -1245,7 +1246,8 @@ const handleAuth = async (e: React.FormEvent) => {
     alert("Password reset email sent! Check your inbox.");
   }
 };
-
+//add here
+const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   useEffect(() => {
   const script = document.createElement("script");
   script.src = "https://checkout.razorpay.com/v1/checkout.js";
@@ -1265,7 +1267,7 @@ const handleAuth = async (e: React.FormEvent) => {
       // read pricing key determined when adding to cart
       const selectedPricingKey = (typeof window !== 'undefined') ? (localStorage.getItem('selected_pricing_key') || null) : null
       console.log("[Checkout] Using pricing key:", selectedPricingKey)
-      
+     
       const orderResp = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1293,6 +1295,7 @@ const handleAuth = async (e: React.FormEvent) => {
   handler: async function (response: any) {
           // response contains razorpay_payment_id, razorpay_order_id, razorpay_signature
           try {
+              setIsProcessingPayment(true);
       // Forward the payment result to the server for signature verification
             const verifyResp = await fetch('/api/verify-payment', {
               method: 'POST',
@@ -1305,7 +1308,7 @@ const handleAuth = async (e: React.FormEvent) => {
                 user_id: user?.id || null,
         // include service selection so server can persist service_id reliably
         service_id: (cartItems[0] as any)?.service_id ?? null,
-                // include application form type (if the user selected one) 
+                // include application form type (if the user selected one)
                 type: selectedPricingKey,
                 // include minimal customer/context data for server processing
                 name: user?.user_metadata?.full_name || user?.email || '',
@@ -1322,6 +1325,7 @@ const handleAuth = async (e: React.FormEvent) => {
             if (!verifyResp.ok || !verifyJson.success) {
               console.error('verify-payment failed', verifyJson);
               alert('Payment verification failed. Please contact support.');
+              setIsProcessingPayment(false);  
               return;
             }
             // Show local Thank You modal so the user can open forms immediately
@@ -1353,6 +1357,7 @@ const handleAuth = async (e: React.FormEvent) => {
           } catch (err) {
             console.error('Error verifying payment:', err);
             alert('Payment succeeded but verification failed. We will investigate.');
+            setIsProcessingPayment(false);  
           }
         },
         prefill: {
@@ -1373,7 +1378,6 @@ const handleAuth = async (e: React.FormEvent) => {
       alert('An error occurred while initiating payment.');
     }
   };
-
  
    
   const getServicesByCategory = (category: string) => {
@@ -1627,6 +1631,7 @@ const handleAuth = async (e: React.FormEvent) => {
 if (showQuotePage) {
   return (
     <div className="min-h-screen bg-gray-50">
+      <PaymentProcessingModal isVisible={isProcessingPayment} />
       {/* Header */}
       <header className="bg-white shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -2440,7 +2445,7 @@ if (showQuotePage) {
         </div>
       </section>
 
-      {/* Milestone Counter (Full Width) */}
+{/* Milestone Counter (Full Width) */}
       <section id="milestones" className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">

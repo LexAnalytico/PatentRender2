@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from "@/components/ui/label"
 import pricingToForm from '../data/service-pricing-to-form.json'
+import CheckoutModal from "@/components/checkout-modal"
 import {
   ArrowLeft,
   User,
@@ -917,10 +918,10 @@ function ProfilePageInner() {
                                 <th className="p-2 text-left"></th>
                                 <th className="p-2 text-left">Category</th>
                                 <th className="p-2 text-left">Service</th>
-                                <th className="p-2 text-left">Type</th>
+                                  {/* <th className="p-2 text-left">Type</th>*/}
                                 <th className="p-2 text-left">Status</th>
                                 <th className="p-2 text-left">Amount</th>
-                                <th className="p-2 text-left">Razorpay ID</th>
+                                  {/*<th className="p-2 text-left">Razorpay ID</th>*/}
                               </tr>
                             </thead>
                             <tbody>
@@ -962,16 +963,16 @@ function ProfilePageInner() {
                                         const r = g.rows[0]
                                         return (
                                           <tr key={r.id} className="border-t" data-order-id={r.id}>
-                                            <td className="p-2"><input type="radio" name="order-select" checked={selectedOrderId === r.id} onChange={() => setSelectedOrderId(r.id)} /></td>
-                                            <td className="p-2">{(r.categories as any)?.name ?? 'N/A'}</td>
-                                            <td className="p-2">{(r.services as any)?.name ?? 'N/A'}</td>
-                                            <td className="p-2">{(r.service_pricing_key ?? null) || (typeLabelFromKey(resolveOrderTypeKey(r)) ?? 'N/A')}</td>
-                                            <td className="p-2">{orderStatuses[r.id] ?? 'Not Started'}</td>
-                                            <td className="p-2">{(r.payments as any)?.total_amount ?? 'N/A'}</td>
-                                            <td className="p-2">{(r.payments as any)?.razorpay_payment_id ?? (r.payments as any)?.id ?? 'N/A'}</td>
-                                          </tr>
-                                        )
-                                      }
+                                          <td className="p-2">
+                                            <input type="radio" name="order-select" checked={selectedOrderId === r.id} onChange={() => setSelectedOrderId(r.id)} />
+                                          </td>
+                                          <td className="p-2">{(r.categories as any)?.name ?? "N/A"}</td>
+                                          <td className="p-2">{(r.services as any)?.name ?? "N/A"}</td>
+                                          <td className="p-2">{orderStatuses[r.id] ?? "Not Started"}</td>
+                                          <td className="p-2">{(r.payments as any)?.total_amount ?? "N/A"}</td>
+                                        </tr>
+                                          )
+                                        }
 
                                       // Consolidated row for multi-service payment
                                       const isOpen = !!expandedPayments[g.key]
@@ -985,6 +986,7 @@ function ProfilePageInner() {
                                       })()
                                       return (
                                         <React.Fragment key={g.key}>
+                                          
                                           <tr className="border-t bg-gray-50/60">
                                             <td className="p-2 align-top">
                                               <button
@@ -995,34 +997,40 @@ function ProfilePageInner() {
                                                 {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                               </button>
                                             </td>
-                                            <td className="p-2 font-medium">{uniqueCats.length === 1 ? uniqueCats[0] : `Multiple (${uniqueCats.length})`}</td>
+                                            <td className="p-2 font-medium">
+                                              {uniqueCats.length === 1 ? uniqueCats[0] : `Multiple (${uniqueCats.length})`}
+                                            </td>
                                             <td className="p-2 text-gray-700">Multiple ({g.rows.length})</td>
-                                            <td className="p-2 text-gray-500">—</td>
                                             <td className="p-2">{aggStatus}</td>
-                                            <td className="p-2 font-medium">{g.payment?.total_amount ?? 'N/A'}</td>
-                                            <td className="p-2">{g.payment?.razorpay_payment_id ?? g.payment?.id ?? 'N/A'}</td>
+                                            <td className="p-2 font-medium">{g.payment?.total_amount ?? "N/A"}</td>
                                           </tr>
-                                          {isOpen && g.rows.map((r:any) => (
-                                            <tr key={r.id} className="border-t text-blue-700">
-                                              <td className="p-2 align-top">
-                                                <input type="radio" name="order-select" checked={selectedOrderId === r.id} onChange={() => setSelectedOrderId(r.id)} />
-                                              </td>
-                                              <td className="p-2 pl-6">
-                                                <div className="text-sm">{(r.categories as any)?.name ?? 'N/A'}</div>
-                                              </td>
-                                              <td className="p-2">
-                                                <div className="text-sm font-medium">{(r.services as any)?.name ?? 'N/A'}</div>
-                                              </td>
-                                              <td className="p-2">
-                                                <div className="text-sm">{(r.service_pricing_key ?? null) || (typeLabelFromKey(resolveOrderTypeKey(r)) ?? 'N/A')}</div>
-                                              </td>
-                                              <td className="p-2">
-                                                <div className="text-sm">{orderStatuses[r.id] ?? 'Not Started'}</div>
-                                              </td>
-                                              <td className="p-2">—</td>
-                                              <td className="p-2">{g.payment?.razorpay_payment_id ?? g.payment?.id ?? 'N/A'}</td>
-                                            </tr>
-                                          ))}
+
+                                          
+                                      {isOpen && g.rows.map((r: any) => (
+                                        <tr key={r.id} className="border-t text-blue-700">
+                                          <td className="p-2 align-top">
+                                            <input
+                                              type="radio"
+                                              name="order-select"
+                                              checked={selectedOrderId === r.id}
+                                              onChange={() => setSelectedOrderId(r.id)}
+                                            />
+                                          </td>
+                                          <td className="p-2 pl-6">
+                                            <div className="text-sm">{(r.categories as any)?.name ?? "N/A"}</div>
+                                          </td>
+                                          <td className="p-2">
+                                            <div className="text-sm font-medium">{(r.services as any)?.name ?? "N/A"}</div>
+                                          </td>
+                                          <td className="p-2">
+                                            <div className="text-sm">{orderStatuses[r.id] ?? "Not Started"}</div>
+                                          </td>
+                                          <td className="p-2">
+                                            <div className="text-sm">{(r.payments as any)?.total_amount ?? "N/A"}</div>
+                                          </td>
+                                        </tr>
+                                      ))}
+
                                         </React.Fragment>
                                       )
                                     })}
@@ -1034,67 +1042,21 @@ function ProfilePageInner() {
                         </div>
                       </CardContent>
                     </Card>
-
                     {/* Thank You modal after redirect with payment_id */}
-                    <Dialog open={showThankYou} onOpenChange={(v) => setShowThankYou(v)}>
-                  <DialogContent className="sm:max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Thank you for your order</DialogTitle>
-                      <DialogDescription>
-                        Your payment was successful. Here are your order details.
-                      </DialogDescription>
-                    </DialogHeader>
 
-                    <div className="space-y-3 text-sm">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <div className="text-gray-500">Payment ID</div>
-                          <div className="font-medium">{thankYouPayment?.razorpay_payment_id ?? thankYouPayment?.id ?? '—'}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-500">Date</div>
-                          <div className="font-medium">{thankYouPayment?.payment_date ? new Date(thankYouPayment.payment_date).toLocaleString() : '—'}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-500">Amount</div>
-                          <div className="font-medium">{thankYouPayment?.total_amount ?? '—'}</div>
-                        </div>
-                        <div>
-                          <div className="text-gray-500">Status</div>
-                          <div className="font-medium">{thankYouPayment?.payment_status ?? '—'}</div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-gray-500 mb-1">Services</div>
-                        {thankYouOrders && thankYouOrders.length > 0 ? (
-                          <ul className="list-disc pl-5 space-y-1">
-                            {thankYouOrders.map((o) => (
-                              <li key={o.id} className="text-gray-800">
-                                {(o.categories as any)?.name ?? 'N/A'} · {(o.services as any)?.name ?? 'N/A'} · {(o.service_pricing_key ?? null) || (typeLabelFromKey(resolveOrderTypeKey(o)) ?? 'N/A')}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <div className="text-gray-700">No services found for this payment.</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <DialogFooter className="sm:justify-between">
-                      {thankYouOrders && thankYouOrders.length === 1 ? (
-                        <Button onClick={() => handleProceedSingle(thankYouOrders[0])}>Proceed to Form</Button>
-                      ) : (
-                        thankYouOrders && thankYouOrders.length > 1 ? (
-                          <Button onClick={handleProceedMultiple}>Proceed to Forms</Button>
-                        ) : (
-                          <div />
-                        )
-                      )}
-                      <Button variant="outline" onClick={handleCloseThankYou}>Close</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                    <CheckoutModal
+                    isOpen={showThankYou}
+                    onClose={handleCloseThankYou}
+                    payment={thankYouPayment}
+                    orders={thankYouOrders}
+                    onProceedSingle={() => {
+                    if (thankYouOrders?.length === 1) handleProceedSingle(thankYouOrders[0])
+                  }}
+                  onProceedMultiple={handleProceedMultiple}
+                    
+                    />  
+                      
+                    
                   </TabsContent>
 
                 </Tabs>
