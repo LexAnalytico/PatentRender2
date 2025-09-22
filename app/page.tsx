@@ -1799,14 +1799,14 @@ if (showQuotePage) {
           {isOpen && (
             <div className="absolute right-0 mt-2 w-56 bg-white shadow-lg rounded-lg py-2 border border-gray-200 z-50">
               <a href="/profile" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Manage Profile</a>
-              <a href="/profile/overview?tab=overview" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Profile Overview</a>
-              <a href="#" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">View Your Orders</a>
-              <button
+              {/*<a href="/profile/overview?tab=overview" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Profile Overview</a>*/}
+              {/*<a href="#" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">View Your Orders</a>*/}
+              {/*<button
                 onClick={() => { window.location.href = '/forms'; setIsOpen(false); }}
                 className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
               >
-                View Forms
-              </button>
+               View Forms
+              </button>*/}
               <button
                 onClick={() => { goToQuotePage(); setIsOpen(false); }}
                 className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
@@ -2119,7 +2119,7 @@ if (showQuotePage) {
             </div>
             <div className="space-y-2">
               <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={goToQuotePage}>
-                Get Quote
+                Go To Payments
               </Button>
                
               <Button
@@ -2156,8 +2156,8 @@ if (showQuotePage) {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="ps">Provisional Specification (PS) — {formatINR(computeDraftingPrice("ps", "standard"))}</SelectItem>
-                              <SelectItem value="cs">Complete Specification (CS) + {formatINR(computeDraftingPrice("cs", "standard"))}</SelectItem>
-                              <SelectItem value="ps_cs">PS-CS + {formatINR(computeDraftingPrice("ps_cs", "standard"))}</SelectItem>
+                              <SelectItem value="cs">Complete Specification (CS) — {formatINR(computeDraftingPrice("cs", "standard"))}</SelectItem>
+                              <SelectItem value="ps_cs">PS-CS — {formatINR(computeDraftingPrice("ps_cs", "standard"))}</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -2171,8 +2171,8 @@ if (showQuotePage) {
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="standard">Standard (12-15 days) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
-                                  <SelectItem value="expediated">Expediated (8-10 Days) + {formatINR(expediatedDiff)}</SelectItem>
-                                  <SelectItem value="rush">Rush (5-7 days) + {formatINR(rushDiff)}</SelectItem>
+                                  <SelectItem value="expediated">Expediated (8-10 Days) — {formatINR(expediatedDiff)}</SelectItem>
+                                  <SelectItem value="rush">Rush (5-7 days) — {formatINR(rushDiff)}</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -2221,7 +2221,7 @@ if (showQuotePage) {
                                   <SelectValue placeholder="Choose filing type" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="provisional_filing">rovisional Filing (4 days) — {formatINR(computeFilingPrice("provisional_filing", optionsForm.searchType as any))}</SelectItem>
+                                  <SelectItem value="provisional_filing">Provisional Filing (4 days) — {formatINR(computeFilingPrice("provisional_filing", optionsForm.searchType as any))}</SelectItem>
                                   <SelectItem value="complete_specification_filing">Complete Specification Filing (4 days) — {formatINR(computeFilingPrice("complete_specification_filing", optionsForm.searchType as any))}</SelectItem>
                                   <SelectItem value="ps_cs_filing">PS-CS Filing (4 days) — {formatINR(computeFilingPrice("ps_cs_filing", optionsForm.searchType as any))}</SelectItem>
                                   <SelectItem value="pct_filing">PCT Filing — {formatINR(computeFilingPrice("pct_filing", optionsForm.searchType as any))}</SelectItem>
@@ -2334,9 +2334,9 @@ if (showQuotePage) {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="standard">Standard (7-10 days) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
-                            <SelectItem value="expediated">Expediated (3-5 Days) + {formatINR(expediatedDiff)}
+                            <SelectItem value="expediated">Expediated (3-5 Days) — {formatINR(expediatedDiff)}
 </SelectItem>
-                            <SelectItem value="rush">Rush (1-2 days) + {formatINR(rushDiff)}
+                            <SelectItem value="rush">Rush (1-2 days) — {formatINR(rushDiff)}
 </SelectItem>
                           </SelectContent>
                         </Select>
@@ -2386,7 +2386,7 @@ if (showQuotePage) {
       </div>
 
       {/* Reviews Carousel */}
-      <section className="py-16 bg-white">
+    {/*}  <section className="py-16 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900">What clients say</h2>
@@ -2443,7 +2443,7 @@ if (showQuotePage) {
             </div>
           </div>
         </div>
-      </section>
+      </section>*/}
 
 {/* Milestone Counter (Full Width) */}
       <section id="milestones" className="py-16 bg-gray-50">

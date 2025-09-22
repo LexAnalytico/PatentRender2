@@ -51,6 +51,8 @@ export default function IPFormBuilderClient() {
   const toastHook = useToast?.()
   const toast = toastHook ?? { toast: (opts: any) => { if (opts?.title) alert(`${opts.title}\n${opts?.description || ""}`) } }
   const searchParams = useSearchParams()
+  // If the form is opened from an order (order_id in URL), lock the application type
+  const isOrderLocked = !!(searchParams?.get("order_id") || "")
 
   useEffect(() => {
   const urlPricingKey = searchParams?.get("pricing_key") || ""
@@ -324,8 +326,8 @@ export default function IPFormBuilderClient() {
         <CardContent className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="application-type">Application Type</Label>
-            <Select value={selectedType} onValueChange={setSelectedType}>
-              <SelectTrigger id="application-type">
+            <Select value={selectedType} onValueChange={setSelectedType} disabled={isOrderLocked}>
+              <SelectTrigger id="application-type" disabled={isOrderLocked}>
                 <SelectValue placeholder="Select an application type" />
               </SelectTrigger>
               <SelectContent>
@@ -336,6 +338,9 @@ export default function IPFormBuilderClient() {
                 ))}
               </SelectContent>
             </Select>
+            {isOrderLocked && (
+              <p className="text-xs text-muted-foreground">Locked by your order. The service was selected during checkout.</p>
+            )}
           </div>
 
           {selectedType && (
