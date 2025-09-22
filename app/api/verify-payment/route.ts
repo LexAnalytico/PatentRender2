@@ -6,6 +6,7 @@ import nodemailer from 'nodemailer';
 import pricingToForm from '@/app/data/service-pricing-to-form.json'
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 // Send notification email using the persisted payment row to avoid races
 async function sendPaymentNotification(serverSupabase: any, opts: { paymentId: string; dbPayment?: any }) {

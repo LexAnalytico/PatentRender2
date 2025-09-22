@@ -4,13 +4,26 @@ import { supabase } from '@/lib/supabase';
 import pricingToForm from '@/app/data/service-pricing-to-form.json'
 import { createClient } from '@supabase/supabase-js';
 
+// Razorpay's Node SDK requires a Node.js runtime (not Edge). Force Node on Vercel.
+export const runtime = 'nodejs'
+// This route is dynamic and should never be statically optimized.
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
   const { amount, currency, user_id, service_id, custom_price, type } = await req.json();
 
+    // Validate server configuration early for clearer prod errors
+    const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID as string | undefined
+    const keySecret = process.env.RAZORPAY_KEY_SECRET as string | undefined
+    if (!keyId || !keySecret) {
+      console.error('❌ Missing Razorpay credentials in env. Have NEXT_PUBLIC_RAZORPAY_KEY_ID?', !!keyId, 'Have RAZORPAY_KEY_SECRET?', !!keySecret)
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+    }
+
     const instance = new Razorpay({
-      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID as string,
-      key_secret: process.env.RAZORPAY_KEY_SECRET as string,
+      key_id: keyId,
+      key_secret: keySecret,
     });
 
     const order = await instance.orders.create({
@@ -102,7 +115,7 @@ export async function POST(req: Request) {
       console.error('❌ Exception while inserting payment row after order creation:', e);
     }
 
-    return NextResponse.json(order, { status: 200 });
+  return NextResponse.json(order, { status: 200 });
   } catch (err) {
     console.error('❌ Razorpay Order Creation Error:', err);
     return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
