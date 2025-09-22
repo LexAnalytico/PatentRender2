@@ -118,6 +118,12 @@ export async function POST(req: Request) {
   return NextResponse.json(order, { status: 200 });
   } catch (err) {
     console.error('❌ Razorpay Order Creation Error:', err);
-    return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
+    const safe: any = { error: 'Failed to create order' }
+    try {
+      const e = err as any
+      if (e && (e.message || e.description)) safe.message = e.message || e.description
+      if (e && e.code) safe.code = e.code
+    } catch {}
+    return NextResponse.json(safe, { status: 500 });
   }
 }
