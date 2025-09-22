@@ -1275,10 +1275,16 @@ const [isProcessingPayment, setIsProcessingPayment] = useState(false);
       });
 
       if (!orderResp.ok) {
-        const errText = await orderResp.text();
-        console.error('create-order failed:', errText);
-        alert('Failed to start payment. Please try again.');
-        return;
+        let reason = 'Unknown error'
+        try {
+          const maybeJson = await orderResp.json()
+          reason = (maybeJson && (maybeJson.error || maybeJson.message)) ? (maybeJson.error || maybeJson.message) : JSON.stringify(maybeJson)
+        } catch {
+          try { reason = await orderResp.text() } catch {}
+        }
+        console.error('create-order failed:', reason)
+        alert(`Failed to start payment. ${reason || 'Please try again.'}`)
+        return
       }
 
       const order = await orderResp.json();
