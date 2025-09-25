@@ -974,11 +974,11 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
     // Determine the pricing key that corresponds to the selected options
     // This will be used as the type for the order/payment
     let pricingKey: string | null = null
-    
+   
     if (selectedServiceTitle === "Patentability Search") {
       const st = optionsForm.searchType
       const t = selectedTurnaround
-      
+     
       if (st === "full_without_opinion" && t) {
         pricingKey = `full_without_opinion_${t}`
       } else if (st === "full_with_opinion" && t) {
@@ -989,7 +989,7 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
     } else if (selectedServiceTitle === "Drafting") {
       const st = optionsForm.searchType // ps, cs, ps_cs
       const t = selectedTurnaround
-      
+     
       if ((st === "ps" || st === "cs" || st === "ps_cs") && t) {
         const base = st === "ps" ? "provisional_specification" : st === "cs" ? "complete_specification" : "ps_cs"
         pricingKey = `${base}_${t}`
@@ -998,7 +998,7 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
       // For filing, the turnaround dropdown contains direct keys
       const filingKeys = new Set([
         "provisional_filing",
-        "complete_specification_filing", 
+        "complete_specification_filing",
         "ps_cs_filing",
         "pct_filing",
       ])
@@ -1010,16 +1010,16 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
       const ferKeys = new Set([
         "base_fee",
         "response_due_anytime_after_15_days",
-        "response_due_within_11_15_days", 
+        "response_due_within_11_15_days",
         "response_due_within_4_10_days",
       ])
       if (optionsForm.searchType && ferKeys.has(optionsForm.searchType)) {
         pricingKey = optionsForm.searchType
       }
     }
-    
+   
     console.log("[Cart] Determined pricing key:", pricingKey)
-    
+   
     // Store the pricing key in localStorage so checkout can use it
     if (pricingKey) {
       try {
@@ -1123,10 +1123,67 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
   const backToMainPage = () => {
     setShowQuotePage(false)
   }
+//Google login
+  async function upsertUserProfileFromSession() {
+  const { data, error } = await supabase.auth.getUser()
+  if (error || !data?.user) return
+
+  const u = data.user
+  // Supabase Google OAuth provides user_metadata; common fields:
+  // - full_name, name, given_name, family_name, avatar_url, picture
+  const fullName = (u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || ""
+  const given = (u.user_metadata?.given_name as string) || ""
+  const family = (u.user_metadata?.family_name as string) || ""
+
+  // Derive first/last if not provided
+  let firstName = given
+  let lastName = family
+  if (!firstName && !lastName && fullName) {
+    const parts = fullName.split(" ")
+    firstName = parts[0] || ""
+    lastName = parts.slice(1).join(" ") || ""
+  }
+
+  // Upsert by id or email; using id is safest as it’s stable
+  const { error: profileError } = await supabase.from("users").upsert(
+    [{
+      id: u.id,                  // UUID from auth.users
+      email: u.email || null,
+      first_name: firstName || null,
+      last_name: lastName || null,
+      company: null,             // unknown from Google; keep null or set later in profile form
+      // add any defaults your schema needs
+    }],
+    { onConflict: "id" }         // or "email" if that’s your constraint
+  )
+
+  if (profileError) {
+    console.error("[auth] upsert profile failed:", profileError.message)
+  }
+}
+
+// In your component:
+useEffect(() => {
+  // Upsert on initial page load if already signed in
+  upsertUserProfileFromSession()
+
+  // And subscribe to future sign-ins (including Google OAuth redirects)
+  const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_IN" && session?.user) {
+      upsertUserProfileFromSession()
+      // You can close modal or advance UI here if needed
+      setIsAuthenticated(true)
+      setShowAuthModal(false)
+      setShowQuotePage(true)
+    }
+  })
+  return () => sub?.subscription?.unsubscribe()
+}, [])
 
 const handleGoogleLogin = async () => {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
+      options: { redirectTo: `${window.location.origin}` },
     })
     if (error) {
       console.error("Google login error:", error.message)
