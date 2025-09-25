@@ -25,7 +25,8 @@ async function sendPaymentNotification(serverSupabase: any, opts: { paymentId: s
     if (!paymentRow) {
       const { data: pay, error: payErr } = await serverSupabase
         .from('payments')
-        .select('id, user_id, total_amount, payment_status, payment_date, razorpay_payment_id, service_id, type')
+        .select("id, created_at, service_id, category_id, payment_id, type, amount")
+
         .eq('razorpay_payment_id', paymentId)
         .maybeSingle();
       if (payErr) console.error('Payment fetch error before email:', payErr);

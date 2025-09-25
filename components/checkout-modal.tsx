@@ -8,9 +8,18 @@ interface CheckoutModalProps {
   onClose: () => void
   payment?: any
   orders?: any[]
+  onProceedSingle?: (order?: any) => void    // NEW
+  onProceedMultiple?: (orders?: any[]) => void // NEW
 }
 
-const CheckoutModal = ({ isOpen, onClose, payment, orders = [] }: CheckoutModalProps) => {
+const CheckoutModal = ({
+  isOpen,
+  onClose,
+  payment,
+  orders = [],
+  onProceedSingle,
+  onProceedMultiple,
+}: CheckoutModalProps) => {
   const showCheckoutThankYou = isOpen
   const checkoutPayment = payment
   const checkoutOrders = orders
@@ -22,7 +31,6 @@ const CheckoutModal = ({ isOpen, onClose, payment, orders = [] }: CheckoutModalP
       const pk = o?.service_pricing_key ? String(o.service_pricing_key) : ""
       const url = `${base}/forms?${pk ? `pricing_key=${encodeURIComponent(pk)}&` : ""}type=${encodeURIComponent(type)}&order_id=${encodeURIComponent(o.id)}`
       window.open(url, "_blank")
-      // Optional: close after opening a single form
       onClose()
     } catch (e) {
       console.error("Open form error", e)
@@ -68,44 +76,36 @@ const CheckoutModal = ({ isOpen, onClose, payment, orders = [] }: CheckoutModalP
     }
   }
   const openAllOrderFormsInTabs = (orders: any[]) => {
-  if (!orders?.length) return
-  try {
-    const base = typeof window !== "undefined" ? window.location.origin : ""
-
-    // 1) Pre-open blank tabs synchronously
-    const wins = orders.map(() => window.open("", "_blank"))
-
-    // If any were blocked, inform the user
-    if (wins.some(w => w == null)) {
-      alert("Please enable pop-ups for this site to open all forms in separate tabs.")
-      return
-    }
+    if (!orders?.length) return
+    try {
+      const base = typeof window !== "undefined" ? window.location.origin : ""
+      const wins = orders.map(() => window.open("", "_blank"))
+      if (wins.some(w => w == null)) {
+        alert("Please enable pop-ups for this site to open all forms in separate tabs.")
+        return
+      }
 
     // 2) Compute URLs for each order
     const urls = orders.map((o) => {
-      const type = resolveFormTypeFromOrderLike(o)
-      const pk = o?.service_pricing_key ? String(o.service_pricing_key) : ""
-      return `${base}/forms?${pk ? `pricing_key=${encodeURIComponent(pk)}&` : ""}type=${encodeURIComponent(type)}&order_id=${encodeURIComponent(o.id)}`
-    })
+        const type = resolveFormTypeFromOrderLike(o)
+        const pk = o?.service_pricing_key ? String(o.service_pricing_key) : ""
+        return `${base}/forms?${pk ? `pricing_key=${encodeURIComponent(pk)}&` : ""}type=${encodeURIComponent(type)}&order_id=${encodeURIComponent(o.id)}`
+      })
+      wins.forEach((w, i) => {
+        if (!w) return
+        const url = urls[i]
+        try { w.location.href = url } catch { w.location.replace(url) }
+      })
+      onClose()
+    } catch (e) {
+      console.error("Open all forms error", e)
+    }
+  }
 
-    // 3) Navigate each pre-opened window
-    wins.forEach((w, i) => {
-      if (!w) return
-      const url = urls[i]
-      try {
-        w.location.href = url
-      } catch {
-        w.location.replace(url)
-      }
-    })
 
     // Optional: close the Thank You modal after opening tabs
     //setShowCheckoutThankYou(false)
-    onClose()
-  } catch (e) {
-    console.error("Open all forms error", e)
-  }
-}
+    
 const openSingleOrderForm = (o: any) => {
   try {
     const base = typeof window !== "undefined" ? window.location.origin : ""
@@ -180,8 +180,7 @@ const openSingleOrderForm = (o: any) => {
                   <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
                     <div className="flex items-center space-x-2 mb-2">
                       <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
                       <span className="text-blue-800 font-medium">Multiple Services Detected</span>
                     </div>
@@ -193,7 +192,7 @@ const openSingleOrderForm = (o: any) => {
                       <button
                         key={o.id}
                         className="group relative overflow-hidden rounded-lg border-2 border-blue-200 bg-white px-4 py-3 text-sm font-medium text-blue-700 transition-all duration-200 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md hover:-translate-y-0.5"
-                        onClick={() => openFormForOrder(o)}
+                        onClick={() => (onProceedSingle ? onProceedSingle(o) : openFormForOrder(o))}
                       >
                         <div className="flex items-center space-x-2">
                           <span>{(o.services as any)?.name || "Service"}</span>
@@ -205,14 +204,15 @@ const openSingleOrderForm = (o: any) => {
                     ))}
                   </div>
 
-                     <div className="flex items-center justify-end gap-3">
-                   
+                  <div className="flex items-center justify-end gap-3">
                     <button
-                    className="inline-flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-                    onClick={() => openAllOrderFormsInTabs(checkoutOrders)}
-                  >
-                    Proceed to Forms
-                  </button>
+                      className="inline-flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                      onClick={() =>
+                        onProceedMultiple ? onProceedMultiple(checkoutOrders) : openAllOrderFormsInTabs(checkoutOrders)
+                      }
+                    >
+                      Proceed to Forms
+                    </button>
                   </div>
                 </div>
               )}
@@ -222,21 +222,19 @@ const openSingleOrderForm = (o: any) => {
                   <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
                     <div className="flex items-center space-x-2">
                       <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                          d="M9 12h6m2 7a2 2 0 01-2 2H9a2 2 0 01-2-2V5a2 2 0 012-2h6a2 2 0 012 2v14z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m2 7a2 2 0 01-2 2H9a2 2 0 01-2-2V5a2 2 0 012-2h6a2 2 0 012 2v14z" />
                       </svg>
                       <span className="text-blue-800 font-medium">Form Ready</span>
                     </div>
-                    <p className="text-blue-700 text-sm mt-1">
-                      Click proceed to open your form in a new tab.
-                    </p>
+                    <p className="text-blue-700 text-sm mt-1">Click proceed to open your form in a new tab.</p>
                   </div>
 
                   <div className="flex items-center justify-end gap-3">
-                   
                     <button
                       className="group inline-flex items-center space-x-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-3 text-white font-medium shadow-lg transition-all duration-200 hover:from-blue-700 hover:to-blue-800 hover:shadow-xl hover:-translate-y-0.5"
-                      onClick={() => openFormForOrder(checkoutOrders[0])}
+                      onClick={() =>
+                        onProceedSingle ? onProceedSingle(checkoutOrders[0]) : openFormForOrder(checkoutOrders[0])
+                      }
                     >
                       <span>Proceed To Form</span>
                       <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

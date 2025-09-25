@@ -8,6 +8,8 @@ import AuthModal from "@/components/AuthModal"; // Adjust path
 import { Footer } from "@/components/layout/Footer"
 import { UserCircleIcon } from "@heroicons/react/24/outline";
 import { PaymentProcessingModal } from "@/components/PaymentProcessingModal";
+// TypeScript/React
+import { useAuthProfile } from "@/app/useAuthProfile"
 
 
 const services = [
@@ -55,9 +57,19 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs" // Import Tabs components
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
-import type { Session } from "@supabase/supabase-js"
+//import type { Session } from "@supabase/supabase-js"
 
 export default function LegalIPWebsite() {
+  const {
+  isAuthenticated,
+  displayName,
+  wantsCheckout,
+  setWantsCheckout,
+  handleGoogleLogin,
+  handleLogout: hookLogout,
+  upsertUserProfileFromSession,
+} = useAuthProfile()
+
   const [isOpen, setIsOpen] = useState(false);
   const toggleMenu = () => setIsOpen(!isOpen);
   const [currentSlide, setCurrentSlide] = useState(0)
@@ -67,7 +79,7 @@ export default function LegalIPWebsite() {
     copyrights: 0,
     clients: 0,
   })
-
+ 
   const [cartItems, setCartItems] = useState<
     Array<{
       id: string
@@ -82,7 +94,7 @@ export default function LegalIPWebsite() {
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
   const [showPassword, setShowPassword] = useState(false)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  //const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [showOptionsPanel, setShowOptionsPanel] = useState(false)
   const [selectedServiceTitle, setSelectedServiceTitle] = useState<string | null>(null)
   const [selectedServiceCategory, setSelectedServiceCategory] = useState<string | null>(null)
@@ -97,30 +109,10 @@ export default function LegalIPWebsite() {
     searchType: "",
   })
 
-  // Keep Logout button state in sync with Supabase session
-  useEffect(() => {
-    let active = true
-
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (error) {
-        console.error("Error getting session:", error)
-        return
-      }
-      if (active) setIsAuthenticated(!!data.session)
-    })
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (active) setIsAuthenticated(!!session)
-    })
-
-    return () => {
-      active = false
-      authListener?.subscription?.unsubscribe?.()
-    }
-  }, [])
+ 
   const [activeServiceTab, setActiveServiceTab] = useState("patent") // State for active tab
-  const [session, setSession] = useState<Session | null>(null);  
-  const [userEmail, setUserEmail] = useState<string | null>(null);  
+  //const [session, setSession] = useState<Session | null>(null);  
+  //const [userEmail, setUserEmail] = useState<string | null>(null);  
  
   // Auth form state
   const [authForm, setAuthForm] = useState({
@@ -171,22 +163,6 @@ export default function LegalIPWebsite() {
     designField4: "",
     designField5: "",
   })
-
-
-const services = [
-  "Patentability Search",
-  "Drafting",
-  "Patent Application Filing",
-  "First Examination Response",
-  "Trademark Registration",
-  "Trademark Monitoring",
-  "Copyright Registration",
-  "DMCA Services",
-  "Copyright Licensing",
-  "Design Registration",
-  "Design Search",
-  "Design Portfolio",
-]
 
   const [servicePricing, setServicePricing] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
@@ -509,6 +485,44 @@ const patentServices = [
   const clearCart = () => {
     setCartItems([])
   }
+
+  // When user clicks a Navbar service link (/#section) from the Selected Services view,
+  // auto-close the quote page and scroll to the requested section on the main page.
+  useEffect(() => {
+    // Handle direct hash on load (one-time), then strip it to avoid problems
+    const handleInitialHash = () => {
+      const hash = typeof window !== 'undefined' ? window.location.hash : ''
+      const targets = new Set(['#patent-services', '#trademark-services', '#copyright-services', '#design-services'])
+      if (!hash || !targets.has(hash)) return
+      setShowQuotePage(false)
+      setTimeout(() => {
+        const id = hash.slice(1)
+        const el = document.getElementById(id)
+        if (el) el.scrollIntoView({ behavior: 'smooth' })
+        // Clean URL to remove the hash
+        try {
+          const url = new URL(window.location.href)
+          url.hash = ''
+          window.history.replaceState({}, '', url.toString())
+        } catch {}
+      }, 80)
+    }
+
+    const handleGoSection = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { id?: string }
+      const id = detail?.id
+      if (!id) return
+      setShowQuotePage(false)
+      setTimeout(() => {
+        const el = document.getElementById(id)
+        if (el) el.scrollIntoView({ behavior: 'smooth' })
+      }, 80)
+    }
+
+    handleInitialHash()
+    window.addEventListener('nav:go-section', handleGoSection as EventListener)
+    return () => window.removeEventListener('nav:go-section', handleGoSection as EventListener)
+  }, [])
 
   // Options panel helpers
   const openOptionsForService = (serviceName: string, category: string) => {
@@ -1111,85 +1125,42 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
 
     return Math.max(0, baseTotal)
   }
-
+ 
   const goToQuotePage = () => {
-    if (!isAuthenticated) {
-      setShowAuthModal(true)
-    } else {
-      setShowQuotePage(true)
-    }
+  if (cartItems.length === 0) {
+    alert("Your cart is empty. Please add a service first.")
+    return
   }
-
-  const backToMainPage = () => {
-    setShowQuotePage(false)
-  }
-//Google login
-  async function upsertUserProfileFromSession() {
-  const { data, error } = await supabase.auth.getUser()
-  if (error || !data?.user) return
-
-  const u = data.user
-  // Supabase Google OAuth provides user_metadata; common fields:
-  // - full_name, name, given_name, family_name, avatar_url, picture
-  const fullName = (u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || ""
-  const given = (u.user_metadata?.given_name as string) || ""
-  const family = (u.user_metadata?.family_name as string) || ""
-
-  // Derive first/last if not provided
-  let firstName = given
-  let lastName = family
-  if (!firstName && !lastName && fullName) {
-    const parts = fullName.split(" ")
-    firstName = parts[0] || ""
-    lastName = parts.slice(1).join(" ") || ""
-  }
-
-  // Upsert by id or email; using id is safest as it’s stable
-  const { error: profileError } = await supabase.from("users").upsert(
-    [{
-      id: u.id,                  // UUID from auth.users
-      email: u.email || null,
-      first_name: firstName || null,
-      last_name: lastName || null,
-      company: null,             // unknown from Google; keep null or set later in profile form
-      // add any defaults your schema needs
-    }],
-    { onConflict: "id" }         // or "email" if that’s your constraint
-  )
-
-  if (profileError) {
-    console.error("[auth] upsert profile failed:", profileError.message)
+  if (!isAuthenticated) {
+    setWantsCheckout(true)
+    setShowAuthModal(true)
+  } else {
+    setIsOpen(false) // close dropdown if coming from header menu
+    setShowQuotePage(true)
   }
 }
-
-// In your component:
+// 3) In the auth listener, honor intent but don’t force navigation otherwise
 useEffect(() => {
-  // Upsert on initial page load if already signed in
-  upsertUserProfileFromSession()
-
-  // And subscribe to future sign-ins (including Google OAuth redirects)
   const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+    console.log("[auth] event:", event, "user:", !!session?.user)
     if (event === "SIGNED_IN" && session?.user) {
       upsertUserProfileFromSession()
-      // You can close modal or advance UI here if needed
-      setIsAuthenticated(true)
       setShowAuthModal(false)
-      setShowQuotePage(true)
+      if (wantsCheckout) {
+        setShowQuotePage(true)
+        setWantsCheckout(false)
+      }
     }
   })
   return () => sub?.subscription?.unsubscribe()
-}, [])
+}, [wantsCheckout, setWantsCheckout, upsertUserProfileFromSession])
 
-const handleGoogleLogin = async () => {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: `${window.location.origin}` },
-    })
-    if (error) {
-      console.error("Google login error:", error.message)
-      alert("Google login failed!")
-    }
-  }
+//Google login
+ 
+
+
+
+
    
 const handleAuth = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -1249,26 +1220,36 @@ const handleAuth = async (e: React.FormEvent) => {
       console.error("Sign-in Error:", error);
     } else {
       alert("Signed in successfully!");
-      setIsAuthenticated(true);
-      setShowAuthModal(false);
-      setShowQuotePage(true);
-    }
+     //setIsAuthenticated(true)
+      setShowAuthModal(false)
+      if (wantsCheckout) {
+        setShowQuotePage(true)
+        setWantsCheckout(false)
+      }
+      }
   }
 };
 
   const handleLogout = async () => {
-  await supabase.auth.signOut();
-  setIsAuthenticated(false);
-  setShowQuotePage(false); // optional: hide content that should only be visible when logged in
-  setShowAuthModal(true); // ✅ Show login/signup modal again
-  resetAuthForm();
-  // Clear cart and reset options panel state
-  setCartItems([]);
-  setShowOptionsPanel(false);
-  setSelectedServiceTitle(null);
-  setSelectedServiceCategory(null);
-  resetOptionsForm();
-};
+  try {
+    await hookLogout()
+    // Ensure session is cleared
+    const { data } = await supabase.auth.getSession()
+    if (data?.session) {
+      // force clear a second time
+      await supabase.auth.signOut()
+    }
+  } finally {
+    setShowQuotePage(false)
+    setShowAuthModal(true)
+    resetAuthForm()
+    setCartItems([])
+    setShowOptionsPanel(false)
+    setSelectedServiceTitle(null)
+    setSelectedServiceCategory(null)
+    resetOptionsForm()
+  }
+}
  
   const resetAuthForm = () => {
     setAuthForm({
@@ -1303,6 +1284,7 @@ const handleAuth = async (e: React.FormEvent) => {
     alert("Password reset email sent! Check your inbox.");
   }
 };
+ 
 //add here
 const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   useEffect(() => {
@@ -1344,6 +1326,7 @@ const [isProcessingPayment, setIsProcessingPayment] = useState(false);
         return
       }
 
+     
       const order = await orderResp.json();
       const firstItem = cartItems[0];
 
@@ -1717,12 +1700,12 @@ if (showQuotePage) {
                 Knowledge Hub
               </a>
               <button
-                onClick={handleLogout}
-                className="text-sm text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={!isAuthenticated}
-              >
-                Logout
-              </button>
+              onClick={handleLogout}
+              className="text-sm text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!isAuthenticated}
+            >
+              Logout
+            </button>
             </div>
           </div>
         </div>
@@ -1777,17 +1760,20 @@ if (showQuotePage) {
               ))}
 
               {cartItems.length === 0 && (
-                <Card className="bg-white">
-                  <CardContent className="p-12 text-center">
-                    <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No services selected</h3>
-                    <p className="text-gray-600 mb-4">Add some services to create your quote</p>
-                    <Button onClick={backToMainPage} className="bg-blue-600 hover:bg-blue-700">
-                      Browse Services
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
+              <Card className="bg-white">
+                <CardContent className="p-12 text-center">
+                  <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No services selected</h3>
+                  <p className="text-gray-600 mb-4">Add some services to create your quote</p>
+                  <Button
+                    onClick={() => setShowQuotePage(false)}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Browse Services
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
             </div>
 
             {/* Make Payment Button */}
@@ -1854,39 +1840,42 @@ if (showQuotePage) {
         <a href="/knowledge-hub" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium">
           Knowledge Hub
         </a>
+        {/* Greeting */}
+        {isAuthenticated && displayName && (
+        <span
+          className="text-gray-700 text-sm max-w-[180px] truncate"
+          title={displayName}
+        >
+          Welcome, {displayName}
+        </span>
+      )}
         <div className="relative">
           <button onClick={toggleMenu} className="focus:outline-none">
             <UserCircleIcon className="h-8 w-8 text-gray-700 hover:text-blue-600" />
           </button>
    
           {isOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-white shadow-lg rounded-lg py-2 border border-gray-200 z-50">
-              <a href="/profile" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Manage Profile</a>
-              {/*<a href="/profile/overview?tab=overview" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">Profile Overview</a>*/}
-              {/*<a href="#" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">View Your Orders</a>*/}
-              {/*<button
-                onClick={() => { window.location.href = '/forms'; setIsOpen(false); }}
-                className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
-              >
-               View Forms
-              </button>*/}
+          <div className="absolute right-0 mt-2 w-56 bg-white shadow-lg rounded-lg py-2 border border-gray-200 z-50">
+            <a href="/profile" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">
+              Manage Profile
+            </a>
+            {!isAuthenticated && (
               <button
                 onClick={() => { goToQuotePage(); setIsOpen(false); }}
                 className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
               >
                 Sign In
               </button>
-                   
-             
-              <button
-                onClick={() => { handleLogout(); setIsOpen(false); }}
-                className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
-                disabled={!isAuthenticated}
-              >
-                Sign Out
-              </button>
-            </div>
-          )}
+            )}
+            <button
+            onClick={() => { handleLogout(); setIsOpen(false); }}
+            className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+            disabled={!isAuthenticated}
+          >
+            Sign Out
+          </button>
+          </div>
+        )}
         </div>
       </div>
     </header>
@@ -2033,7 +2022,7 @@ if (showQuotePage) {
           </div>
 
           {/* Patent Services */}
-          <section id="patent-services" className="bg-blue-50 py-8 rounded-lg">
+          <section id="patent-services" className="bg-blue-50 py-8 rounded-lg scroll-mt-24">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Patent Services</h2>
@@ -2064,7 +2053,7 @@ if (showQuotePage) {
           </section>
 
           {/* Trademark Services */}
-          <section id="trademark-services" className="bg-neutral-50 py-8 rounded-lg mt-8 border border-neutral-200">
+          <section id="trademark-services" className="bg-neutral-50 py-8 rounded-lg mt-8 border border-neutral-200 scroll-mt-24">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Trademark Services</h2>
@@ -2086,7 +2075,7 @@ if (showQuotePage) {
           </section>
 
           {/* Copyright Services */}
-          <section id="copyright-services" className="bg-neutral-50 py-8 rounded-lg mt-8 border border-neutral-200">
+          <section id="copyright-services" className="bg-neutral-50 py-8 rounded-lg mt-8 border border-neutral-200 scroll-mt-24">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Copyright Services</h2>
@@ -2108,7 +2097,7 @@ if (showQuotePage) {
           </section>
 
           {/* Design Services */}
-          <section id="design-services" className="bg-neutral-50 py-8 rounded-lg mt-8 border border-neutral-200">
+          <section id="design-services" className="bg-neutral-50 py-8 rounded-lg mt-8 border border-neutral-200 scroll-mt-24">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
                 <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Design Services</h2>
