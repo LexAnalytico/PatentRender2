@@ -8,8 +8,8 @@ interface CheckoutModalProps {
   onClose: () => void
   payment?: any
   orders?: any[]
-  onProceedSingle?: (order?: any) => void    // NEW
-  onProceedMultiple?: (orders?: any[]) => void // NEW
+  onProceedSingle?: (order?: any) => void
+  onProceedMultiple?: (orders?: any[]) => void
 }
 
 const CheckoutModal = ({
@@ -37,44 +37,6 @@ const CheckoutModal = ({
     }
   }
 
-  const openFormsForAllOrders = (ord: any[]) => {
-    if (!ord?.length) return
-    try {
-      const base = typeof window !== "undefined" ? window.location.origin : ""
-
-      // 1) Pre-open windows synchronously in the click handler context
-      const wins = ord.map(() => window.open("", "_blank"))
-
-      // 2) If any window failed to open, ask the user to allow pop-ups
-      if (wins.some(w => w == null)) {
-        alert("Please enable pop-ups for this site to open all forms in separate tabs.")
-        return
-      }
-
-      // 3) Compute target URLs
-      const urls = ord.map((o) => {
-        const type = resolveFormTypeFromOrderLike(o)
-        const pk = o?.service_pricing_key ? String(o.service_pricing_key) : ""
-        return `${base}/forms?${pk ? `pricing_key=${encodeURIComponent(pk)}&` : ""}type=${encodeURIComponent(type)}&order_id=${encodeURIComponent(o.id)}`
-      })
-
-      // 4) Navigate each pre-opened window to its URL
-      wins.forEach((w, i) => {
-        if (!w) return
-        const url = urls[i]
-        try {
-          w.location.href = url
-        } catch {
-          w.location.replace(url)
-        }
-      })
-
-      // Optional: close the modal after opening all tabs
-      onClose()
-    } catch (e) {
-      console.error("Open all forms error", e)
-    }
-  }
   const openAllOrderFormsInTabs = (orders: any[]) => {
     if (!orders?.length) return
     try {

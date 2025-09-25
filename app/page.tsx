@@ -63,6 +63,19 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 //import type { Session } from "@supabase/supabase-js"
 
 export default function LegalIPWebsite() {
+  const openFormEmbedded = (o: any) => {
+  const t = resolveFormTypeFromOrderLike(o)
+  if (!t) { alert("No form available for this order"); return }
+  setSelectedFormOrderId(Number(o.id))
+  setSelectedFormType(String(t))
+  setShowQuotePage(true)
+  setQuoteView('forms')
+  setShowCheckoutThankYou(false)
+}
+const openFirstFormEmbedded = () => {
+  if (!checkoutOrders || checkoutOrders.length === 0) return
+  openFormEmbedded(checkoutOrders[0])
+}
   const {
   isAuthenticated,
   displayName,
@@ -1806,6 +1819,8 @@ if (showQuotePage) {
         onClose={() => setShowCheckoutThankYou(false)}
         payment={checkoutPayment}
         orders={checkoutOrders}
+        onProceedSingle={openFormEmbedded}
+        onProceedMultiple={(orders) => { if (orders && orders.length > 0) openFormEmbedded(orders[0]) }}
       />
       {/* Header */}
       <header className="bg-white shadow-sm border-b sticky top-0 z-50">
@@ -2817,6 +2832,8 @@ if (showQuotePage) {
         onClose={() => setShowCheckoutThankYou(false)}
         payment={checkoutPayment}
         orders={checkoutOrders}
+        onProceedSingle={openFormEmbedded}
+        onProceedMultiple={(orders) => { if (orders && orders.length > 0) openFormEmbedded(orders[0]) }}
       />
     </div>
   )
