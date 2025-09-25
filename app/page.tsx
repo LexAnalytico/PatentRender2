@@ -49,6 +49,7 @@ import {
 } from "lucide-react"
 import { Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import CheckoutModal from "@/components/checkout-modal"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -91,6 +92,8 @@ export default function LegalIPWebsite() {
   >([])
    
   const [showQuotePage, setShowQuotePage] = useState(false)
+  // Inside the quote page, control which content shows in the main area
+  const [quoteView, setQuoteView] = useState<'services' | 'orders' | 'profile'>('services')
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
   const [showPassword, setShowPassword] = useState(false)
@@ -170,6 +173,11 @@ export default function LegalIPWebsite() {
   const [showCheckoutThankYou, setShowCheckoutThankYou] = useState(false)
   const [checkoutPayment, setCheckoutPayment] = useState<any | null>(null)
   const [checkoutOrders, setCheckoutOrders] = useState<any[]>([])
+  // Embedded Orders/Profile state when viewing within the quote view
+  const [embeddedOrders, setEmbeddedOrders] = useState<any[]>([])
+  const [embeddedOrdersLoading, setEmbeddedOrdersLoading] = useState(false)
+  const [embeddedProfile, setEmbeddedProfile] = useState<any | null>(null)
+  const [embeddedProfileSaving, setEmbeddedProfileSaving] = useState(false)
 
   // Map an order-like object to a canonical form type using the same logic as profile
   const resolveFormTypeFromOrderLike = (o: any): string => {
@@ -198,6 +206,121 @@ export default function LegalIPWebsite() {
     "Drafting": 2,
     "Patent Application Filing": 3,
     "First Examination Response": 4,
+  }
+
+  // Ensure when quote page opens, we default to showing Services view
+  useEffect(() => {
+    if (showQuotePage) setQuoteView('services')
+  }, [showQuotePage])
+
+  // Load embedded Orders list when switching to Orders inside the quote page
+  useEffect(() => {
+    const loadOrders = async () => {
+      try {
+        setEmbeddedOrdersLoading(true)
+        const userRes = await supabase.auth.getUser()
+        const user = (userRes && (userRes as any).data) ? (userRes as any).data.user : null
+        if (!user) { setEmbeddedOrders([]); return }
+        const { data, error } = await supabase
+          .from('orders')
+          .select('id, created_at, service_id, category_id, payment_id, type')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+        if (error) { console.error('Failed to load orders', error); setEmbeddedOrders([]); return }
+        const ordersRaw = (data as any[]) ?? []
+        if (ordersRaw.length === 0) { setEmbeddedOrders([]); return }
+        const serviceIds = Array.from(new Set(ordersRaw.map(o => o.service_id).filter(Boolean)))
+        const categoryIds = Array.from(new Set(ordersRaw.map(o => o.category_id).filter(Boolean)))
+        const paymentIds = Array.from(new Set(ordersRaw.map(o => o.payment_id).filter(Boolean)))
+        const [servicesRes, categoriesRes, paymentsRes] = await Promise.all([
+          serviceIds.length ? supabase.from('services').select('id, name').in('id', serviceIds) : Promise.resolve({ data: [], error: null }),
+          categoryIds.length ? supabase.from('categories').select('id, name').in('id', categoryIds) : Promise.resolve({ data: [], error: null }),
+          paymentIds.length ? supabase.from('payments').select('id, razorpay_payment_id, total_amount, payment_status, payment_date, service_id, type').in('id', paymentIds) : Promise.resolve({ data: [], error: null }),
+        ])
+        const servicesMap = new Map((servicesRes?.data ?? []).map((s: any) => [s.id, s]))
+        const categoriesMap = new Map((categoriesRes?.data ?? []).map((c: any) => [c.id, c]))
+        const paymentsMap = new Map((paymentsRes?.data ?? []).map((p: any) => [p.id, p]))
+        const merged = ordersRaw.map((o: any) => ({
+          ...o,
+          services: servicesMap.get(o.service_id) ?? null,
+          categories: categoriesMap.get(o.category_id) ?? null,
+          payments: paymentsMap.get(o.payment_id) ?? null,
+        }))
+        setEmbeddedOrders(merged)
+      } catch (e) {
+        console.error('Exception loading embedded orders', e)
+        setEmbeddedOrders([])
+      } finally {
+        setEmbeddedOrdersLoading(false)
+      }
+    }
+    if (quoteView === 'orders') loadOrders()
+  }, [quoteView])
+
+  // Load embedded Profile when switching to Profile inside the quote page
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const sess = await supabase.auth.getSession()
+        const email = (sess as any)?.data?.session?.user?.email ?? null
+        const userId = (sess as any)?.data?.session?.user?.id ?? null
+        if (!email || !userId) { setEmbeddedProfile(null); return }
+        // Fetch profile row from users table by id, fallback by email
+        let prof: any | null = null
+        const { data: byId, error: errById } = await supabase
+          .from('users')
+          .select('id, email, first_name, last_name, company, phone, address, city, state, country')
+          .eq('id', userId)
+          .maybeSingle()
+        if (!errById && byId) prof = byId
+        if (!prof) {
+          const { data: byEmail } = await supabase
+            .from('users')
+            .select('id, email, first_name, last_name, company, phone, address, city, state, country')
+            .eq('email', email)
+            .maybeSingle()
+          if (byEmail) prof = byEmail
+        }
+        if (!prof) prof = { id: userId, email }
+        setEmbeddedProfile(prof)
+      } catch (e) {
+        console.error('Failed to load embedded profile', e)
+        setEmbeddedProfile(null)
+      }
+    }
+    if (quoteView === 'profile') loadProfile()
+  }, [quoteView])
+
+  const saveEmbeddedProfile = async () => {
+    if (!embeddedProfile) return
+    try {
+      setEmbeddedProfileSaving(true)
+      const payload = {
+        id: embeddedProfile.id ?? null,
+        email: embeddedProfile.email ?? null,
+        first_name: embeddedProfile.first_name || null,
+        last_name: embeddedProfile.last_name || null,
+        company: embeddedProfile.company || null,
+        phone: embeddedProfile.phone || null,
+        address: embeddedProfile.address || null,
+        city: embeddedProfile.city || null,
+        state: embeddedProfile.state || null,
+        country: embeddedProfile.country || null,
+      }
+      const { data, error } = await supabase
+        .from('users')
+        .upsert(payload, { onConflict: 'id' })
+        .select('id, email, first_name, last_name, company, phone, address, city, state, country')
+        .single()
+      if (error) {
+        console.error('Failed to save embedded profile', error)
+        alert(`Failed to save profile: ${error.message}`)
+        return
+      }
+      setEmbeddedProfile(data)
+    } finally {
+      setEmbeddedProfileSaving(false)
+    }
   }
 
  
@@ -1375,31 +1498,25 @@ const [isProcessingPayment, setIsProcessingPayment] = useState(false);
               return;
             }
             // Show local Thank You modal so the user can open forms immediately
-            const persisted = verifyJson.persistedPayment ?? null
-            const createdOrders = Array.isArray(verifyJson.createdOrdersClient) ? verifyJson.createdOrdersClient : (Array.isArray(verifyJson.createdOrders) ? verifyJson.createdOrders : [])
-            const paymentIdentifier = persisted?.razorpay_payment_id ?? persisted?.id ?? null
-            setCheckoutPayment(persisted)
-            setCheckoutOrders(createdOrders)
-            setShowCheckoutThankYou(true)
-            // Fallbacks:
-            // 1) If no orders were created on server (unexpected), redirect to Profile Orders so the server-side Thank You can load.
-            if (!createdOrders || createdOrders.length === 0) {
-              const base = (typeof window !== 'undefined') ? window.location.origin : ''
-              if (paymentIdentifier) window.location.href = `${base}/profile?tab=orders&payment_id=${encodeURIComponent(String(paymentIdentifier))}`
-              else window.location.href = `${base}/profile?tab=orders`
-              return
-            }
-            // 2) If the popup somehow fails to render in time, redirect as a safety net.
-            setTimeout(() => {
-              try {
-                const el = document.getElementById('checkout-thankyou-modal')
-                if (!el) {
-                  const base = (typeof window !== 'undefined') ? window.location.origin : ''
-                  if (paymentIdentifier) window.location.href = `${base}/profile?tab=orders&payment_id=${encodeURIComponent(String(paymentIdentifier))}`
-                  else window.location.href = `${base}/profile?tab=orders`
-                }
-              } catch {}
-            }, 1200)
+            const persisted = verifyJson.persistedPayment ?? null;
+            const createdOrders =
+                Array.isArray(verifyJson.createdOrdersClient) ? verifyJson.createdOrdersClient
+                : (Array.isArray(verifyJson.createdOrders) ? verifyJson.createdOrders : []);
+            const paymentIdentifier = persisted?.razorpay_payment_id ?? persisted?.id ?? null;
+
+              // Ensure the in-app dashboard is shown beneath the modal
+            setShowQuotePage(true);
+            setQuoteView('orders'); // or 'orders' if you want to land on Orders
+            setIsOpen(false);
+
+              // Save payment and orders to state
+            setCheckoutPayment(persisted);
+            setCheckoutOrders(createdOrders); // <-- this expects an array, not a function
+            setShowCheckoutThankYou(true);
+            // Clear cart so Services screen shows empty after successful payment
+            setCartItems([]);
+            setIsProcessingPayment(false);
+            // Fallbacks removed: keep user on in-page dashboard and show modal persistently.
           } catch (err) {
             console.error('Error verifying payment:', err);
             alert('Payment succeeded but verification failed. We will investigate.');
@@ -1678,6 +1795,13 @@ if (showQuotePage) {
   return (
     <div className="min-h-screen bg-gray-50">
       <PaymentProcessingModal isVisible={isProcessingPayment} />
+      {/* Unified Checkout Thank You Modal (dashboard view) */}
+      <CheckoutModal
+        isOpen={showCheckoutThankYou}
+        onClose={() => setShowCheckoutThankYou(false)}
+        payment={checkoutPayment}
+        orders={checkoutOrders}
+      />
       {/* Header */}
       <header className="bg-white shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1713,79 +1837,219 @@ if (showQuotePage) {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex gap-8">
-          {/* Left Side - Selected Services */}
-          <div className="flex-1">
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Your Selected Services</h1>
-              <p className="text-gray-600">
-                Review your selected IP protection services and customize your quote
-              </p>
+          {/* Left Pane: Controls */}
+          <aside className="hidden md:block w-64 shrink-0">
+            <div className="bg-white border rounded-lg p-4 sticky top-24">
+              <div className="space-y-2">
+                <div className="text-sm font-semibold text-gray-700">Dashboard</div>
+                {cartItems.length > 0 && (
+                  <Button
+                    variant={quoteView === 'services' ? undefined : 'outline'}
+                    className="w-full justify-start"
+                    onClick={() => setQuoteView('services')}
+                  >
+                    Services
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => setQuoteView('orders')}
+                >
+                  Orders
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => setQuoteView('profile')}
+                >
+                  Profile
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="w-full justify-start"
+                  disabled={!isAuthenticated}
+                  onClick={handleLogout}
+                >
+                  Logout
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                >
+                  Forms
+                </Button>
+              </div>
             </div>
+          </aside>
 
-            <div className="space-y-6">
-              {cartItems.map((item) => (
-                <Card key={item.id} className="bg-white">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center mb-2">
-                          <span className="inline-block px-3 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full mr-3">
-                            {item.category}
-                          </span>
-                          <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
-                        </div>
-                        <p className="text-gray-600 text-sm mb-3">
-                          Professional {item.category.toLowerCase()} service with comprehensive coverage and expert guidance.
-                        </p>
-                        {item.details && (
-                          <p className="text-xs text-gray-500 mb-2">Details: {item.details}</p>
-                        )}
+          {/* Main: Selected Services and Payment */}
+          <div className="flex-1">
+            {quoteView === 'services' && (
+              <>
+                <div className="mb-8">
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">Your Selected Services</h1>
+                  <p className="text-gray-600">Review your selected IP protection services and customize your quote</p>
+                </div>
+                <div className="space-y-6">
+                  {cartItems.map((item) => (
+                    <Card key={item.id} className="bg-white">
+                      <CardContent className="p-6">
                         <div className="flex items-center justify-between">
-                          <span className="text-2xl font-bold text-blue-600">
-                            {formatINR(item.price)}
-                          </span>
-                          <Button
-                            onClick={() => removeFromCart(item.id)}
-                            variant="outline"
-                            size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            Remove
-                          </Button>
+                          <div className="flex-1">
+                            <div className="flex items-center mb-2">
+                              <span className="inline-block px-3 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full mr-3">{item.category}</span>
+                              <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
+                            </div>
+                            <p className="text-gray-600 text-sm mb-3">Professional {item.category.toLowerCase()} service with comprehensive coverage and expert guidance.</p>
+                            {item.details && (<p className="text-xs text-gray-500 mb-2">Details: {item.details}</p>)}
+                            <div className="flex items-center justify-between">
+                              <span className="text-2xl font-bold text-blue-600">{formatINR(item.price)}</span>
+                              <Button onClick={() => removeFromCart(item.id)} variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">Remove</Button>
+                            </div>
+                          </div>
                         </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                  {cartItems.length === 0 && (
+                    <Card className="bg-white">
+                      <CardContent className="p-12 text-center">
+                        <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No services selected</h3>
+                        <p className="text-gray-600 mb-4">Add some services to create your quote</p>
+                        <Button onClick={() => setShowQuotePage(false)} className="bg-blue-600 hover:bg-blue-700">Browse Services</Button>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+                <div className="flex justify-center items-center mt-8">
+                  <Button className="w-full max-w-sm bg-blue-600 hover:bg-blue-700 text-white" onClick={handlePayment}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Make Payment
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {quoteView === 'orders' && (
+              <>
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h1 className="text-2xl font-semibold text-gray-900">Orders</h1>
+                    <p className="text-gray-600 text-sm">Your recent service purchases</p>
+                  </div>
+                  <Button variant="outline" onClick={() => setQuoteView('services')}>Back to Selected Services</Button>
+                </div>
+                <Card className="bg-white">
+                  <CardContent className="p-4">
+                    {embeddedOrdersLoading && <div className="p-4 text-sm text-gray-500">Loading orders…</div>}
+                    {!embeddedOrdersLoading && (!embeddedOrders || embeddedOrders.length === 0) && (
+                      <div className="p-4 text-sm text-gray-500">No orders found.</div>
+                    )}
+                    {!embeddedOrdersLoading && embeddedOrders && embeddedOrders.length > 0 && (
+                      <div className="overflow-x-auto">
+                        <table className="w-full table-auto border-collapse">
+                          <thead>
+                            <tr className="text-left text-sm text-gray-500">
+                              <th className="p-2">Category</th>
+                              <th className="p-2">Service</th>
+                              <th className="p-2">Amount</th>
+                              <th className="p-2">Date</th>
+                              <th className="p-2">Form</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {embeddedOrders.map((o: any) => (
+                              <tr key={o.id} className="border-t">
+                                <td className="p-2">{(o.categories as any)?.name ?? 'N/A'}</td>
+                                <td className="p-2">{(o.services as any)?.name ?? 'N/A'}</td>
+                                <td className="p-2">{(o.payments as any)?.total_amount ? formatINR((o.payments as any).total_amount) : 'N/A'}</td>
+                                <td className="p-2">{o.created_at ? new Date(o.created_at).toLocaleString() : 'N/A'}</td>
+                                <td className="p-2">
+                                  <Button size="sm" variant="outline" onClick={() => {
+                                    const t = resolveFormTypeFromOrderLike(o)
+                                    if (!t) { alert('No form available for this order'); return }
+                                    try {
+                                      const base = typeof window !== 'undefined' ? window.location.origin : ''
+                                      const url = `${base}/forms?type=${encodeURIComponent(t)}&order_id=${encodeURIComponent(o.id)}`
+                                      window.open(url, '_blank')
+                                    } catch (e) { console.error('Open form error', e) }
+                                  }}>Open</Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
-              ))}
-
-              {cartItems.length === 0 && (
-              <Card className="bg-white">
-                <CardContent className="p-12 text-center">
-                  <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No services selected</h3>
-                  <p className="text-gray-600 mb-4">Add some services to create your quote</p>
-                  <Button
-                    onClick={() => setShowQuotePage(false)}
-                    className="bg-blue-600 hover:bg-blue-700"
-                  >
-                    Browse Services
-                  </Button>
-                </CardContent>
-              </Card>
+              </>
             )}
-            </div>
 
-            {/* Make Payment Button */}
-            <div className="flex justify-center items-center mt-8">
-              <Button
-                className="w-full max-w-sm bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={handlePayment}
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                Make Payment
-              </Button>
-            </div>
+            {quoteView === 'profile' && (
+              <>
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h1 className="text-2xl font-semibold text-gray-900">Profile</h1>
+                    <p className="text-gray-600 text-sm">Update your account information</p>
+                  </div>
+                  <Button variant="outline" onClick={() => setQuoteView('services')}>Back to Selected Services</Button>
+                </div>
+                {!embeddedProfile && (
+                  <Card className="bg-white">
+                    <CardContent className="p-4 text-sm text-gray-500">Sign in to view your profile.</CardContent>
+                  </Card>
+                )}
+                {embeddedProfile && (
+                  <Card className="bg-white">
+                    <CardContent className="p-6 space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-sm">First Name</Label>
+                          <Input value={embeddedProfile.first_name ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, first_name: (e.target as HTMLInputElement).value })} />
+                        </div>
+                        <div>
+                          <Label className="text-sm">Last Name</Label>
+                          <Input value={embeddedProfile.last_name ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, last_name: (e.target as HTMLInputElement).value })} />
+                        </div>
+                        <div>
+                          <Label className="text-sm">Company</Label>
+                          <Input value={embeddedProfile.company ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, company: (e.target as HTMLInputElement).value })} />
+                        </div>
+                        <div>
+                          <Label className="text-sm">Phone</Label>
+                          <Input value={embeddedProfile.phone ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, phone: (e.target as HTMLInputElement).value })} />
+                        </div>
+                        <div className="md:col-span-2">
+                          <Label className="text-sm">Address</Label>
+                          <Input value={embeddedProfile.address ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, address: (e.target as HTMLInputElement).value })} />
+                        </div>
+                        <div>
+                          <Label className="text-sm">City</Label>
+                          <Input value={embeddedProfile.city ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, city: (e.target as HTMLInputElement).value })} />
+                        </div>
+                        <div>
+                          <Label className="text-sm">State</Label>
+                          <Input value={embeddedProfile.state ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, state: (e.target as HTMLInputElement).value })} />
+                        </div>
+                        <div>
+                          <Label className="text-sm">Country</Label>
+                          <Input value={embeddedProfile.country ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, country: (e.target as HTMLInputElement).value })} />
+                        </div>
+                      </div>
+                      <div className="flex justify-end">
+                        <Button onClick={saveEmbeddedProfile} disabled={embeddedProfileSaving} className="bg-blue-600 hover:bg-blue-700">
+                          {embeddedProfileSaving ? 'Saving…' : 'Save Profile'}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1856,9 +2120,12 @@ if (showQuotePage) {
    
           {isOpen && (
           <div className="absolute right-0 mt-2 w-56 bg-white shadow-lg rounded-lg py-2 border border-gray-200 z-50">
-            <a href="/profile" className="block px-4 py-2 text-gray-700 hover:bg-gray-100">
-              Manage Profile
-            </a>
+            <button
+              className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+              onClick={() => { setShowQuotePage(true); setQuoteView('services'); setIsOpen(false); }}
+            >
+              Dashboard
+            </button>
             {!isAuthenticated && (
               <button
                 onClick={() => { goToQuotePage(); setIsOpen(false); }}
@@ -2522,103 +2789,13 @@ if (showQuotePage) {
       {/* Footer */}
       <Footer />
 
-      {/* Checkout Thank You Modal: open forms immediately */}
-      {showCheckoutThankYou && (
-        <div id="checkout-thankyou-modal" className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl">
-            <div className="mb-4">
-              <h2 className="text-xl font-semibold">Thank you for your order</h2>
-              <p className="text-sm text-gray-600">Payment verified. You can proceed to the forms now.</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm mb-4">
-              <div>
-                <div className="text-gray-500">Payment ID</div>
-                <div className="font-medium">{checkoutPayment?.razorpay_payment_id ?? checkoutPayment?.id ?? '—'}</div>
-              </div>
-              <div>
-                <div className="text-gray-500">Date</div>
-                <div className="font-medium">{checkoutPayment?.payment_date ? new Date(checkoutPayment.payment_date).toLocaleString() : '—'}</div>
-              </div>
-              <div>
-                <div className="text-gray-500">Amount</div>
-                <div className="font-medium">{checkoutPayment?.total_amount ?? '—'}</div>
-              </div>
-              <div>
-                <div className="text-gray-500">Status</div>
-                <div className="font-medium">{checkoutPayment?.payment_status ?? '—'}</div>
-              </div>
-            </div>
-
-            {checkoutOrders.length > 1 ? (
-              <div>
-                <div className="mb-2 text-sm text-gray-600">Multiple services detected. Open each form below:</div>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {checkoutOrders.map((o) => (
-                    <button
-                      key={o.id}
-                      className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
-                      onClick={() => {
-                        try {
-                          const base = typeof window !== 'undefined' ? window.location.origin : ''
-                          const type = resolveFormTypeFromOrderLike(o)
-                          const pk = o.service_pricing_key ? String(o.service_pricing_key) : ''
-                          const url = `${base}/forms?${pk ? `pricing_key=${encodeURIComponent(pk)}&` : ''}type=${encodeURIComponent(type)}&order_id=${encodeURIComponent(o.id)}`
-                          window.open(url, '_blank')
-                        } catch (e) { console.error('Open form error', e) }
-                      }}
-                    >
-                      {(o.services as any)?.name || 'Service'}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center justify-end">
-                  <button
-                    className="inline-flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-                    onClick={() => {
-                      try {
-                        const base = typeof window !== 'undefined' ? window.location.origin : ''
-                        checkoutOrders.forEach((o) => {
-                          const type = resolveFormTypeFromOrderLike(o)
-                          const pk = o.service_pricing_key ? String(o.service_pricing_key) : ''
-                          const url = `${base}/forms?${pk ? `pricing_key=${encodeURIComponent(pk)}&` : ''}type=${encodeURIComponent(type)}&order_id=${encodeURIComponent(o.id)}`
-                          window.open(url, '_blank')
-                        })
-                      } catch (e) { console.error('Open all forms error', e) }
-                    }}
-                  >
-                    Proceed to Forms
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {checkoutOrders.length === 1 ? (
-              <div className="flex items-center justify-between">
-                <div />
-                <button
-                  className="inline-flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-                  onClick={() => {
-                    const o = checkoutOrders[0]
-                    try {
-                      const base = typeof window !== 'undefined' ? window.location.origin : ''
-                      const type = resolveFormTypeFromOrderLike(o)
-                      const pk = o.service_pricing_key ? String(o.service_pricing_key) : ''
-                      const url = `${base}/forms?${pk ? `pricing_key=${encodeURIComponent(pk)}&` : ''}type=${encodeURIComponent(type)}&order_id=${encodeURIComponent(o.id)}`
-                      window.open(url, '_blank')
-                    } catch (e) { console.error('Open form error', e) }
-                  }}
-                >
-                  Proceed to Form
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-end">
-                <button className="rounded border px-3 py-2 text-sm" onClick={() => setShowCheckoutThankYou(false)}>Close</button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Unified Checkout Thank You Modal (home view) */}
+      <CheckoutModal
+        isOpen={showCheckoutThankYou}
+        onClose={() => setShowCheckoutThankYou(false)}
+        payment={checkoutPayment}
+        orders={checkoutOrders}
+      />
     </div>
   )
 }
