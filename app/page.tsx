@@ -12,6 +12,7 @@ import { PaymentProcessingModal } from "@/components/PaymentProcessingModal";
 import { useAuthProfile } from "@/app/useAuthProfile"
 
 
+
 const services = [
   "Patentability Search",
   "Drafting",
@@ -50,6 +51,7 @@ import {
 import { Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import CheckoutModal from "@/components/checkout-modal"
+import FormClient from "./forms/FormClient"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -93,7 +95,7 @@ export default function LegalIPWebsite() {
    
   const [showQuotePage, setShowQuotePage] = useState(false)
   // Inside the quote page, control which content shows in the main area
-  const [quoteView, setQuoteView] = useState<'services' | 'orders' | 'profile'>('services')
+  const [quoteView, setQuoteView] = useState<'services' | 'orders' | 'profile' | 'forms'>('services')
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
   const [showPassword, setShowPassword] = useState(false)
@@ -176,6 +178,9 @@ export default function LegalIPWebsite() {
   // Embedded Orders/Profile state when viewing within the quote view
   const [embeddedOrders, setEmbeddedOrders] = useState<any[]>([])
   const [embeddedOrdersLoading, setEmbeddedOrdersLoading] = useState(false)
+  // Embedded Forms selection state
+  const [selectedFormOrderId, setSelectedFormOrderId] = useState<number | null>(null)
+  const [selectedFormType, setSelectedFormType] = useState<string | null>(null)
   const [embeddedProfile, setEmbeddedProfile] = useState<any | null>(null)
   const [embeddedProfileSaving, setEmbeddedProfileSaving] = useState(false)
 
@@ -1971,11 +1976,9 @@ if (showQuotePage) {
                                   <Button size="sm" variant="outline" onClick={() => {
                                     const t = resolveFormTypeFromOrderLike(o)
                                     if (!t) { alert('No form available for this order'); return }
-                                    try {
-                                      const base = typeof window !== 'undefined' ? window.location.origin : ''
-                                      const url = `${base}/forms?type=${encodeURIComponent(t)}&order_id=${encodeURIComponent(o.id)}`
-                                      window.open(url, '_blank')
-                                    } catch (e) { console.error('Open form error', e) }
+                                    setSelectedFormOrderId(Number(o.id))
+                                    setSelectedFormType(String(t))
+                                    setQuoteView('forms')
                                   }}>Open</Button>
                                 </td>
                               </tr>
@@ -1984,6 +1987,25 @@ if (showQuotePage) {
                         </table>
                       </div>
                     )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
+            {quoteView === 'forms' && (
+              <>
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h1 className="text-2xl font-semibold text-gray-900">Forms</h1>
+                    <p className="text-gray-600 text-sm">Fill and save your application details</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setQuoteView('orders')}>Back to Orders</Button>
+                    <Button variant="outline" onClick={() => setQuoteView('services')}>Back to Selected Services</Button>
+                  </div>
+                </div>
+                <Card className="bg-white">
+                  <CardContent className="p-0">
+                    <FormClient orderIdProp={selectedFormOrderId} typeProp={selectedFormType} />
                   </CardContent>
                 </Card>
               </>

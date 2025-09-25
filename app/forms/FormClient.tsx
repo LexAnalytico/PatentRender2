@@ -43,7 +43,7 @@ const applicationTypes = [
   
 ]
 
-export default function IPFormBuilderClient() {
+export default function IPFormBuilderClient({ orderIdProp, typeProp }: { orderIdProp?: number | null; typeProp?: string | null } = {}) {
   const [selectedType, setSelectedType] = useState<string>("")
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [prefillOpen, setPrefillOpen] = useState(false)
@@ -51,16 +51,18 @@ export default function IPFormBuilderClient() {
   const toastHook = useToast?.()
   const toast = toastHook ?? { toast: (opts: any) => { if (opts?.title) alert(`${opts.title}\n${opts?.description || ""}`) } }
   const searchParams = useSearchParams()
+  const orderIdFromProps = orderIdProp ?? null
+  const typeFromProps = typeProp ?? null
   // If the form is opened from an order (order_id in URL), lock the application type
-  const isOrderLocked = !!(searchParams?.get("order_id") || "")
+  const isOrderLocked = !!(orderIdFromProps || (searchParams?.get("order_id") || ""))
 
   useEffect(() => {
-  const urlPricingKey = searchParams?.get("pricing_key") || ""
-  const urlType = searchParams?.get("type") || ""
+    const urlPricingKey = searchParams?.get("pricing_key") || ""
+    const urlType = searchParams?.get("type") || ""
     const orderIdRaw = searchParams?.get("order_id") || ""
-    const orderIdNum = orderIdRaw ? Number(orderIdRaw) : null
+    const orderIdNum = orderIdFromProps != null ? Number(orderIdFromProps) : (orderIdRaw ? Number(orderIdRaw) : null)
 
-  console.log('Debug FormClient - URL params:', { pricing_key: urlPricingKey, type: urlType, orderId: orderIdNum })
+    console.log('Debug FormClient - URL params:', { pricing_key: urlPricingKey, type: urlType, orderId: orderIdNum })
 
     // Priority 1: pricing_key in URL (pricing rule key) -> map to canonical
     if (urlPricingKey) {
@@ -137,8 +139,8 @@ export default function IPFormBuilderClient() {
           }
         }
 
-        // Choose final: prefer resolved-from-order/payment; else fallback to URL; else do nothing
-        const finalType = resolved || urlCanonical
+        // Choose final: prefer explicit typeProp, then resolved-from-order/payment; else fallback to URL
+        const finalType = (typeFromProps && applicationTypes.some((t) => t.key === typeFromProps) ? typeFromProps : null) || resolved || urlCanonical
         console.log('Debug FormClient - final selected type:', finalType)
         if (mounted && finalType && applicationTypes.some((t) => t.key === finalType)) {
           setSelectedType(finalType)
@@ -153,7 +155,7 @@ export default function IPFormBuilderClient() {
       mounted = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
+  }, [searchParams, orderIdFromProps, typeFromProps])
 
   // remember last selected application type so checkout can pick it up
   useEffect(() => {
@@ -231,7 +233,7 @@ export default function IPFormBuilderClient() {
     })
   }
 
-  // Load form values when type changes: pull DB for this order+type; else offer prefill from any existing form for this user
+  // Load form values when type changes: pull DB for this order+type; else offer prefill
   useEffect(() => {
     if (!selectedType) return
     let active = true
@@ -240,7 +242,10 @@ export default function IPFormBuilderClient() {
         const { data: sessionRes } = await supabase.auth.getSession()
         const userId = sessionRes?.session?.user?.id || null
         if (!userId) { setFormValues({}); return }
-  const orderId = (() => { const v = searchParams?.get('order_id'); const n = v != null ? Number(v) : null; return (n != null && !Number.isNaN(n)) ? n : null })()
+        const orderId = (() => {
+          if (orderIdFromProps != null && !Number.isNaN(Number(orderIdFromProps))) return Number(orderIdFromProps)
+          const v = searchParams?.get('order_id'); const n = v != null ? Number(v) : null; return (n != null && !Number.isNaN(n)) ? n : null
+        })()
         // Try exact match first: this order + this type
         let exactData: any = null
   if (orderId != null) {
@@ -296,7 +301,7 @@ export default function IPFormBuilderClient() {
     })()
     return () => { active = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedType])
+  }, [selectedType, orderIdFromProps])
 
   const relevantFields = selectedType ? getRelevantFields(selectedType) : []
 
