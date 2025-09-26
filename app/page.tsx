@@ -105,6 +105,32 @@ const openFirstFormEmbedded = () => {
       details?: string
     }>
   >([])
+  const [cartLoaded, setCartLoaded] = useState(false)
+
+  // Load cart from localStorage after mount to avoid SSR/client mismatch
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("cart_items_v1")
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed)) setCartItems(parsed)
+      }
+    } catch (e) {
+      console.warn("Failed to load cart from localStorage", e)
+    } finally {
+      setCartLoaded(true)
+    }
+  }, [])
+
+  // Save to localStorage on change, but only after initial load
+  useEffect(() => {
+    if (!cartLoaded) return
+    try {
+      localStorage.setItem("cart_items_v1", JSON.stringify(cartItems))
+    } catch (e) {
+      console.warn("Failed to save cart to localStorage", e)
+    }
+  }, [cartItems, cartLoaded])
    
   const [showQuotePage, setShowQuotePage] = useState(false)
   // Inside the quote page, control which content shows in the main area
@@ -600,7 +626,7 @@ const patentServices = [
   const prevSlide = () => {
     setCurrentSlide((prev) => (prev - 1 + bannerSlides.length) % bannerSlides.length)
   }
-
+  
   const addToCart = (serviceName: string, category: string) => {
     const price = servicePricing[serviceName as keyof typeof servicePricing] || 0
     const newItem = {
@@ -624,9 +650,10 @@ const patentServices = [
   }
 
   const clearCart = () => {
-    setCartItems([])
+  setCartItems([])
+  try { localStorage.removeItem("cart_items_v1") } catch {}
   }
-
+  
   // When user clicks a Navbar service link (/#section) from the Selected Services view,
   // auto-close the quote page and scroll to the requested section on the main page.
   useEffect(() => {
@@ -634,19 +661,31 @@ const patentServices = [
     const handleInitialHash = () => {
       const hash = typeof window !== 'undefined' ? window.location.hash : ''
       const targets = new Set(['#patent-services', '#trademark-services', '#copyright-services', '#design-services'])
-      if (!hash || !targets.has(hash)) return
-      setShowQuotePage(false)
-      setTimeout(() => {
-        const id = hash.slice(1)
-        const el = document.getElementById(id)
-        if (el) el.scrollIntoView({ behavior: 'smooth' })
-        // Clean URL to remove the hash
-        try {
-          const url = new URL(window.location.href)
-          url.hash = ''
-          window.history.replaceState({}, '', url.toString())
-        } catch {}
-      }, 80)
+      if (hash && targets.has(hash)) {
+        setShowQuotePage(false)
+        setTimeout(() => {
+          const id = hash.slice(1)
+          const el = document.getElementById(id)
+          if (el) el.scrollIntoView({ behavior: 'smooth' })
+          // Clean URL to remove the hash
+          try {
+            const url = new URL(window.location.href)
+            url.hash = ''
+            window.history.replaceState({}, '', url.toString())
+          } catch {}
+        }, 80)
+        return
+      }
+      // If we have a stray hash (e.g., from OAuth tokens or just '#'), strip it after auth initializes
+      if (hash && !targets.has(hash)) {
+        setTimeout(() => {
+          try {
+            const url = new URL(window.location.href)
+            url.hash = ''
+            window.history.replaceState({}, '', url.toString())
+          } catch {}
+        }, 300)
+      }
     }
 
     const handleGoSection = (e: Event) => {
@@ -1515,6 +1554,7 @@ const [isProcessingPayment, setIsProcessingPayment] = useState(false);
               setIsProcessingPayment(false);  
               return;
             }
+            
             // Show local Thank You modal so the user can open forms immediately
             const persisted = verifyJson.persistedPayment ?? null;
             const createdOrders =
@@ -1524,16 +1564,19 @@ const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
               // Ensure the in-app dashboard is shown beneath the modal
             setShowQuotePage(true);
-            setQuoteView('orders'); // or 'orders' if you want to land on Orders
+            setQuoteView("orders");
             setIsOpen(false);
 
               // Save payment and orders to state
             setCheckoutPayment(persisted);
-            setCheckoutOrders(createdOrders); // <-- this expects an array, not a function
+            setCheckoutOrders(createdOrders);
             setShowCheckoutThankYou(true);
             // Clear cart so Services screen shows empty after successful payment
             setCartItems([]);
             setIsProcessingPayment(false);
+            if (!createdOrders || createdOrders.length === 0) {
+                setQuoteView('orders')
+              }
             // Fallbacks removed: keep user on in-page dashboard and show modal persistently.
           } catch (err) {
             console.error('Error verifying payment:', err);
@@ -1541,6 +1584,7 @@ const [isProcessingPayment, setIsProcessingPayment] = useState(false);
             setIsProcessingPayment(false);  
           }
         },
+        
         prefill: {
           name: user?.user_metadata?.full_name || '',
           email: user?.email || '',
@@ -1991,9 +2035,10 @@ if (showQuotePage) {
                                   <Button size="sm" variant="outline" onClick={() => {
                                     const t = resolveFormTypeFromOrderLike(o)
                                     if (!t) { alert('No form available for this order'); return }
-                                    setSelectedFormOrderId(Number(o.id))
-                                    setSelectedFormType(String(t))
-                                    setQuoteView('forms')
+                                    //setSelectedFormOrderId(Number(o.id))
+                                    //setSelectedFormType(String(t))
+                                    //setQuoteView('forms')
+                                    openFormEmbedded(o)
                                   }}>Open</Button>
                                 </td>
                               </tr>
@@ -2157,27 +2202,47 @@ if (showQuotePage) {
    
           {isOpen && (
           <div className="absolute right-0 mt-2 w-56 bg-white shadow-lg rounded-lg py-2 border border-gray-200 z-50">
+            {/* Dashboard: visible but disabled when not signed in */}
             <button
-              className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
-              onClick={() => { setShowQuotePage(true); setQuoteView('services'); setIsOpen(false); }}
+              className={`block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 ${!isAuthenticated ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
+              onClick={() => {
+                if (!isAuthenticated) return
+                setShowQuotePage(true)
+                setQuoteView('services')
+                setIsOpen(false)
+              }}
+              disabled={!isAuthenticated}
+              aria-disabled={!isAuthenticated}
+              title={!isAuthenticated ? 'Sign in to access dashboard' : undefined}
             >
               Dashboard
             </button>
-            {!isAuthenticated && (
-              <button
-                onClick={() => { goToQuotePage(); setIsOpen(false); }}
-                className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
-              >
-                Sign In
-              </button>
-            )}
+
+            {/* Sign In: always shown; disabled once signed in */}
             <button
-            onClick={() => { handleLogout(); setIsOpen(false); }}
-            className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
-            disabled={!isAuthenticated}
-          >
-            Sign Out
-          </button>
+              onClick={() => {
+                if (isAuthenticated) return
+                goToQuotePage()
+                setIsOpen(false)
+              }}
+              className={`block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 ${isAuthenticated ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
+              disabled={isAuthenticated}
+              aria-disabled={isAuthenticated}
+              title={isAuthenticated ? 'Already signed in' : undefined}
+            >
+              Sign In
+            </button>
+
+            {/* Sign Out: visible but disabled when not signed in */}
+            <button
+              onClick={() => { if (!isAuthenticated) return; handleLogout(); setIsOpen(false); }}
+              className={`block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 ${!isAuthenticated ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
+              disabled={!isAuthenticated}
+              aria-disabled={!isAuthenticated}
+              title={!isAuthenticated ? 'Sign in to enable sign out' : undefined}
+            >
+              Sign Out
+            </button>
           </div>
         )}
         </div>
