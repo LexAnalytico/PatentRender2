@@ -252,10 +252,11 @@ const openFirstFormEmbedded = () => {
     "First Examination Response": 4,
   }
 
-  // Ensure when quote page opens, we default to showing Services view
+  // Track which view should show first when opening dashboard (default services; can be overridden to orders)
+  const [initialQuoteView, setInitialQuoteView] = useState<'services' | 'orders' | 'profile' | 'forms'>('services')
   useEffect(() => {
-    if (showQuotePage) setQuoteView('services')
-  }, [showQuotePage])
+    if (showQuotePage) setQuoteView(initialQuoteView)
+  }, [showQuotePage, initialQuoteView])
 
   // Reload key to force orders refresh when navigating back from forms or other contexts
   const [ordersReloadKey, setOrdersReloadKey] = useState(0)
@@ -1365,8 +1366,17 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
     setShowAuthModal(true)
   } else {
     setIsOpen(false) // close dropdown if coming from header menu
+    setInitialQuoteView('services')
     setShowQuotePage(true)
+    setQuoteView('services')
   }
+}
+// Programmatic navigation to services view (e.g., from Orders or external trigger)
+const goToServices = () => {
+  setInitialQuoteView('services')
+  setShowQuotePage(true)
+  setQuoteView('services')
+  setIsOpen(false)
 }
 // 3) In the auth listener, honor intent but don’t force navigation otherwise
 useEffect(() => {
@@ -1954,26 +1964,18 @@ if (showQuotePage) {
           <aside className="hidden md:block w-64 shrink-0">
             <div className="bg-white border rounded-lg p-4 sticky top-24">
               <div className="space-y-2">
-                <div className="text-sm font-semibold text-gray-700">Dashboard</div>
-                {cartItems.length > 0 && (
-                  <Button
-                    variant={quoteView === 'services' ? undefined : 'outline'}
-                    className="w-full justify-start"
-                    onClick={() => setQuoteView('services')}
-                  >
-                    Services
-                  </Button>
-                )}
+                <div className="text-base font-semibold text-gray-800">Dashboard</div>
+                {/* Services button removed: view selected programmatically */}
                 <Button
-                  variant="outline"
-                  className="w-full justify-start"
+                  variant={quoteView === 'orders' ? undefined : 'outline'}
+                  className={`w-full justify-start ${quoteView === 'orders' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
                   onClick={() => setQuoteView('orders')}
                 >
                   Orders
                 </Button>
                 <Button
-                  variant="outline"
-                  className="w-full justify-start"
+                  variant={quoteView === 'profile' ? undefined : 'outline'}
+                  className={`w-full justify-start ${quoteView === 'profile' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
                   onClick={() => setQuoteView('profile')}
                 >
                   Profile
@@ -1985,12 +1987,6 @@ if (showQuotePage) {
                   onClick={handleLogout}
                 >
                   Logout
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                >
-                  Forms
                 </Button>
               </div>
             </div>
@@ -2054,8 +2050,7 @@ if (showQuotePage) {
                     <p className="text-gray-600 text-sm">Your recent service purchases</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={goToOrders}>Back to Orders</Button>
-                    <Button variant="outline" onClick={() => setQuoteView('services')}>Back to Selected Services</Button>
+                    <Button variant="outline" onClick={goToServices}>Services</Button>
                     <Button variant="outline" onClick={() => setOrdersReloadKey(k => k + 1)} disabled={embeddedOrdersLoading}>Refresh</Button>
                   </div>
                 </div>
@@ -2260,8 +2255,8 @@ if (showQuotePage) {
               className={`block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 ${!isAuthenticated ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
               onClick={() => {
                 if (!isAuthenticated) return
+                setInitialQuoteView('orders')
                 setShowQuotePage(true)
-                setQuoteView('services')
                 setIsOpen(false)
               }}
               disabled={!isAuthenticated}

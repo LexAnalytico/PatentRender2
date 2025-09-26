@@ -48,6 +48,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp }: { orderId
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [prefillOpen, setPrefillOpen] = useState(false)
   const [prefillCandidate, setPrefillCandidate] = useState<Record<string, string> | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveSuccessTs, setSaveSuccessTs] = useState<number | null>(null)
   const toastHook = useToast?.()
   const toast = toastHook ?? { toast: (opts: any) => { if (opts?.title) alert(`${opts.title}\n${opts?.description || ""}`) } }
   const searchParams = useSearchParams()
@@ -195,6 +197,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp }: { orderId
 
     ;(async () => {
       try {
+        setSaving(true)
         const { data: sessionRes } = await supabase.auth.getSession()
         const userId = sessionRes?.session?.user?.id || null
         if (!userId) throw new Error('Not signed in')
@@ -218,9 +221,14 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp }: { orderId
           title: 'Form Saved',
           description: `Saved ${filledFields.length}/${relevantFields.length} fields${payload.completed ? ' (Completed)' : ''}.`,
         })
+        setSaveSuccessTs(Date.now())
       } catch (e: any) {
         console.error('Save error', e)
         toast.toast?.({ title: 'Save failed', description: e?.message || 'Unable to save form', variant: 'destructive' })
+        setSaveSuccessTs(null)
+      }
+      finally {
+        setSaving(false)
       }
     })()
   }
@@ -392,13 +400,30 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp }: { orderId
                 </div>
               </div>
 
-              <div className="flex gap-4 pt-6 border-t">
-                <Button onClick={handleSave} className="flex-1">
-                  Save Form
-                </Button>
-                <Button onClick={handleCancel} variant="outline" className="flex-1 bg-transparent">
-                  Cancel
-                </Button>
+              <div className="flex flex-col gap-3 pt-6 border-t">
+                <div className="flex gap-4">
+                  <Button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className={`flex-1 relative bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-[0_4px_0_0_#1e3a8a] active:translate-y-[2px] active:shadow-[0_2px_0_0_#1e3a8a] transition-all duration-150 ${saving ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  >
+                    {saving ? 'Saving...' : 'Save Form'}
+                  </Button>
+                  <Button
+                    onClick={handleCancel}
+                    variant="outline"
+                    className="flex-1 bg-white font-medium"
+                    disabled={saving}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                {saveSuccessTs && (
+                  <div className="text-sm text-green-600 font-medium flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
+                    Data saved
+                  </div>
+                )}
               </div>
             </>
           )}
