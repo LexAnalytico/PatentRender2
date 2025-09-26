@@ -257,49 +257,98 @@ const openFirstFormEmbedded = () => {
     if (showQuotePage) setQuoteView('services')
   }, [showQuotePage])
 
+  // Reload key to force orders refresh when navigating back from forms or other contexts
+  const [ordersReloadKey, setOrdersReloadKey] = useState(0)
+
+  // Centralized navigation back to Orders view; clears form selection and closes transient UI
+  const goToOrders = () => {
+    setShowQuotePage(true)
+    setQuoteView('orders')
+    setShowCheckoutThankYou(false)
+    setIsOpen(false)
+    setSelectedFormOrderId(null)
+    setSelectedFormType(null)
+    setOrdersReloadKey(k => k + 1) // trigger reload
+  }
+
   // Load embedded Orders list when switching to Orders inside the quote page
   useEffect(() => {
     const loadOrders = async () => {
+      setEmbeddedOrders([]) // clear old rows
+      setEmbeddedOrdersLoading(true)
       try {
-        setEmbeddedOrdersLoading(true)
-        const userRes = await supabase.auth.getUser()
-        const user = (userRes && (userRes as any).data) ? (userRes as any).data.user : null
-        if (!user) { setEmbeddedOrders([]); return }
+        console.log('[Orders] Loading start')
+        const { data: sessionRes } = await supabase.auth.getSession()
+        const userId = sessionRes?.session?.user?.id || null
+        if (!userId) {
+          // unauthenticated → nothing to load; show “No orders found.”
+          setEmbeddedOrders([])
+          console.log('[Orders] No user session; abort')
+          return
+        }
+
         const { data, error } = await supabase
-          .from('orders')
-          .select('id, created_at, service_id, category_id, payment_id, type')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-        if (error) { console.error('Failed to load orders', error); setEmbeddedOrders([]); return }
+          .from("orders")
+          .select("id, created_at, service_id, category_id, payment_id, type, amount")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+
+        if (error) {
+          console.error("Failed to load orders", error)
+          setEmbeddedOrders([])
+          return
+        }
+
         const ordersRaw = (data as any[]) ?? []
-        if (ordersRaw.length === 0) { setEmbeddedOrders([]); return }
-        const serviceIds = Array.from(new Set(ordersRaw.map(o => o.service_id).filter(Boolean)))
-        const categoryIds = Array.from(new Set(ordersRaw.map(o => o.category_id).filter(Boolean)))
-        const paymentIds = Array.from(new Set(ordersRaw.map(o => o.payment_id).filter(Boolean)))
+        if (ordersRaw.length === 0) {
+          setEmbeddedOrders([])
+          console.log('[Orders] Zero orders returned')
+          return
+        }
+
+        const serviceIds = Array.from(new Set(ordersRaw.map((o) => o.service_id).filter(Boolean)))
+        const categoryIds = Array.from(new Set(ordersRaw.map((o) => o.category_id).filter(Boolean)))
+        const paymentIds = Array.from(new Set(ordersRaw.map((o) => o.payment_id).filter(Boolean)))
+
         const [servicesRes, categoriesRes, paymentsRes] = await Promise.all([
-          serviceIds.length ? supabase.from('services').select('id, name').in('id', serviceIds) : Promise.resolve({ data: [], error: null }),
-          categoryIds.length ? supabase.from('categories').select('id, name').in('id', categoryIds) : Promise.resolve({ data: [], error: null }),
-          paymentIds.length ? supabase.from('payments').select('id, razorpay_payment_id, total_amount, payment_status, payment_date, service_id, type').in('id', paymentIds) : Promise.resolve({ data: [], error: null }),
+          serviceIds.length
+            ? supabase.from("services").select("id, name").in("id", serviceIds)
+            : Promise.resolve({ data: [], error: null }),
+          categoryIds.length
+            ? supabase.from("categories").select("id, name").in("id", categoryIds)
+            : Promise.resolve({ data: [], error: null }),
+          paymentIds.length
+            ? supabase
+                .from("payments")
+                .select("id, razorpay_payment_id, total_amount, payment_status, payment_date, service_id, type")
+                .in("id", paymentIds)
+            : Promise.resolve({ data: [], error: null }),
         ])
+
         const servicesMap = new Map((servicesRes?.data ?? []).map((s: any) => [s.id, s]))
         const categoriesMap = new Map((categoriesRes?.data ?? []).map((c: any) => [c.id, c]))
         const paymentsMap = new Map((paymentsRes?.data ?? []).map((p: any) => [p.id, p]))
+
         const merged = ordersRaw.map((o: any) => ({
           ...o,
           services: servicesMap.get(o.service_id) ?? null,
           categories: categoriesMap.get(o.category_id) ?? null,
           payments: paymentsMap.get(o.payment_id) ?? null,
         }))
+
         setEmbeddedOrders(merged)
+  console.log('[Orders] Loaded', merged.length)
       } catch (e) {
-        console.error('Exception loading embedded orders', e)
+        console.error("Exception loading embedded orders", e)
         setEmbeddedOrders([])
       } finally {
         setEmbeddedOrdersLoading(false)
+  console.log('[Orders] Loading end')
       }
     }
-    if (quoteView === 'orders') loadOrders()
-  }, [quoteView])
+
+    if (quoteView === "orders") loadOrders()
+  }, [quoteView, ordersReloadKey])
 
   // Load embedded Profile when switching to Profile inside the quote page
   useEffect(() => {
@@ -2004,7 +2053,11 @@ if (showQuotePage) {
                     <h1 className="text-2xl font-semibold text-gray-900">Orders</h1>
                     <p className="text-gray-600 text-sm">Your recent service purchases</p>
                   </div>
-                  <Button variant="outline" onClick={() => setQuoteView('services')}>Back to Selected Services</Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={goToOrders}>Back to Orders</Button>
+                    <Button variant="outline" onClick={() => setQuoteView('services')}>Back to Selected Services</Button>
+                    <Button variant="outline" onClick={() => setOrdersReloadKey(k => k + 1)} disabled={embeddedOrdersLoading}>Refresh</Button>
+                  </div>
                 </div>
                 <Card className="bg-white">
                   <CardContent className="p-4">
@@ -2029,7 +2082,7 @@ if (showQuotePage) {
                               <tr key={o.id} className="border-t">
                                 <td className="p-2">{(o.categories as any)?.name ?? 'N/A'}</td>
                                 <td className="p-2">{(o.services as any)?.name ?? 'N/A'}</td>
-                                <td className="p-2">{(o.payments as any)?.total_amount ? formatINR((o.payments as any).total_amount) : 'N/A'}</td>
+                                <td className="p-2">{o.amount != null ? formatINR(Number(o.amount)) : '—'}</td>
                                 <td className="p-2">{o.created_at ? new Date(o.created_at).toLocaleString() : 'N/A'}</td>
                                 <td className="p-2">
                                   <Button size="sm" variant="outline" onClick={() => {
@@ -2059,7 +2112,7 @@ if (showQuotePage) {
                     <p className="text-gray-600 text-sm">Fill and save your application details</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setQuoteView('orders')}>Back to Orders</Button>
+                    <Button variant="outline" onClick={goToOrders}>Back to Orders</Button>
                     <Button variant="outline" onClick={() => setQuoteView('services')}>Back to Selected Services</Button>
                   </div>
                 </div>

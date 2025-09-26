@@ -346,6 +346,8 @@ export async function POST(req: NextRequest) {
               payment_id: persistedPayment.id,
               // We do not have per-item type reliably from client; leave null or fallback to payment type
               type: null,
+              // Persist per-order amount captured from cart item price
+              amount: (typeof it.price === 'number' && !Number.isNaN(it.price)) ? it.price : null,
               created_at: new Date().toISOString(),
             }
           })
@@ -392,6 +394,8 @@ export async function POST(req: NextRequest) {
               category_id: resolvedCategoryId,
               payment_id: persistedPayment.id,
               type: typeToStore ?? persistedPayment.type ?? null,
+              // Single fallback order amount: use payment total (amtToStore) when available
+              amount: (typeof amtToStore === 'number' && !Number.isNaN(amtToStore)) ? amtToStore : null,
               created_at: new Date().toISOString(),
             },
           ]).select().maybeSingle();
