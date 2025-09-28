@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { supabase } from '../lib/supabase';
 import { fetchServicePricingRules, computePriceFromRules } from "@/utils/pricing";
 import AuthModal from "@/components/AuthModal"; // Adjust path
@@ -63,6 +63,35 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 //import type { Session } from "@supabase/supabase-js"
 
 export default function LegalIPWebsite() {
+  // Dummy state to trigger rerenders for external form prefill updates
+  const [prefillAvailable, setPrefillAvailable] = useState(false)
+  const [prefillApplyFn, setPrefillApplyFn] = useState<(() => void) | null>(null)
+  // Stable callback passed to FormClient to avoid triggering its effect every render
+  const formPrefillHandle = useCallback((info: { available: boolean; apply: () => void }) => {
+    setPrefillAvailable(info.available)
+    setPrefillApplyFn(() => (info.available ? info.apply : null))
+  }, [])
+
+  const FormHeaderWithPrefill = ({ goToOrders, backToServices }: { goToOrders: () => void; backToServices: () => void }) => (
+    <div className="mb-6 flex items-center justify-between">
+      <div>
+        <h1 className="text-2xl font-semibold text-gray-900">Forms</h1>
+        <p className="text-gray-600 text-sm">Fill and save your application details</p>
+      </div>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={goToOrders}>Back to Orders</Button>
+        <Button variant="outline" onClick={backToServices}>Back to Selected Services</Button>
+        <Button
+          variant="outline"
+          onClick={() => { if (prefillAvailable && prefillApplyFn) prefillApplyFn(); }}
+          disabled={!prefillAvailable}
+          className={`border-blue-500 text-blue-600 hover:bg-blue-50 ${!prefillAvailable ? 'opacity-40 cursor-not-allowed' : ''}`}
+        >
+          Prefill Saved Data
+        </Button>
+      </div>
+    </div>
+  )
   const openFormEmbedded = (o: any) => {
   const t = resolveFormTypeFromOrderLike(o)
   if (!t) { alert("No form available for this order"); return }
@@ -155,10 +184,8 @@ const openFirstFormEmbedded = () => {
 
  
   const [activeServiceTab, setActiveServiceTab] = useState("patent") // State for active tab
-  //const [session, setSession] = useState<Session | null>(null);  
-  //const [userEmail, setUserEmail] = useState<string | null>(null);  
  
-  // Auth form state
+   // Auth form state
   const [authForm, setAuthForm] = useState({
     email: "",
     password: "",
@@ -217,6 +244,7 @@ const openFirstFormEmbedded = () => {
   // Embedded Orders/Profile state when viewing within the quote view
   const [embeddedOrders, setEmbeddedOrders] = useState<any[]>([])
   const [embeddedOrdersLoading, setEmbeddedOrdersLoading] = useState(false)
+  const [ordersLoadError, setOrdersLoadError] = useState<string | null>(null)
   // Embedded Forms selection state
   const [selectedFormOrderId, setSelectedFormOrderId] = useState<number | null>(null)
   const [selectedFormType, setSelectedFormType] = useState<string | null>(null)
@@ -263,55 +291,127 @@ const openFirstFormEmbedded = () => {
 
   // Centralized navigation back to Orders view; clears form selection and closes transient UI
   const goToOrders = () => {
-    setShowQuotePage(true)
-    setQuoteView('orders')
-    setShowCheckoutThankYou(false)
-    setIsOpen(false)
-    setSelectedFormOrderId(null)
-    setSelectedFormType(null)
-    setOrdersReloadKey(k => k + 1) // trigger reload
-  }
+  setShowQuotePage(true)
+  setQuoteView("orders")
+  setShowCheckoutThankYou(false)
+  setIsOpen(false)
+  setSelectedFormOrderId(null)
+  setSelectedFormType(null)
+
+  // 1) Immediate bump to start loading right away
+  setOrdersReloadKey(k => k + 1)
+
+  // 2) After Orders has rendered its DOM (next tick)
+  setTimeout(() => setOrdersReloadKey(k => k + 1), 50)
+
+  // 3) After the browser regains focus from Cmd/Ctrl+Tab (handles that specific race)
+  setTimeout(() => {
+    try { window.focus() } catch {}
+    setOrdersReloadKey(k => k + 1)
+  }, 250)
+}
+
+
+  // When coming specifically from a just-created payment -> thank-you -> forms -> back to orders, the user session
+  // may still be propagating or the payment row not indexed yet. Provide an assisted path that ensures one more
+  // reload after session presence, without user interaction.
+  useEffect(() => {
+    if (quoteView !== 'orders') return
+    // If we have a recent checkoutPayment (last 2 minutes) and zero rows loaded while not loading and no error, schedule a retry.
+    const recentPaymentTs = checkoutPayment?.created_at ? Date.parse(checkoutPayment.created_at) : Date.now()
+    const isRecent = Date.now() - recentPaymentTs < 120000
+    if (isRecent && !embeddedOrdersLoading && !ordersLoadError && embeddedOrders.length === 0) {
+      const retryTimer = setTimeout(() => {
+        // double-check still empty
+        if (!embeddedOrdersLoading && embeddedOrders.length === 0) {
+          setOrdersReloadKey(k => k + 1)
+        }
+      }, 1200)
+      return () => clearTimeout(retryTimer)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteView, embeddedOrders.length, embeddedOrdersLoading, ordersLoadError])
+
+// (Removed old global prefill handler; now handled inside component state)
+
 
   // Load embedded Orders list when switching to Orders inside the quote page
-  useEffect(() => {
-    const loadOrders = async () => {
-      setEmbeddedOrders([]) // clear old rows
-      setEmbeddedOrdersLoading(true)
-      try {
-        console.log('[Orders] Loading start')
+
+useEffect(() => {
+  let active = true
+
+  // Safety watchdog: if we enter Orders view and loading doesn't finish in 4s, trigger one retry reload
+  let watchdog: any = null
+  let loadStart = Date.now()
+  let stuckTimer: any = null
+
+  const loadOrders = async () => {
+    loadStart = Date.now()
+    setEmbeddedOrders([]) // clear old rows (table skeleton)
+    setEmbeddedOrdersLoading(true)
+    setOrdersLoadError(null)
+    try {
+      console.log("[Orders] Loading start")
+
+      // small retry for session readiness (handles the Cmd+Tab back race)
+      const getUserId = async () => {
         const { data: sessionRes } = await supabase.auth.getSession()
-        const userId = sessionRes?.session?.user?.id || null
-        if (!userId) {
-          // unauthenticated → nothing to load; show “No orders found.”
+        return sessionRes?.session?.user?.id || null
+      }
+      let userId = await getUserId()
+      if (!userId) {
+        await new Promise(r => setTimeout(r, 150))
+        userId = await getUserId()
+      }
+      if (!userId) {
+        // one more quick retry specifically helps the Cmd/Ctrl+Tab edge case
+        await new Promise(r => setTimeout(r, 200))
+        userId = await getUserId()
+      }
+      if (!userId) {
+        console.log("[Orders] No user session; abort")
+        if (active) {
           setEmbeddedOrders([])
-          console.log('[Orders] No user session; abort')
-          return
+          setOrdersLoadError('You are not signed in. Please sign in to view orders.')
         }
+        return
+      }
 
-        const { data, error } = await supabase
-          .from("orders")
-          .select("id, created_at, service_id, category_id, payment_id, type, amount")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
 
-        if (error) {
-          console.error("Failed to load orders", error)
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, created_at, service_id, category_id, payment_id, type, amount")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        console.error("[Orders] Failed to load orders", error)
+        if (active) {
           setEmbeddedOrders([])
-          return
+          setOrdersLoadError('Failed to load orders. Please retry.')
         }
+        return
+      }
 
-        const ordersRaw = (data as any[]) ?? []
-        if (ordersRaw.length === 0) {
+      const ordersRaw = (data as any[]) ?? []
+      if (ordersRaw.length === 0) {
+        console.log("[Orders] Zero orders returned")
+        if (active) {
           setEmbeddedOrders([])
-          console.log('[Orders] Zero orders returned')
-          return
+          setOrdersLoadError(null) // empty but not error
         }
+        return
+      }
 
-        const serviceIds = Array.from(new Set(ordersRaw.map((o) => o.service_id).filter(Boolean)))
-        const categoryIds = Array.from(new Set(ordersRaw.map((o) => o.category_id).filter(Boolean)))
-        const paymentIds = Array.from(new Set(ordersRaw.map((o) => o.payment_id).filter(Boolean)))
+      const serviceIds = Array.from(new Set(ordersRaw.map((o) => o.service_id).filter(Boolean)))
+      const categoryIds = Array.from(new Set(ordersRaw.map((o) => o.category_id).filter(Boolean)))
+      const paymentIds = Array.from(new Set(ordersRaw.map((o) => o.payment_id).filter(Boolean)))
 
-        const [servicesRes, categoriesRes, paymentsRes] = await Promise.all([
+      let servicesRes: any = { data: [], error: null }
+      let categoriesRes: any = { data: [], error: null }
+      let paymentsRes: any = { data: [], error: null }
+      try {
+        ;[servicesRes, categoriesRes, paymentsRes] = await Promise.all([
           serviceIds.length
             ? supabase.from("services").select("id, name").in("id", serviceIds)
             : Promise.resolve({ data: [], error: null }),
@@ -319,37 +419,67 @@ const openFirstFormEmbedded = () => {
             ? supabase.from("categories").select("id, name").in("id", categoryIds)
             : Promise.resolve({ data: [], error: null }),
           paymentIds.length
-            ? supabase
-                .from("payments")
-                .select("id, razorpay_payment_id, total_amount, payment_status, payment_date, service_id, type")
-                .in("id", paymentIds)
+            ? supabase.from("payments").select("id, razorpay_payment_id, total_amount, payment_status, payment_date, service_id, type").in("id", paymentIds)
             : Promise.resolve({ data: [], error: null }),
         ])
+      } catch (joinErr) {
+        console.warn('[Orders] Ancillary lookups failed, continuing with base orders only', joinErr)
+      }
 
-        const servicesMap = new Map((servicesRes?.data ?? []).map((s: any) => [s.id, s]))
-        const categoriesMap = new Map((categoriesRes?.data ?? []).map((c: any) => [c.id, c]))
-        const paymentsMap = new Map((paymentsRes?.data ?? []).map((p: any) => [p.id, p]))
+      const servicesMap = new Map((servicesRes?.data ?? []).map((s: any) => [s.id, s]))
+      const categoriesMap = new Map((categoriesRes?.data ?? []).map((c: any) => [c.id, c]))
+      const paymentsMap = new Map((paymentsRes?.data ?? []).map((p: any) => [p.id, p]))
 
-        const merged = ordersRaw.map((o: any) => ({
-          ...o,
-          services: servicesMap.get(o.service_id) ?? null,
-          categories: categoriesMap.get(o.category_id) ?? null,
-          payments: paymentsMap.get(o.payment_id) ?? null,
-        }))
+      const merged = ordersRaw.map((o: any) => ({
+        ...o,
+        services: servicesMap.get(o.service_id) ?? null,
+        categories: categoriesMap.get(o.category_id) ?? null,
+        payments: paymentsMap.get(o.payment_id) ?? null,
+      }))
 
+      if (active) {
         setEmbeddedOrders(merged)
-  console.log('[Orders] Loaded', merged.length)
-      } catch (e) {
-        console.error("Exception loading embedded orders", e)
+        setOrdersLoadError(null)
+      }
+      console.log("[Orders] Loaded", merged.length)
+    } catch (e) {
+      console.error("Exception loading embedded orders", e)
+      if (active) {
         setEmbeddedOrders([])
-      } finally {
+        setOrdersLoadError('Unexpected error loading orders.')
+      }
+    } finally {
+      if (active) {
         setEmbeddedOrdersLoading(false)
-  console.log('[Orders] Loading end')
+        console.log("[Orders] Loading end")
       }
     }
+  }
 
-    if (quoteView === "orders") loadOrders()
-  }, [quoteView, ordersReloadKey])
+  if (quoteView === "orders") loadOrders()
+  if (quoteView === 'orders') {
+    watchdog = setTimeout(() => {
+      if (active && embeddedOrdersLoading) {
+        console.warn('[Orders] Watchdog: still loading after timeout, forcing retry')
+        loadOrders()
+      }
+    }, 4000)
+    stuckTimer = setTimeout(() => {
+      if (active && embeddedOrdersLoading && Date.now() - loadStart > 6500) {
+        console.warn('[Orders] Stuck load detected; surfacing error state')
+        setEmbeddedOrdersLoading(false)
+        setOrdersLoadError('Orders request appears stuck. Please Retry.')
+      }
+    }, 6500)
+  }
+
+  return () => {
+    active = false
+    if (watchdog) clearTimeout(watchdog)
+    if (stuckTimer) clearTimeout(stuckTimer)
+  }
+}, [quoteView, ordersReloadKey])
+
 
   // Load embedded Profile when switching to Profile inside the quote page
   useEffect(() => {
@@ -1126,8 +1256,8 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
       return { ...prev, applicantTypes: Array.from(set) }
     })
   }
-    const addToCartWithOptions = async () => {
-    if (!selectedServiceTitle || !selectedServiceCategory) return
+  const addToCartWithOptions = async () => {
+  if (!selectedServiceTitle || !selectedServiceCategory) return
 
     // Map applicant type selection to pricing application_type
     let applicationType =
@@ -1148,11 +1278,11 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
     ) {
       applicationType = optionsForm.searchType as any
     }
-   
-    // If no turnaround selected, default to 'standard' for pricing
+
+    // Derive selected turnaround / filing key (fallback to 'standard')
     const selectedTurnaround = optionsForm.goodsServices && optionsForm.goodsServices !== "0"
       ? optionsForm.goodsServices
-      : "standard";
+      : "standard"
 
     const selectedOptions = {
       applicationType,
@@ -1172,7 +1302,7 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
     } as const
        
     // Always compute price from DB rules using selected options
-    const basePrice = servicePricing[selectedServiceTitle as keyof typeof servicePricing] || 0
+  const baseServicePrice = servicePricing[selectedServiceTitle as keyof typeof servicePricing] || 0
     const { data: svc, error: svcErr } = await supabase
       .from("services")
       .select("id")
@@ -1195,14 +1325,14 @@ const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTur
           price = computePriceFromRules(rules, selectedOptions as any)
         } else {
           // Fallback to base pricing table if no rules exist
-          price = basePrice
+          price = baseServicePrice
         }
       } catch (e) {
         console.error("Pricing rules fetch/compute failed:", e)
-        price = basePrice
+        price = baseServicePrice
       }
     } else {
-      price = basePrice
+      price = baseServicePrice
     }
            
     // Debug: log add-to-cart computation context
@@ -1480,9 +1610,12 @@ const handleAuth = async (e: React.FormEvent) => {
     }
   } finally {
     setShowQuotePage(false)
-    setShowAuthModal(true)
+    //setShowAuthModal(true)
+    setShowAuthModal(false)
+    setIsOpen(false)
     resetAuthForm()
     setCartItems([])
+    try { localStorage.removeItem("cart_items_v1") } catch {}
     setShowOptionsPanel(false)
     setSelectedServiceTitle(null)
     setSelectedServiceCategory(null)
@@ -1912,8 +2045,8 @@ const [isProcessingPayment, setIsProcessingPayment] = useState(false);
      
  
   /// Quote Page Component
-if (showQuotePage) {
-  return (
+ if (showQuotePage) {
+   return (
     <div className="min-h-screen bg-gray-50">
       <PaymentProcessingModal isVisible={isProcessingPayment} />
       {/* Unified Checkout Thank You Modal (dashboard view) */}
@@ -1929,12 +2062,12 @@ if (showQuotePage) {
       <header className="bg-white shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <button
+            {/*<button
               onClick={() => setShowQuotePage(false)}
               className="text-blue-600 hover:underline text-sm font-medium"
             >
               ← Back to Home
-            </button>
+            </button>*/}
             <div className="flex items-center">
               <Scale className="h-8 w-8 text-blue-600 mr-2" />
               <span className="text-2xl font-bold text-gray-900">LegalIP Pro</span>
@@ -1946,13 +2079,7 @@ if (showQuotePage) {
               >
                 Knowledge Hub
               </a>
-              <button
-              onClick={handleLogout}
-              className="text-sm text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={!isAuthenticated}
-            >
-              Logout
-            </button>
+             
             </div>
           </div>
         </div>
@@ -1969,7 +2096,7 @@ if (showQuotePage) {
                 <Button
                   variant={quoteView === 'orders' ? undefined : 'outline'}
                   className={`w-full justify-start ${quoteView === 'orders' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
-                  onClick={() => setQuoteView('orders')}
+                  onClick={goToOrders}
                 >
                   Orders
                 </Button>
@@ -2057,10 +2184,16 @@ if (showQuotePage) {
                 <Card className="bg-white">
                   <CardContent className="p-4">
                     {embeddedOrdersLoading && <div className="p-4 text-sm text-gray-500">Loading orders…</div>}
-                    {!embeddedOrdersLoading && (!embeddedOrders || embeddedOrders.length === 0) && (
+                    {!embeddedOrdersLoading && ordersLoadError && (
+                      <div className="p-4 text-sm text-red-600 flex flex-col gap-2">
+                        <span>{ordersLoadError}</span>
+                        <Button size="sm" variant="outline" onClick={() => setOrdersReloadKey(k => k + 1)}>Retry</Button>
+                      </div>
+                    )}
+                    {!embeddedOrdersLoading && !ordersLoadError && (!embeddedOrders || embeddedOrders.length === 0) && (
                       <div className="p-4 text-sm text-gray-500">No orders found.</div>
                     )}
-                    {!embeddedOrdersLoading && embeddedOrders && embeddedOrders.length > 0 && (
+                    {!embeddedOrdersLoading && !ordersLoadError && embeddedOrders && embeddedOrders.length > 0 && (
                       <div className="overflow-x-auto">
                         <table className="w-full table-auto border-collapse">
                           <thead>
@@ -2083,9 +2216,7 @@ if (showQuotePage) {
                                   <Button size="sm" variant="outline" onClick={() => {
                                     const t = resolveFormTypeFromOrderLike(o)
                                     if (!t) { alert('No form available for this order'); return }
-                                    //setSelectedFormOrderId(Number(o.id))
-                                    //setSelectedFormType(String(t))
-                                    //setQuoteView('forms')
+                                    
                                     openFormEmbedded(o)
                                   }}>Open</Button>
                                 </td>
@@ -2101,19 +2232,17 @@ if (showQuotePage) {
             )}
             {quoteView === 'forms' && (
               <>
-                <div className="mb-6 flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-semibold text-gray-900">Forms</h1>
-                    <p className="text-gray-600 text-sm">Fill and save your application details</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={goToOrders}>Back to Orders</Button>
-                    <Button variant="outline" onClick={() => setQuoteView('services')}>Back to Selected Services</Button>
-                  </div>
-                </div>
+                <FormHeaderWithPrefill
+                  goToOrders={goToOrders}
+                  backToServices={() => setQuoteView('services')}
+                />
                 <Card className="bg-white">
                   <CardContent className="p-0">
-                    <FormClient orderIdProp={selectedFormOrderId} typeProp={selectedFormType} />
+                    <FormClient
+                      orderIdProp={selectedFormOrderId}
+                      typeProp={selectedFormType}
+                      onPrefillStateChange={formPrefillHandle}
+                    />
                   </CardContent>
                 </Card>
               </>
@@ -2185,10 +2314,10 @@ if (showQuotePage) {
       </div>
     </div>
   );
-}
+ }
 
- 
-  return (
+ // Main marketing / landing view
+ return (
     <div className="min-h-screen bg-white">
       {/* Auth Modal */}
        

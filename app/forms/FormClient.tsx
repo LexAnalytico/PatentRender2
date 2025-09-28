@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -13,6 +13,8 @@ import { useToast } from "@/components/hooks/use-toast"
 import formData from "../data/forms-fields.json"
 import pricingToForm from '../data/service-pricing-to-form.json'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+
+
 
 const getPricingToForm = (k?: string | null) => {
   if (!k) return null
@@ -43,16 +45,20 @@ const applicationTypes = [
   
 ]
 
-export default function IPFormBuilderClient({ orderIdProp, typeProp }: { orderIdProp?: number | null; typeProp?: string | null } = {}) {
+interface FormClientProps { orderIdProp?: number | null; typeProp?: string | null; onPrefillStateChange?: (info: { available: boolean; apply: () => void }) => void }
+
+export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillStateChange }: FormClientProps = {}) {
   const [selectedType, setSelectedType] = useState<string>("")
   const [formValues, setFormValues] = useState<Record<string, string>>({})
-  const [prefillOpen, setPrefillOpen] = useState(false)
+  // popup replaced by external button; keep candidate internally
+  const [prefillOpen, setPrefillOpen] = useState(false) // deprecated (kept to avoid refactor ripple)
   const [prefillCandidate, setPrefillCandidate] = useState<Record<string, string> | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveSuccessTs, setSaveSuccessTs] = useState<number | null>(null)
   const toastHook = useToast?.()
   const toast = toastHook ?? { toast: (opts: any) => { if (opts?.title) alert(`${opts.title}\n${opts?.description || ""}`) } }
   const searchParams = useSearchParams()
+  
   const orderIdFromProps = orderIdProp ?? null
   const typeFromProps = typeProp ?? null
   // If the form is opened from an order (order_id in URL), lock the application type
@@ -295,7 +301,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp }: { orderId
           })
           if (Object.keys(candidate).length > 0) {
             setPrefillCandidate(candidate)
-            setPrefillOpen(true)
+            // external button will appear via callback
           } else {
             if (active) setFormValues({})
           }
@@ -313,22 +319,32 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp }: { orderId
 
   const relevantFields = selectedType ? getRelevantFields(selectedType) : []
 
+  // Notify parent about prefill availability and provide apply function
+  // Guard against infinite loops by only notifying when availability status changes
+  const lastPrefillStatusRef = useRef<boolean | null>(null)
+  useEffect(() => {
+    if (!onPrefillStateChange) return
+    const available = !!prefillCandidate
+    if (lastPrefillStatusRef.current === available) return // no change -> skip
+    lastPrefillStatusRef.current = available
+    if (available) {
+      const snapshot = prefillCandidate // capture
+      const apply = () => {
+        if (!snapshot) return
+        setFormValues(prev => ({ ...snapshot, ...prev }))
+        setPrefillCandidate(null)
+      }
+      onPrefillStateChange({ available: true, apply })
+    } else {
+      onPrefillStateChange({ available: false, apply: () => {} })
+    }
+  }, [prefillCandidate, onPrefillStateChange])
+
   return (
     <div className="container mx-auto p-6 max-w-4xl">
-      <Dialog open={prefillOpen} onOpenChange={setPrefillOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Use your saved details?</DialogTitle>
-            <DialogDescription>
-              We found existing information from a previous form. Would you like to pre-fill matching fields?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setPrefillOpen(false); setPrefillCandidate(null) }}>No, thanks</Button>
-            <Button onClick={() => { if (prefillCandidate) setFormValues(prev => ({ ...prefillCandidate, ...prev })); setPrefillOpen(false) }}>Yes, pre-fill</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+     
+      {/* Prefill banner removed; replaced by external header button in parent component */}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-balance">IP Application Form Builder</CardTitle>
