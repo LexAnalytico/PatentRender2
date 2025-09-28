@@ -48,6 +48,8 @@ const applicationTypes = [
 interface FormClientProps { orderIdProp?: number | null; typeProp?: string | null; onPrefillStateChange?: (info: { available: boolean; apply: () => void }) => void }
 
 export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillStateChange }: FormClientProps = {}) {
+  // Debug flag (temporarily disabled normal verbose logging)
+  const DEBUG = false // typeof window !== 'undefined' && (window as any).FORM_DEBUG !== false;
   const [selectedType, setSelectedType] = useState<string>("")
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   // popup replaced by external button; keep candidate internally
@@ -70,12 +72,12 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     const orderIdRaw = searchParams?.get("order_id") || ""
     const orderIdNum = orderIdFromProps != null ? Number(orderIdFromProps) : (orderIdRaw ? Number(orderIdRaw) : null)
 
-    console.log('Debug FormClient - URL params:', { pricing_key: urlPricingKey, type: urlType, orderId: orderIdNum })
+  // if (DEBUG) console.debug('[FormClient][mount+url] params', { urlPricingKey, urlType, orderIdNum, typeProp, orderIdProp })
 
     // Priority 1: pricing_key in URL (pricing rule key) -> map to canonical
     if (urlPricingKey) {
-      const mapped = getPricingToForm(urlPricingKey)
-      console.log('Debug FormClient - mapping pricing_key from URL:', urlPricingKey, '->', mapped)
+  const mapped = getPricingToForm(urlPricingKey)
+  // if (DEBUG) console.debug('[FormClient] pricing_key -> mapped', { urlPricingKey, mapped })
       if (mapped && applicationTypes.some((t) => t.key === mapped)) {
         setSelectedType(mapped)
         return
@@ -88,8 +90,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
       if (applicationTypes.some((t) => t.key === urlType)) {
         urlCanonical = urlType
       } else {
-        const mapped = getPricingToForm(urlType)
-        console.log('Debug FormClient - mapping pricing key from URL:', urlType, '->', mapped)
+  const mapped = getPricingToForm(urlType)
+  // if (DEBUG) console.debug('[FormClient] urlType -> mapped', { urlType, mapped })
         if (mapped && applicationTypes.some((t) => t.key === mapped)) {
           urlCanonical = mapped
         }
@@ -108,7 +110,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
             .select('type, payment_id')
       .eq('id', orderIdNum)
             .maybeSingle()
-          if (ordErr) console.debug('Order lookup error resolving form type', ordErr)
+          // if (DEBUG) console.debug('[FormClient] order lookup', { ord, ordErr })
 
           // Try order.type as canonical or mapped pricing key
           const ordType = ord?.type ?? null
@@ -117,7 +119,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
               resolved = ordType
             } else {
               const mapped = getPricingToForm(ordType)
-              console.log('Debug FormClient - mapping order.type:', ordType, '->', mapped)
+              // if (DEBUG) console.debug('[FormClient] order.type -> mapped', { ordType, mapped })
               if (mapped && applicationTypes.some((t) => t.key === mapped)) {
                 resolved = mapped
               }
@@ -131,14 +133,14 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
               .select('type')
               .eq('id', ord.payment_id)
               .maybeSingle()
-            if (payErr) console.debug('Payment lookup error resolving form type', payErr)
+            // if (DEBUG) console.debug('[FormClient] payment lookup', { pay, payErr })
             const payType = pay?.type ?? null
             if (payType) {
               if (applicationTypes.some((t) => t.key === payType)) {
                 resolved = payType
               } else {
                 const mapped = getPricingToForm(payType)
-                console.log('Debug FormClient - mapping payments.type:', payType, '->', mapped)
+                // if (DEBUG) console.debug('[FormClient] payments.type -> mapped', { payType, mapped })
                 if (mapped && applicationTypes.some((t) => t.key === mapped)) {
                   resolved = mapped
                 }
@@ -148,14 +150,16 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         }
 
         // Choose final: prefer explicit typeProp, then resolved-from-order/payment; else fallback to URL
-        const finalType = (typeFromProps && applicationTypes.some((t) => t.key === typeFromProps) ? typeFromProps : null) || resolved || urlCanonical
-        console.log('Debug FormClient - final selected type:', finalType)
+        const candidateTypeProp = (typeFromProps && applicationTypes.some((t) => t.key === typeFromProps)) ? typeFromProps : null
+        const finalType = candidateTypeProp || resolved || urlCanonical
+  // if (DEBUG) console.debug('[FormClient] resolution summary', { candidateTypeProp, resolved, urlCanonical, finalType })
         if (mounted && finalType && applicationTypes.some((t) => t.key === finalType)) {
           setSelectedType(finalType)
           return
         }
+  // if (mounted && !finalType && DEBUG) console.debug('[FormClient] no finalType resolved; staying empty')
       } catch (e) {
-        console.error('Exception resolving form type', e)
+        console.error('[FormClient] Exception resolving form type', e)
       }
     })()
 
@@ -171,6 +175,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
       if (selectedType) localStorage.setItem('selected_application_type', selectedType)
       else localStorage.removeItem('selected_application_type')
     } catch (_) {}
+  // if (DEBUG) console.debug('[FormClient] selectedType changed', { selectedType })
   }, [selectedType])
 
   const getRelevantFields = (type: string): FormField[] => {
@@ -260,6 +265,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           if (orderIdFromProps != null && !Number.isNaN(Number(orderIdFromProps))) return Number(orderIdFromProps)
           const v = searchParams?.get('order_id'); const n = v != null ? Number(v) : null; return (n != null && !Number.isNaN(n)) ? n : null
         })()
+  // if (DEBUG) console.debug('[FormClient][load-values] start', { selectedType, userId, orderId })
         // Try exact match first: this order + this type
         let exactData: any = null
   if (orderId != null) {
@@ -270,6 +276,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
             .eq('order_id', orderId)
             .eq('form_type', selectedType)
             .maybeSingle()
+          // if (DEBUG) console.debug('[FormClient][load-values] exact query result', { exact, exactErr })
           if (!exactErr && exact?.data) exactData = exact.data
         } else {
           // No order id: pick latest for this type
@@ -280,6 +287,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
             .eq('form_type', selectedType)
             .order('updated_at', { ascending: false })
             .limit(1)
+          // if (DEBUG) console.debug('[FormClient][load-values] latest query result', { latest, latestErr })
           if (!latestErr && latest && latest.length > 0) exactData = (latest[0] as any).data
         }
         if (exactData) { if (active) setFormValues(exactData as any); return }
@@ -291,6 +299,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           .eq('user_id', userId)
           .order('updated_at', { ascending: false })
           .limit(1)
+  // if (DEBUG) console.debug('[FormClient][load-values] any query result', { anyData, anyErr })
         if (!anyErr && anyData && anyData.length > 0 && (anyData[0] as any).data) {
           // Extract matching fields only
           const relevant = getRelevantFields(selectedType)
@@ -301,6 +310,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           })
           if (Object.keys(candidate).length > 0) {
             setPrefillCandidate(candidate)
+            // if (DEBUG) console.debug('[FormClient][load-values] candidate prefill prepared', { candidateKeys: Object.keys(candidate) })
             // external button will appear via callback
           } else {
             if (active) setFormValues({})
@@ -309,7 +319,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           if (active) setFormValues({})
         }
       } catch (e) {
-        console.error('Load form values error', e)
+        console.error('[FormClient] Load form values error', e)
         if (active) setFormValues({})
       }
     })()
@@ -318,6 +328,19 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   }, [selectedType, orderIdFromProps])
 
   const relevantFields = selectedType ? getRelevantFields(selectedType) : []
+
+  // Post-mount verification: ensure the Select receives the value prop after resolution
+  useEffect(() => {
+  // if (DEBUG) console.debug('[FormClient][post-mount-check] current selectedType', selectedType)
+  }, [selectedType])
+
+  // Fallback: if order is locked, we have a typeProp, but selectedType is still empty after initial async resolution, set it directly.
+  useEffect(() => {
+    if (!selectedType && isOrderLocked && typeProp && applicationTypes.some(t => t.key === typeProp)) {
+  // if (DEBUG) console.debug('[FormClient][fallback] applying typeProp because selectedType still empty', { typeProp })
+      setSelectedType(typeProp)
+    }
+  }, [selectedType, isOrderLocked, typeProp])
 
   // Notify parent about prefill availability and provide apply function
   // Guard against infinite loops by only notifying when availability status changes
@@ -351,6 +374,17 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           <CardDescription className="text-pretty">
             Select an application type and fill out the relevant fields for your intellectual property application.
           </CardDescription>
+          {DEBUG && (
+            <div className="mt-3 rounded-md border border-dashed border-blue-300 bg-blue-50 p-3 text-xs text-blue-900 space-y-1">
+              <div className="font-semibold">[Debug Panel]</div>
+              <div><strong>selectedType:</strong> {selectedType || '(empty)'}</div>
+              <div><strong>orderIdProp:</strong> {String(orderIdProp ?? '')}</div>
+              <div><strong>typeProp:</strong> {String(typeProp ?? '')}</div>
+              <div><strong>URL:</strong> {typeof window !== 'undefined' ? window.location.search : ''}</div>
+              <div><strong>prefillCandidate keys:</strong> {prefillCandidate ? Object.keys(prefillCandidate).join(', ') : 'none'}</div>
+              <div><strong>isOrderLocked:</strong> {String(isOrderLocked)}</div>
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">

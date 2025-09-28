@@ -3,6 +3,17 @@
 
 import { resolveFormTypeFromOrderLike } from "./utils/resolve-form-type"
 
+// Map canonical keys to human-readable labels used in forms
+const TYPE_LABELS: Record<string,string> = {
+  patentability_search: 'Patentability Search',
+  drafting: 'Drafting',
+  provisional_filing: 'Provisional Filing',
+  complete_non_provisional_filing: 'Complete Non Provisional Filing',
+  pct_filing: 'PCT Filing',
+  ps_cs: 'PS CS',
+  fer_response: 'FER Response'
+}
+
 interface CheckoutModalProps {
   isOpen: boolean
   onClose: () => void
@@ -23,6 +34,16 @@ const CheckoutModal = ({
   const showCheckoutThankYou = isOpen
   const checkoutPayment = payment
   const checkoutOrders = orders
+
+  // Pre-resolve application type(s) for display & debug
+  const resolvedTypes: string[] = (checkoutOrders || []).map(o => resolveFormTypeFromOrderLike(o))
+  if (typeof window !== 'undefined') {
+    try {
+      console.debug('[thankyou-modal] payment', checkoutPayment)
+      console.debug('[thankyou-modal] orders raw', checkoutOrders)
+      console.debug('[thankyou-modal] resolved form types', resolvedTypes)
+    } catch {}
+  }
 
   const openFormForOrder = (o: any) => {
     try {
@@ -137,6 +158,18 @@ const openSingleOrderForm = (o: any) => {
                 </div>
               </div>
 
+              {/* Application Type summary */}
+              {checkoutOrders.length === 1 && (
+                <div className="mb-6">
+                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                    <div className="text-blue-600 text-xs font-medium uppercase tracking-wide mb-1">Application Type</div>
+                    <div className="font-semibold text-gray-900">
+                      {(() => { const t = resolvedTypes[0]; return TYPE_LABELS[t] || t || '—' })()}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {checkoutOrders.length > 1 && (
                 <div>
                   <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
@@ -146,11 +179,11 @@ const openSingleOrderForm = (o: any) => {
                       </svg>
                       <span className="text-blue-800 font-medium">Multiple Services Detected</span>
                     </div>
-                    <p className="text-blue-700 text-sm">Click each service below to open its form:</p>
+                    <p className="text-blue-700 text-sm">Click each service below to open its form. Application types shown as badges:</p>
                   </div>
 
-                  <div className="flex flex-wrap gap-3 mb-6">
-                    {checkoutOrders.map((o) => (
+                  <div className="flex flex-wrap gap-3 mb-4">
+                    {checkoutOrders.map((o, idx) => (
                       <button
                         key={o.id}
                         className="group relative overflow-hidden rounded-lg border-2 border-blue-200 bg-white px-4 py-3 text-sm font-medium text-blue-700 transition-all duration-200 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md hover:-translate-y-0.5"
@@ -161,6 +194,9 @@ const openSingleOrderForm = (o: any) => {
                           <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                           </svg>
+                        </div>
+                        <div className="mt-2 text-xs inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700">
+                          {(() => { const t = resolvedTypes[idx]; return TYPE_LABELS[t] || t || '—' })()}
                         </div>
                       </button>
                     ))}

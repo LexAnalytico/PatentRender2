@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { supabase } from '../lib/supabase';
 import { fetchServicePricingRules, computePriceFromRules } from "@/utils/pricing";
 import AuthModal from "@/components/AuthModal"; // Adjust path
@@ -58,6 +58,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs" // Import Tabs components
+import { resolveFormTypeFromOrderLike } from '@/components/utils/resolve-form-type'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 //import type { Session } from "@supabase/supabase-js"
@@ -93,14 +94,20 @@ export default function LegalIPWebsite() {
     </div>
   )
   const openFormEmbedded = (o: any) => {
-  const t = resolveFormTypeFromOrderLike(o)
-  if (!t) { alert("No form available for this order"); return }
-  setSelectedFormOrderId(Number(o.id))
-  setSelectedFormType(String(t))
-  setShowQuotePage(true)
-  setQuoteView('forms')
-  setShowCheckoutThankYou(false)
-}
+    try {
+      console.debug('[openFormEmbedded] incoming order', o)
+      const t = resolveFormTypeFromOrderLike(o)
+      console.debug('[openFormEmbedded] resolved type', t)
+      if (!t) { alert('No form available for this order'); return }
+      setSelectedFormOrderId(Number(o.id))
+      setSelectedFormType(String(t))
+      setShowQuotePage(true)
+      setQuoteView('forms')
+      setShowCheckoutThankYou(false)
+    } catch (e) {
+      console.error('[openFormEmbedded] error', e)
+    }
+  }
 const openFirstFormEmbedded = () => {
   if (!checkoutOrders || checkoutOrders.length === 0) return
   openFormEmbedded(checkoutOrders[0])
@@ -251,26 +258,7 @@ const openFirstFormEmbedded = () => {
   const [embeddedProfile, setEmbeddedProfile] = useState<any | null>(null)
   const [embeddedProfileSaving, setEmbeddedProfileSaving] = useState(false)
 
-  // Map an order-like object to a canonical form type using the same logic as profile
-  const resolveFormTypeFromOrderLike = (o: any): string => {
-    if (!o) return 'patentability_search'
-    // Prefer explicit type
-    let t: string | null = o.type ?? null
-    // If we only have a pricing key, leave as-is (forms page maps it)
-    if (!t && o.service_pricing_key) t = String(o.service_pricing_key)
-    // Derive from service name fallback
-    if (!t && o.services && (o.services as any).name) {
-      const svcName = String((o.services as any).name)
-      const map: Record<string, string> = {
-        'Patentability Search': 'patentability_search',
-        'Drafting': 'drafting',
-        'Patent Application Filing': 'provisional_filing',
-        'First Examination Response': 'fer_response',
-      }
-      t = map[svcName] ?? null
-    }
-    return t || 'patentability_search'
-  }
+  // (Removed local resolveFormTypeFromOrderLike; using shared util for consistency)
 
   // Fallback mapping if services table lookup by name is unavailable
   const serviceIdByName: Record<string, number> = {
@@ -288,49 +276,179 @@ const openFirstFormEmbedded = () => {
 
   // Reload key to force orders refresh when navigating back from forms or other contexts
   const [ordersReloadKey, setOrdersReloadKey] = useState(0)
+  // Track explicit Force Reload trigger timing & attempts to allow a short burst of re-queries
+  const lastForceReloadAtRef = useRef<number | null>(null)
+  const forceReloadAttemptsRef = useRef(0)
+  // Track last payment id for which we performed an assisted reload to avoid duplicate triggers
+  const lastThankYouPidRef = useRef<string | number | null>(null)
 
-  // Centralized navigation back to Orders view; clears form selection and closes transient UI
+  // Debug: log every reload key change (helps confirm button clicks wiring)
+  useEffect(() => {
+    console.debug('[Orders][reloadKey] changed', { ordersReloadKey, quoteView, lastForceReloadAt: lastForceReloadAtRef.current })
+  }, [ordersReloadKey, quoteView])
+
+  // Track when we are prefetching so we can show fresh data immediately after navigation
+  const [ordersPrefetching, setOrdersPrefetching] = useState(false)
+  const ordersPrefetchingRef = useRef(false)
+
+  // Lightweight core fetch used for pre-navigation prefetch (duplicated subset of loadOrders logic)
+  const fetchOrdersCore = useCallback(async (): Promise<any[]> => {
+    try {
+      // Resolve user id with small retries (mirrors logic inside effect)
+      const getUserId = async () => {
+        const { data: sessionRes } = await supabase.auth.getSession()
+        return sessionRes?.session?.user?.id || null
+      }
+      let userId = await getUserId()
+      if (!userId) { await new Promise(r => setTimeout(r, 120)); userId = await getUserId() }
+      if (!userId) { await new Promise(r => setTimeout(r, 180)); userId = await getUserId() }
+      if (!userId) {
+        console.debug('[Orders][prefetch] no user session; abort prefetch')
+        setOrdersLoadError('You are not signed in. Please sign in to view orders.')
+        return []
+      }
+
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, created_at, service_id, category_id, payment_id, type, amount')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('[Orders][prefetch] base orders fetch failed', error)
+        setOrdersLoadError('Failed to load orders. Please retry.')
+        return []
+      }
+      const ordersRaw = (data as any[]) ?? []
+      if (ordersRaw.length === 0) {
+        console.debug('[Orders][prefetch] zero orders')
+        setOrdersLoadError(null)
+        return []
+      }
+
+      const serviceIds = Array.from(new Set(ordersRaw.map(o => o.service_id).filter(Boolean)))
+      const categoryIds = Array.from(new Set(ordersRaw.map(o => o.category_id).filter(Boolean)))
+      const paymentIds = Array.from(new Set(ordersRaw.map(o => o.payment_id).filter(Boolean)))
+
+      let servicesRes: any = { data: [], error: null }
+      let categoriesRes: any = { data: [], error: null }
+      let paymentsRes: any = { data: [], error: null }
+      try {
+        ;[servicesRes, categoriesRes, paymentsRes] = await Promise.all([
+          serviceIds.length ? supabase.from('services').select('id, name').in('id', serviceIds) : Promise.resolve({ data: [], error: null }),
+          categoryIds.length ? supabase.from('categories').select('id, name').in('id', categoryIds) : Promise.resolve({ data: [], error: null }),
+          paymentIds.length ? supabase.from('payments').select('id, razorpay_payment_id, total_amount, payment_status, payment_date, service_id, type').in('id', paymentIds) : Promise.resolve({ data: [], error: null }),
+        ])
+      } catch (joinErr) {
+        console.warn('[Orders][prefetch] ancillary lookups failed', joinErr)
+      }
+
+      const servicesMap = new Map((servicesRes?.data ?? []).map((s: any) => [s.id, s]))
+      const categoriesMap = new Map((categoriesRes?.data ?? []).map((c: any) => [c.id, c]))
+      const paymentsMap = new Map((paymentsRes?.data ?? []).map((p: any) => [p.id, p]))
+
+      const merged = ordersRaw.map((o: any) => ({
+        ...o,
+        services: servicesMap.get(o.service_id) ?? null,
+        categories: categoriesMap.get(o.category_id) ?? null,
+        payments: paymentsMap.get(o.payment_id) ?? null,
+      }))
+      return merged
+    } catch (e) {
+      console.error('[Orders][prefetch] unexpected error', e)
+      setOrdersLoadError('Unexpected error loading orders.')
+      return []
+    }
+  }, [supabase])
+
+  // Centralized navigation back to Orders view with prefetch before rendering Orders screen
   const goToOrders = () => {
-  setShowQuotePage(true)
-  setQuoteView("orders")
-  setShowCheckoutThankYou(false)
-  setIsOpen(false)
-  setSelectedFormOrderId(null)
-  setSelectedFormType(null)
+    // If already in orders view, keep legacy behavior (manual refresh by reload key)
+    if (quoteView === 'orders') {
+      // Single refresh only (removed second bump to prevent double reload)
+      setOrdersReloadKey(k => k + 1)
+      return
+    }
 
-  // 1) Immediate bump to start loading right away
-  setOrdersReloadKey(k => k + 1)
+    setShowQuotePage(true)
+    setShowCheckoutThankYou(false)
+    setIsOpen(false)
+    setSelectedFormOrderId(null)
+    setSelectedFormType(null)
 
-  // 2) After Orders has rendered its DOM (next tick)
-  setTimeout(() => setOrdersReloadKey(k => k + 1), 50)
+    // Begin prefetch
+    setOrdersPrefetching(true)
+    ordersPrefetchingRef.current = true
+    setEmbeddedOrdersLoading(true)
+    // Do NOT clear existing embeddedOrders here; we want to retain if already present
+    fetchOrdersCore()
+      .then((merged) => {
+        if (ordersPrefetchingRef.current) {
+          setEmbeddedOrders(merged)
+          setEmbeddedOrdersLoading(false)
+        }
+      })
+      .catch(() => {
+        if (ordersPrefetchingRef.current) {
+          setEmbeddedOrders([])
+          setEmbeddedOrdersLoading(false)
+        }
+      })
+      .finally(() => {
+        ordersPrefetchingRef.current = false
+        setOrdersPrefetching(false)
+        setQuoteView('orders')
+        // Do NOT bump reload key here; the prefetch provided data or empty state already
+      })
 
-  // 3) After the browser regains focus from Cmd/Ctrl+Tab (handles that specific race)
-  setTimeout(() => {
-    try { window.focus() } catch {}
-    setOrdersReloadKey(k => k + 1)
-  }, 250)
-}
+    // Fallback: if prefetch takes too long, navigate anyway after 900ms
+    setTimeout(() => {
+      if (ordersPrefetchingRef.current) {
+        console.debug('[Orders][prefetch] timeout fallback navigation')
+        ordersPrefetchingRef.current = false
+        setOrdersPrefetching(false)
+        setQuoteView('orders')
+        // Avoid triggering load effect by leaving reloadKey untouched; effect will run but detect existing loading state
+      }
+    }, 900)
+  }
 
 
-  // When coming specifically from a just-created payment -> thank-you -> forms -> back to orders, the user session
-  // may still be propagating or the payment row not indexed yet. Provide an assisted path that ensures one more
-  // reload after session presence, without user interaction.
+
+
+  // Assisted reload: only run once per recent payment to help surface freshly created orders
   useEffect(() => {
     if (quoteView !== 'orders') return
-    // If we have a recent checkoutPayment (last 2 minutes) and zero rows loaded while not loading and no error, schedule a retry.
-    const recentPaymentTs = checkoutPayment?.created_at ? Date.parse(checkoutPayment.created_at) : Date.now()
-    const isRecent = Date.now() - recentPaymentTs < 120000
-    if (isRecent && !embeddedOrdersLoading && !ordersLoadError && embeddedOrders.length === 0) {
+
+    const pid = (checkoutPayment as any)?.id || (checkoutPayment as any)?.razorpay_payment_id || null
+    const createdAtMs = checkoutPayment?.created_at ? Date.parse(checkoutPayment.created_at) : null
+    const isRecent = createdAtMs ? (Date.now() - createdAtMs < 120000) : false
+
+    if (
+      isRecent &&
+      pid &&
+      lastThankYouPidRef.current !== pid &&
+      !embeddedOrdersLoading &&
+      !ordersLoadError &&
+      embeddedOrders.length === 0
+    ) {
+      lastThankYouPidRef.current = pid
+      console.debug('[Orders][assist] scheduling assisted reload for payment', { pid })
       const retryTimer = setTimeout(() => {
-        // double-check still empty
-        if (!embeddedOrdersLoading && embeddedOrders.length === 0) {
+        if (!embeddedOrdersLoading && embeddedOrders.length === 0 && quoteView === 'orders') {
+          console.debug('[Orders][assist] triggering assisted reload for payment', { pid })
           setOrdersReloadKey(k => k + 1)
+        } else {
+          console.debug('[Orders][assist] conditions no longer met; skipping assisted reload', {
+            stillLoading: embeddedOrdersLoading,
+            ordersLen: embeddedOrders.length,
+            qv: quoteView
+          })
         }
       }, 1200)
       return () => clearTimeout(retryTimer)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quoteView, embeddedOrders.length, embeddedOrdersLoading, ordersLoadError])
+  }, [quoteView, embeddedOrders.length, embeddedOrdersLoading, ordersLoadError, checkoutPayment])
 
 // (Removed old global prefill handler; now handled inside component state)
 
@@ -346,9 +464,16 @@ useEffect(() => {
   let stuckTimer: any = null
 
   const loadOrders = async () => {
+    console.debug('[Orders][load] start invocation', { quoteView, reloadKey: ordersReloadKey })
     loadStart = Date.now()
-    setEmbeddedOrders([]) // clear old rows (table skeleton)
-    setEmbeddedOrdersLoading(true)
+    // If we already have rows (from prefetch) and this invocation is due solely to same reload key or navigation, skip full clear to reduce flicker
+    const hadExisting = embeddedOrders.length > 0
+    if (!hadExisting) {
+      setEmbeddedOrders([]) // show skeleton only when we had nothing
+      setEmbeddedOrdersLoading(true)
+    } else {
+      setEmbeddedOrdersLoading(true) // show inline spinner elsewhere if UI supports it
+    }
     setOrdersLoadError(null)
     try {
       console.log("[Orders] Loading start")
@@ -367,6 +492,7 @@ useEffect(() => {
         // one more quick retry specifically helps the Cmd/Ctrl+Tab edge case
         await new Promise(r => setTimeout(r, 200))
         userId = await getUserId()
+        if (!userId) console.debug('[Orders][load] third userId fetch empty')
       }
       if (!userId) {
         console.log("[Orders] No user session; abort")
@@ -393,9 +519,28 @@ useEffect(() => {
         return
       }
 
-      const ordersRaw = (data as any[]) ?? []
+  const ordersRaw = (data as any[]) ?? []
+  console.debug('[Orders][load] orders fetched', { count: ordersRaw.length })
       if (ordersRaw.length === 0) {
         console.log("[Orders] Zero orders returned")
+        // If this was initiated by a recent Force Reload, attempt a short burst of up to 3 rapid retries
+        if (lastForceReloadAtRef.current && Date.now() - lastForceReloadAtRef.current < 5000) {
+          if (forceReloadAttemptsRef.current < 3) {
+            forceReloadAttemptsRef.current += 1
+            const scheduledAttempt = forceReloadAttemptsRef.current
+            console.debug('[Orders][force-reload] scheduling follow-up attempt', { attempt: scheduledAttempt })
+            setTimeout(() => {
+              if (!active) return
+              // Only re-trigger if we are still in orders view and list is still empty
+              if (quoteView === 'orders' && embeddedOrders.length === 0) {
+                console.debug('[Orders][force-reload] triggering follow-up reload', { attempt: scheduledAttempt })
+                setOrdersReloadKey(k => k + 1)
+              }
+            }, 650 + 250 * forceReloadAttemptsRef.current) // slight backoff
+          } else {
+            console.debug('[Orders][force-reload] max attempts reached')
+          }
+        }
         if (active) {
           setEmbeddedOrders([])
           setOrdersLoadError(null) // empty but not error
@@ -452,12 +597,23 @@ useEffect(() => {
       if (active) {
         setEmbeddedOrdersLoading(false)
         console.log("[Orders] Loading end")
+        console.debug('[Orders][load] final state', { embeddedOrdersCount: embeddedOrders.length, ordersLoadError, embeddedOrdersLoading: false })
       }
     }
   }
 
-  if (quoteView === "orders") loadOrders()
-  if (quoteView === 'orders') {
+  // TypeScript / TSX
+let rafId: number | null = null
+
+if (quoteView === "orders") {
+  // If we already have prefetched data (non-empty & not loading), skip triggering another load
+  if (embeddedOrders.length > 0 && !embeddedOrdersLoading) {
+    console.debug('[Orders][prefetch] using prefetched data; skipping automatic load')
+  } else {
+    // Defer initial fetch to the next frame to avoid focus/session race
+    rafId = window.requestAnimationFrame(() => {
+      if (active) loadOrders()
+    })
     watchdog = setTimeout(() => {
       if (active && embeddedOrdersLoading) {
         console.warn('[Orders] Watchdog: still loading after timeout, forcing retry')
@@ -472,12 +628,15 @@ useEffect(() => {
       }
     }, 6500)
   }
+}
 
-  return () => {
-    active = false
-    if (watchdog) clearTimeout(watchdog)
-    if (stuckTimer) clearTimeout(stuckTimer)
-  }
+return () => {
+  active = false
+  if (rafId != null) window.cancelAnimationFrame(rafId)
+  if (watchdog) clearTimeout(watchdog)
+  if (stuckTimer) clearTimeout(stuckTimer)
+}
+
 }, [quoteView, ordersReloadKey])
 
 
@@ -1515,6 +1674,18 @@ useEffect(() => {
     if (event === "SIGNED_IN" && session?.user) {
       upsertUserProfileFromSession()
       setShowAuthModal(false)
+      if (event === "SIGNED_IN" && session?.user) {
+  upsertUserProfileFromSession()
+  setShowAuthModal(false)
+
+  // Prime Orders: ensure first entry to Orders sees a fresh load
+  setOrdersReloadKey(k => k + 1)
+
+  if (wantsCheckout) {
+    setShowQuotePage(true)
+    setWantsCheckout(false)
+  }
+}
       if (wantsCheckout) {
         setShowQuotePage(true)
         setWantsCheckout(false)
@@ -1763,6 +1934,7 @@ const [isProcessingPayment, setIsProcessingPayment] = useState(false);
             setCheckoutPayment(persisted);
             setCheckoutOrders(createdOrders);
             setShowCheckoutThankYou(true);
+            setOrdersReloadKey(k => k + 1)
             // Clear cart so Services screen shows empty after successful payment
             setCartItems([]);
             setIsProcessingPayment(false);
@@ -2178,7 +2350,23 @@ const [isProcessingPayment, setIsProcessingPayment] = useState(false);
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={goToServices}>Services</Button>
-                    <Button variant="outline" onClick={() => setOrdersReloadKey(k => k + 1)} disabled={embeddedOrdersLoading}>Refresh</Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        console.debug('[Orders][UI] Browser hard reload via Refresh button')
+                        try {
+                          window.location.reload()
+                        } catch (e) {
+                          console.warn('window.location.reload failed, falling back to internal reload', e)
+                          lastForceReloadAtRef.current = null
+                          forceReloadAttemptsRef.current = 0
+                          setOrdersReloadKey(k => k + 1)
+                        }
+                      }}
+                      title={'Full page reload'}
+                    >
+                      Refresh
+                    </Button>
                   </div>
                 </div>
                 <Card className="bg-white">

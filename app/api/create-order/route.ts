@@ -12,6 +12,10 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request) {
   try {
   const { amount, currency, user_id, service_id, custom_price, type } = await req.json();
+    const debug = process.env.PAYMENT_DEBUG === '1'
+    if (debug) {
+      console.debug('[payments][create-order] incoming body', { amount, currency, user_id, service_id, custom_price, type })
+    }
 
     // Validate server configuration early for clearer prod errors
     const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID as string | undefined
@@ -49,6 +53,7 @@ export async function POST(req: Request) {
       if (typeof type !== 'undefined' && type != null) {
         mappedType = map[type] ?? type
       }
+      if (debug) console.debug('[payments][create-order] mappedType derived', { inputType: type, mappedType })
 
   // Validate provided user_id exists; do not trust client-provided ids
       let userToStore: string | null = null;
@@ -90,6 +95,7 @@ export async function POST(req: Request) {
         created_at: new Date().toISOString(),
       },
     ]
+    if (debug) console.debug('[payments][create-order] insert payload prepared', insertPayload[0])
     ;({ data: inserted, error: insErr } = await serverSupabase
         .from('payments')
         .insert(insertPayload)
@@ -104,13 +110,16 @@ export async function POST(req: Request) {
             .insert([{ ...insertPayload[0], type: null }])
             .select()
             .maybeSingle())
+          if (debug) console.debug('[payments][create-order] retry insert without type result', { inserted, insErr })
         } catch (retryErr) {
           console.error('Retry insert payment without type failed:', retryErr)
         }
       }
 
   if (insErr && !inserted) console.error('❌ Payment insert after order creation error:', JSON.stringify(insErr, Object.getOwnPropertyNames(insErr)));
-  else console.debug('Payment row created for order', { order: order.id, paymentRow: inserted });
+  else {
+    if (debug) console.debug('Payment row created for order', { order: order.id, paymentRow: inserted })
+  }
     } catch (e) {
       console.error('❌ Exception while inserting payment row after order creation:', e);
     }

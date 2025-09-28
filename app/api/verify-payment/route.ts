@@ -138,6 +138,8 @@ async function sendPaymentNotification(serverSupabase: any, opts: { paymentId: s
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const debug = process.env.PAYMENT_DEBUG === '1'
+    if (debug) console.debug('[payments][verify] incoming body', body)
     const {
       razorpay_order_id,
       razorpay_payment_id,
@@ -181,6 +183,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
       if (existingByOrderErr) console.debug('existingPaymentByOrder fetch error', existingByOrderErr);
       existingPaymentByOrder = existingByOrder ?? null;
+      if (debug) console.debug('[payments][verify] existingPaymentByOrder', existingPaymentByOrder)
     } catch (e) {
       console.error('Exception checking existing payment by order:', e);
     }
@@ -192,6 +195,22 @@ export async function POST(req: NextRequest) {
   // Map incoming type (can be pricing key) to canonical form key
   const map = pricingToForm as unknown as Record<string,string>
   let typeToStore: any = existingPaymentByOrder?.type ?? (type ? (map[type] ?? type) : type) ?? null;
+  // Additional fallback: if still null and we have a service id, try to infer from service name
+  if (!typeToStore && serviceToStore) {
+    try {
+      const { data: svc } = await serverSupabase.from('services').select('name').eq('id', serviceToStore).maybeSingle();
+      const name = (svc as any)?.name ? String((svc as any).name).toLowerCase() : '';
+      const nameMap: Record<string,string> = {
+        'patentability search': 'patentability_search',
+        'drafting': 'drafting',
+        'patent application filing': 'provisional_filing',
+        'first examination response': 'fer_response'
+      };
+      if (name && nameMap[name]) typeToStore = nameMap[name];
+      if (debug) console.debug('[payments][verify] service name inference', { service_id: serviceToStore, serviceName: name, inferred: typeToStore })
+    } catch (infErr) { if (debug) console.debug('[payments][verify] service inference error', infErr) }
+  }
+  if (debug) console.debug('[payments][verify] resolved core fields', { amtToStoreBefore: existingPaymentByOrder?.total_amount, custom_price, bodyAmount: (body as any).amount, serviceToStore, typeToStore })
     if (amtToStore == null) {
       if (custom_price != null) amtToStore = Number(custom_price);
       else if ((body as any).amount != null) amtToStore = Number((body as any).amount) / 100; // paise -> rupees
@@ -202,47 +221,67 @@ export async function POST(req: NextRequest) {
     let persistedPayment: any = null;
     try {
       if (razorpay_payment_id) {
-        // If we still don't have a serviceToStore, try to resolve from recent quote later (kept as variable)
-        const { data: updated, error: updErr } = await serverSupabase
-          .from('payments')
+        // Preferred update path: update the original 'created' payment row (matched by id or order id), not by the new payment id (which was null when inserted)
+        if (existingPaymentByOrder) {
+          if (debug) console.debug('[payments][verify] updating existing payment row', { id: existingPaymentByOrder.id, amtToStore, serviceToStore, typeToStore })
+          const { data: updated, error: updErr } = await serverSupabase
+            .from('payments')
             .update({
-            user_id: existingPaymentByOrder?.user_id ?? user_id ?? null,
-            total_amount: amtToStore,
-            payment_status: 'paid',
-            payment_date: new Date().toISOString(),
-            razorpay_order_id: razorpay_order_id,
-            razorpay_payment_id: razorpay_payment_id,
-            service_id: serviceToStore ?? null,
+              user_id: existingPaymentByOrder.user_id ?? user_id ?? null,
+              total_amount: amtToStore,
+              payment_status: 'paid',
+              payment_date: new Date().toISOString(),
+              razorpay_order_id: razorpay_order_id,
+              razorpay_payment_id: razorpay_payment_id,
+              service_id: serviceToStore ?? null,
               type: typeToStore ?? null,
-          })
-          .eq('razorpay_payment_id', razorpay_payment_id)
-          .select()
-          .maybeSingle();
-        if (updErr) {
-          console.debug('payment update error', updErr)
-          // Retry update without type on CHECK constraint failure
-          if ((updErr as any).code === '23514') {
-            const { data: updated2, error: updErr2 } = await serverSupabase
-              .from('payments')
-              .update({
-                user_id: existingPaymentByOrder?.user_id ?? user_id ?? null,
-                total_amount: amtToStore,
-                payment_status: 'paid',
-                payment_date: new Date().toISOString(),
-                razorpay_order_id: razorpay_order_id,
-                razorpay_payment_id: razorpay_payment_id,
-                service_id: serviceToStore ?? null,
-                type: null,
-              })
-              .eq('razorpay_payment_id', razorpay_payment_id)
-              .select()
-              .maybeSingle();
-            if (!updErr2) {
-              persistedPayment = updated2 ?? null
+            })
+            .eq('id', existingPaymentByOrder.id)
+            .select()
+            .maybeSingle();
+          if (updErr) {
+            console.debug('payment update error (by id)', updErr)
+            if ((updErr as any).code === '23514') {
+              const { data: updated2, error: updErr2 } = await serverSupabase
+                .from('payments')
+                .update({
+                  user_id: existingPaymentByOrder.user_id ?? user_id ?? null,
+                  total_amount: amtToStore,
+                  payment_status: 'paid',
+                  payment_date: new Date().toISOString(),
+                  razorpay_order_id: razorpay_order_id,
+                  razorpay_payment_id: razorpay_payment_id,
+                  service_id: serviceToStore ?? null,
+                  type: null,
+                })
+                .eq('id', existingPaymentByOrder.id)
+                .select()
+                .maybeSingle();
+              if (debug) console.debug('[payments][verify] constraint retry update (drop type)', { updated2, updErr2 })
+              if (!updErr2) persistedPayment = updated2 ?? null
             }
+          } else {
+            persistedPayment = updated ?? null
           }
         } else {
-          persistedPayment = updated ?? null;
+          // Fallback to legacy behavior (should rarely happen now). Try update by order id.
+          if (debug) console.debug('[payments][verify] legacy update by order id path')
+          const { data: updatedLegacy, error: updLegacyErr } = await serverSupabase
+            .from('payments')
+            .update({
+              user_id: user_id ?? null,
+              total_amount: amtToStore,
+              payment_status: 'paid',
+              payment_date: new Date().toISOString(),
+              razorpay_order_id: razorpay_order_id,
+              razorpay_payment_id: razorpay_payment_id,
+              service_id: serviceToStore ?? null,
+              type: typeToStore ?? null,
+            })
+            .eq('razorpay_order_id', razorpay_order_id)
+            .select()
+            .maybeSingle();
+          if (!updLegacyErr) persistedPayment = updatedLegacy ?? null
         }
       }
 
@@ -272,6 +311,7 @@ export async function POST(req: NextRequest) {
             .insert([{ ...baseRow, type: null }])
             .select()
             .maybeSingle();
+          if (debug) console.debug('[payments][verify] constraint retry insert (drop type)', { inserted2, insErr2 })
           if (!insErr2) {
             inserted = inserted2
           } else {
@@ -285,6 +325,7 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       console.error('Exception persisting payment:', e);
     }
+    if (debug) console.debug('[payments][verify] persistedPayment final', persistedPayment)
 
     // Attach user if missing and can be derived from form_response
     try {
@@ -356,7 +397,7 @@ export async function POST(req: NextRequest) {
             const { data: insertedOrders, error: insOrdersErr } = await serverSupabase.from('orders').insert(rowsToInsert).select()
             if (insOrdersErr) console.error('order insert (multi) error', insOrdersErr)
             else {
-              console.debug('Orders created (multi)', insertedOrders)
+              if (debug) console.debug('Orders created (multi)', insertedOrders)
               createdOrders = insertedOrders as any[]
               // Build a client-friendly payload with service labels
               const svcMap = new Map(serviceRows.map((r: any) => [r.id, r]))
@@ -366,6 +407,7 @@ export async function POST(req: NextRequest) {
                 category_id: o.category_id,
                 payment_id: o.payment_id,
                 type: o.type ?? (persistedPayment?.type ?? null),
+                payment_type: persistedPayment?.type ?? null,
                 created_at: o.created_at,
                 services: svcMap.get(o.service_id) ? { name: String((svcMap.get(o.service_id) as any).name || 'Service') } : null,
                 service_pricing_key: null,
@@ -401,7 +443,7 @@ export async function POST(req: NextRequest) {
           ]).select().maybeSingle();
           if (orderErr) console.error('order insert error', orderErr);
           else {
-            console.debug('Order created', orderInserted);
+            if (debug) console.debug('Order created', orderInserted);
             if (orderInserted) {
               createdOrders = [orderInserted]
               // Fetch service label for the single order
@@ -418,6 +460,7 @@ export async function POST(req: NextRequest) {
                 category_id: orderInserted.category_id,
                 payment_id: orderInserted.payment_id,
                 type: orderInserted.type ?? (persistedPayment?.type ?? null),
+                payment_type: persistedPayment?.type ?? null,
                 created_at: orderInserted.created_at,
                 services: svcName ? { name: svcName } : null,
                 service_pricing_key: null,
@@ -432,8 +475,8 @@ export async function POST(req: NextRequest) {
 
     // Send notification using persistedPayment to avoid race
     const notifyResult = await sendPaymentNotification(serverSupabase, { paymentId: razorpay_payment_id, dbPayment: persistedPayment });
-
-  return NextResponse.json({ success: true, persistedPayment, createdOrders, createdOrdersClient: createdOrdersClient, notifyResult }, { status: 200 });
+    if (debug) console.debug('[payments][verify] response payload', { persistedPaymentId: persistedPayment?.id, ordersCount: createdOrders?.length, createdOrdersClient })
+    return NextResponse.json({ success: true, persistedPayment, createdOrders, createdOrdersClient: createdOrdersClient, notifyResult }, { status: 200 });
   } catch (err) {
     console.error('Payment verification error:', err);
     return NextResponse.json({ verified: false, error: 'Internal Server Error' }, { status: 500 });
