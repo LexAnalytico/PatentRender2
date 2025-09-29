@@ -1,5 +1,6 @@
 "use client"
 import { useSearchParams, useRouter } from 'next/navigation'
+import { Suspense } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 
@@ -22,7 +23,9 @@ interface StatusPayload {
   meta?: { paid?: boolean; orderCount?: number }
 }
 
-export default function OrdersPage() {
+export const dynamic = 'force-dynamic'
+
+function OrdersPageInner() {
   const search = useSearchParams()
   const router = useRouter()
   const showThanks = search.get('showThanks') === '1' || search.get('thankyou') === '1'
@@ -174,5 +177,14 @@ export default function OrdersPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function OrdersPage() {
+  // Wrap inner component that uses useSearchParams with Suspense to satisfy Next.js requirement
+  return (
+    <Suspense fallback={<div className="p-6">Loading…</div>}>
+      <OrdersPageInner />
+    </Suspense>
   )
 }
