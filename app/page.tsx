@@ -86,7 +86,7 @@ export default function LegalIPWebsite() {
           variant="outline"
           onClick={() => { if (prefillAvailable && prefillApplyFn) prefillApplyFn(); }}
           disabled={!prefillAvailable}
-          className={`border-blue-500 text-blue-600 hover:bg-blue-50 ${!prefillAvailable ? 'opacity-40 cursor-not-allowed' : ''}`}
+          className={`${!prefillAvailable ? 'opacity-40 cursor-not-allowed' : ''}`}
         >
           Prefill Saved Data
         </Button>
@@ -2352,18 +2352,9 @@ const [isProcessingPayment, setIsProcessingPayment] = useState(false);
                     <Button variant="outline" onClick={goToServices}>Services</Button>
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        console.debug('[Orders][UI] Browser hard reload via Refresh button')
-                        try {
-                          window.location.reload()
-                        } catch (e) {
-                          console.warn('window.location.reload failed, falling back to internal reload', e)
-                          lastForceReloadAtRef.current = null
-                          forceReloadAttemptsRef.current = 0
-                          setOrdersReloadKey(k => k + 1)
-                        }
-                      }}
-                      title={'Full page reload'}
+                      disabled
+                      title="Refresh disabled (auto-loads when returning; browser reload for hard refresh)"
+                      className="opacity-50 cursor-not-allowed"
                     >
                       Refresh
                     </Button>

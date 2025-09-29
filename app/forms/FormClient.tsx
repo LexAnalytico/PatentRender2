@@ -451,18 +451,18 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
               </div>
 
               <div className="flex flex-col gap-3 pt-6 border-t">
-                <div className="flex gap-4">
+                <div className="flex gap-3 flex-wrap">
                   <Button
                     onClick={handleSave}
                     disabled={saving}
-                    className={`flex-1 relative bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-[0_4px_0_0_#1e3a8a] active:translate-y-[2px] active:shadow-[0_2px_0_0_#1e3a8a] transition-all duration-150 ${saving ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    className={`bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm transition-colors ${saving ? 'opacity-70 cursor-not-allowed' : ''}`}
                   >
                     {saving ? 'Saving...' : 'Save Form'}
                   </Button>
                   <Button
                     onClick={handleCancel}
                     variant="outline"
-                    className="flex-1 bg-white font-medium"
+                    className="font-medium"
                     disabled={saving}
                   >
                     Cancel
