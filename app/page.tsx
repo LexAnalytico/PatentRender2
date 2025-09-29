@@ -408,6 +408,7 @@ const openFirstFormEmbedded = () => {
         ordersPrefetchingRef.current = false
         setOrdersPrefetching(false)
         setQuoteView('orders')
+        setEmbeddedOrdersLoading(false)
         // Avoid triggering load effect by leaving reloadKey untouched; effect will run but detect existing loading state
       }
     }, 900)
@@ -416,46 +417,27 @@ const openFirstFormEmbedded = () => {
 
 
 
-  // Assisted reload: only run once per recent payment to help surface freshly created orders
+  // Assisted reload: run a single opportunistic extra reload shortly after a recent payment
   useEffect(() => {
     if (quoteView !== 'orders') return
-
-    const pid = (checkoutPayment as any)?.id || (checkoutPayment as any)?.razorpay_payment_id || null
+    const paymentId = (checkoutPayment as any)?.id || (checkoutPayment as any)?.razorpay_payment_id || null
     const createdAtMs = checkoutPayment?.created_at ? Date.parse(checkoutPayment.created_at) : null
     const isRecent = createdAtMs ? (Date.now() - createdAtMs < 120000) : false
-
-    if (
-      isRecent &&
-      pid &&
-      lastThankYouPidRef.current !== pid &&
-      !embeddedOrdersLoading &&
-      !ordersLoadError &&
-      embeddedOrders.length === 0
-    ) {
-      lastThankYouPidRef.current = pid
-      console.debug('[Orders][assist] scheduling assisted reload for payment', { pid })
-      const retryTimer = setTimeout(() => {
-        if (!embeddedOrdersLoading && embeddedOrders.length === 0 && quoteView === 'orders') {
-          console.debug('[Orders][assist] triggering assisted reload for payment', { pid })
+    if (paymentId && isRecent) {
+      // Trigger a gentle assisted reload if we currently have zero orders showing (possible race)
+      if (embeddedOrders.length === 0) {
+        console.debug('[Orders][assist] recent payment detected, scheduling assisted reload')
+        const t = setTimeout(() => {
           setOrdersReloadKey(k => k + 1)
-        } else {
-          console.debug('[Orders][assist] conditions no longer met; skipping assisted reload', {
-            stillLoading: embeddedOrdersLoading,
-            ordersLen: embeddedOrders.length,
-            qv: quoteView
-          })
-        }
-      }, 1200)
-      return () => clearTimeout(retryTimer)
+        }, 900)
+        return () => clearTimeout(t)
+      }
     }
-  }, [quoteView, embeddedOrders.length, embeddedOrdersLoading, ordersLoadError, checkoutPayment])
-
-// (Removed old global prefill handler; now handled inside component state)
-
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quoteView, checkoutPayment, embeddedOrders.length])
 
   // Load embedded Orders list when switching to Orders inside the quote page
-
-useEffect(() => {
+  useEffect(() => {
   let active = true
 
   // Safety watchdog: if we enter Orders view and loading doesn't finish in 4s, trigger one retry reload
@@ -499,10 +481,12 @@ useEffect(() => {
         if (active) {
           setEmbeddedOrders([])
           setOrdersLoadError('You are not signed in. Please sign in to view orders.')
+          setEmbeddedOrdersLoading(false)
         }
+        console.debug('[Orders][load] early-return: no user session')
         return
       }
-
+    
 
       const { data, error } = await supabase
         .from("orders")
@@ -515,10 +499,12 @@ useEffect(() => {
         if (active) {
           setEmbeddedOrders([])
           setOrdersLoadError('Failed to load orders. Please retry.')
+          setEmbeddedOrdersLoading(false)
         }
+        console.debug('[Orders][load] early-return: query error')
         return
       }
-
+    
   const ordersRaw = (data as any[]) ?? []
   console.debug('[Orders][load] orders fetched', { count: ordersRaw.length })
       if (ordersRaw.length === 0) {
@@ -541,10 +527,23 @@ useEffect(() => {
             console.debug('[Orders][force-reload] max attempts reached')
           }
         }
+        // Optional: probe order-status API if we have a recent payment awaiting materialization
+        try {
+          const recentPaymentId = checkoutPayment?.razorpay_order_id || checkoutPayment?.id || null
+          if (recentPaymentId) {
+            console.debug('[Orders][probe] polling /api/order-status for empty list insight')
+            fetch(`/api/order-status?razorpay_order_id=${encodeURIComponent(recentPaymentId)}`, { cache: 'no-store' })
+              .then(r => r.json())
+              .then(j => console.debug('[Orders][probe] status response', j))
+              .catch(e => console.debug('[Orders][probe] status error', e))
+          }
+        } catch {}
         if (active) {
           setEmbeddedOrders([])
           setOrdersLoadError(null) // empty but not error
+          setEmbeddedOrdersLoading(false)
         }
+        console.debug('[Orders][load] early-return: zero orders')
         return
       }
 
@@ -592,12 +591,13 @@ useEffect(() => {
       if (active) {
         setEmbeddedOrders([])
         setOrdersLoadError('Unexpected error loading orders.')
+        setEmbeddedOrdersLoading(false)
       }
+      console.debug('[Orders][load] early-return: exception path')
     } finally {
       if (active) {
         setEmbeddedOrdersLoading(false)
         console.log("[Orders] Loading end")
-        console.debug('[Orders][load] final state', { embeddedOrdersCount: embeddedOrders.length, ordersLoadError, embeddedOrdersLoading: false })
       }
     }
   }
@@ -628,16 +628,16 @@ if (quoteView === "orders") {
       }
     }, 6500)
   }
-}
+  }
 
-return () => {
-  active = false
-  if (rafId != null) window.cancelAnimationFrame(rafId)
-  if (watchdog) clearTimeout(watchdog)
-  if (stuckTimer) clearTimeout(stuckTimer)
-}
+  return () => {
+    active = false
+    if (rafId != null) window.cancelAnimationFrame(rafId)
+    if (watchdog) clearTimeout(watchdog)
+    if (stuckTimer) clearTimeout(stuckTimer)
+  }
 
-}, [quoteView, ordersReloadKey])
+  }, [quoteView, ordersReloadKey])
 
 
   // Load embedded Profile when switching to Profile inside the quote page

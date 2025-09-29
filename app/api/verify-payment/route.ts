@@ -8,6 +8,21 @@ import pricingToForm from '@/app/data/service-pricing-to-form.json'
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Instrumentation helpers
+const FLOW_DEBUG = process.env.PAYMENT_FLOW_DEBUG === '1'
+function flowLog(phase: string, msg: string, extra?: any) {
+  if (!FLOW_DEBUG) return
+  const ts = new Date().toISOString()
+  try { console.debug(`[flow][verify-payment][${phase}][${ts}] ${msg}`, extra || '') } catch {}
+}
+async function maybeDelay(label: string) {
+  const delayMs = Number(process.env.VERIFY_FORCE_DELAY_MS || '0')
+  if (delayMs > 0) {
+    flowLog('delay', `Artificial delay (${label}) ${delayMs}ms`)
+    await new Promise(r => setTimeout(r, delayMs))
+  }
+}
+
 // Send notification email using the persisted payment row to avoid races
 async function sendPaymentNotification(serverSupabase: any, opts: { paymentId: string; dbPayment?: any }) {
   const { paymentId, dbPayment } = opts;
@@ -137,9 +152,11 @@ async function sendPaymentNotification(serverSupabase: any, opts: { paymentId: s
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+  await maybeDelay('before-parse-body')
+  const body = await req.json();
     const debug = process.env.PAYMENT_DEBUG === '1'
     if (debug) console.debug('[payments][verify] incoming body', body)
+  flowLog('start', 'Incoming verify body parsed', { keys: Object.keys(body || {}) })
     const {
       razorpay_order_id,
       razorpay_payment_id,
@@ -166,8 +183,10 @@ export async function POST(req: NextRequest) {
 
     if (generatedSignature !== razorpay_signature) {
       console.warn('Payment signature mismatch');
+      flowLog('signature-mismatch', 'Generated signature does not match provided', { generatedSignature, razorpay_signature })
       return NextResponse.json({ verified: false, error: 'Invalid signature' }, { status: 400 });
     }
+    flowLog('signature-ok', 'Signature verified', { razorpay_order_id, razorpay_payment_id })
 
     const serverSupabase = process.env.SUPABASE_SERVICE_ROLE_KEY
       ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '', process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -216,6 +235,7 @@ export async function POST(req: NextRequest) {
       else if ((body as any).amount != null) amtToStore = Number((body as any).amount) / 100; // paise -> rupees
       else amtToStore = 0;
     }
+    flowLog('resolved-core', 'Core fields resolved', { amtToStore, serviceToStore, typeToStore })
 
     // Upsert payment record
     let persistedPayment: any = null;
@@ -325,7 +345,8 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       console.error('Exception persisting payment:', e);
     }
-    if (debug) console.debug('[payments][verify] persistedPayment final', persistedPayment)
+  if (debug) console.debug('[payments][verify] persistedPayment final', persistedPayment)
+  flowLog('payment-persisted', 'Payment persisted/updated', { paymentId: persistedPayment?.id, status: persistedPayment?.payment_status })
 
     // Attach user if missing and can be derived from form_response
     try {
@@ -357,6 +378,7 @@ export async function POST(req: NextRequest) {
       if (persistedPayment && persistedPayment.user_id) {
         const cartItems = Array.isArray((body as any)?.cart) ? (body as any).cart : []
         if (cartItems.length > 0) {
+          flowLog('orders', 'Creating multi orders from cart', { count: cartItems.length })
           // Resolve service/category info for each item
           const svcIds = Array.from(new Set(cartItems.map((it:any) => it.service_id).filter((v:any) => v != null)))
           const svcNames = Array.from(new Set(cartItems.map((it:any) => it.name).filter(Boolean)))
@@ -398,6 +420,7 @@ export async function POST(req: NextRequest) {
             if (insOrdersErr) console.error('order insert (multi) error', insOrdersErr)
             else {
               if (debug) console.debug('Orders created (multi)', insertedOrders)
+              flowLog('orders-created', 'Multi orders inserted', { insertedCount: insertedOrders?.length })
               createdOrders = insertedOrders as any[]
               // Build a client-friendly payload with service labels
               const svcMap = new Map(serviceRows.map((r: any) => [r.id, r]))
@@ -416,6 +439,7 @@ export async function POST(req: NextRequest) {
           }
         } else {
           // Fallback: create a single order using resolved service/category
+          flowLog('orders', 'Creating single fallback order')
           let resolvedServiceId = service_id ?? null;
           let resolvedCategoryId = null;
           if (!resolvedServiceId) {
@@ -444,6 +468,7 @@ export async function POST(req: NextRequest) {
           if (orderErr) console.error('order insert error', orderErr);
           else {
             if (debug) console.debug('Order created', orderInserted);
+            flowLog('orders-created', 'Single order inserted', { orderId: orderInserted?.id })
             if (orderInserted) {
               createdOrders = [orderInserted]
               // Fetch service label for the single order
@@ -474,7 +499,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Send notification using persistedPayment to avoid race
-    const notifyResult = await sendPaymentNotification(serverSupabase, { paymentId: razorpay_payment_id, dbPayment: persistedPayment });
+  const notifyResult = await sendPaymentNotification(serverSupabase, { paymentId: razorpay_payment_id, dbPayment: persistedPayment });
+  flowLog('complete', 'Verify complete', { orders: createdOrders?.length, notifyOk: notifyResult?.success })
     if (debug) console.debug('[payments][verify] response payload', { persistedPaymentId: persistedPayment?.id, ordersCount: createdOrders?.length, createdOrdersClient })
     return NextResponse.json({ success: true, persistedPayment, createdOrders, createdOrdersClient: createdOrdersClient, notifyResult }, { status: 200 });
   } catch (err) {

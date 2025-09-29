@@ -50,6 +50,23 @@ interface FormClientProps { orderIdProp?: number | null; typeProp?: string | nul
 export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillStateChange }: FormClientProps = {}) {
   // Debug flag (temporarily disabled normal verbose logging)
   const DEBUG = false // typeof window !== 'undefined' && (window as any).FORM_DEBUG !== false;
+  const FLOW_DEBUG = typeof window !== 'undefined' && (window as any).FORM_FLOW_DEBUG === true
+  const flowLog = (phase: string, msg: string, extra?: any) => {
+    if (!FLOW_DEBUG) return
+    const ts = new Date().toISOString()
+    try { console.debug(`[flow][form-client][${phase}][${ts}] ${msg}`, extra || '') } catch {}
+  }
+  const maybeDelay = async (label: string) => {
+    try {
+      const msRaw = (window as any).FORM_LOAD_DELAY_MS || (window as any).FORM_DELAY_MS
+      const ms = typeof msRaw === 'number' ? msRaw : Number(msRaw)
+      if (ms && ms > 0) {
+        flowLog('delay', `Artificial delay (${label}) ${ms}ms`)
+        await new Promise(r => setTimeout(r, ms))
+      }
+    } catch {}
+  }
+
   const [selectedType, setSelectedType] = useState<string>("")
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   // popup replaced by external button; keep candidate internally
@@ -101,6 +118,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     let mounted = true
     ;(async () => {
       try {
+        flowLog('resolve-type:start', 'Begin type resolution')
+        await maybeDelay('pre-resolve-type')
         let resolved: string | null = null
 
         // If we have an order_id, resolve authoritative type from DB
@@ -160,6 +179,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   // if (mounted && !finalType && DEBUG) console.debug('[FormClient] no finalType resolved; staying empty')
       } catch (e) {
         console.error('[FormClient] Exception resolving form type', e)
+        flowLog('resolve-type:error', 'Exception during type resolution', { error: String(e) })
       }
     })()
 
@@ -258,6 +278,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     let active = true
     ;(async () => {
       try {
+        flowLog('load-values:start', 'Begin loading form values', { selectedType })
+        await maybeDelay('pre-load-values')
         const { data: sessionRes } = await supabase.auth.getSession()
         const userId = sessionRes?.session?.user?.id || null
         if (!userId) { setFormValues({}); return }
@@ -320,11 +342,11 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         }
       } catch (e) {
         console.error('[FormClient] Load form values error', e)
+        flowLog('load-values:error', 'Exception while loading form values', { error: String(e) })
         if (active) setFormValues({})
       }
     })()
     return () => { active = false }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedType, orderIdFromProps])
 
   const relevantFields = selectedType ? getRelevantFields(selectedType) : []
@@ -348,18 +370,20 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   useEffect(() => {
     if (!onPrefillStateChange) return
     const available = !!prefillCandidate
-    if (lastPrefillStatusRef.current === available) return // no change -> skip
+    if (lastPrefillStatusRef.current === available) return
     lastPrefillStatusRef.current = available
     if (available) {
-      const snapshot = prefillCandidate // capture
+      const snapshot = prefillCandidate
       const apply = () => {
         if (!snapshot) return
         setFormValues(prev => ({ ...snapshot, ...prev }))
         setPrefillCandidate(null)
       }
       onPrefillStateChange({ available: true, apply })
+      flowLog('prefill:available', 'Prefill available', { keys: Object.keys(snapshot || {}) })
     } else {
       onPrefillStateChange({ available: false, apply: () => {} })
+      flowLog('prefill:unavailable', 'Prefill not available')
     }
   }, [prefillCandidate, onPrefillStateChange])
 

@@ -4,6 +4,24 @@ import { supabase } from '@/lib/supabase';
 import pricingToForm from '@/app/data/service-pricing-to-form.json'
 import { createClient } from '@supabase/supabase-js';
 
+// Instrumentation helpers
+const FLOW_DEBUG = process.env.PAYMENT_FLOW_DEBUG === '1'
+function flowLog(phase: string, msg: string, extra?: any) {
+  if (!FLOW_DEBUG) return
+  const ts = new Date().toISOString()
+  try {
+    console.debug(`[flow][create-order][${phase}][${ts}] ${msg}`, extra || '')
+  } catch {}
+}
+
+async function maybeDelay(label: string) {
+  const delayMs = Number(process.env.PAYMENT_FORCE_DELAY_MS || '0')
+  if (delayMs > 0) {
+    flowLog('delay', `Artificial delay (${label}) ${delayMs}ms`)
+    await new Promise(r => setTimeout(r, delayMs))
+  }
+}
+
 // Razorpay's Node SDK requires a Node.js runtime (not Edge). Force Node on Vercel.
 export const runtime = 'nodejs'
 // This route is dynamic and should never be statically optimized.
@@ -11,7 +29,10 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   try {
+  const startTs = Date.now()
+  await maybeDelay('before-parse-body')
   const { amount, currency, user_id, service_id, custom_price, type } = await req.json();
+  flowLog('start', 'Incoming request body parsed', { amount, currency, user_id, service_id, custom_price, type })
     const debug = process.env.PAYMENT_DEBUG === '1'
     if (debug) {
       console.debug('[payments][create-order] incoming body', { amount, currency, user_id, service_id, custom_price, type })
@@ -30,11 +51,13 @@ export async function POST(req: Request) {
       key_secret: keySecret,
     });
 
+    await maybeDelay('pre-razorpay-create')
     const order = await instance.orders.create({
       amount: amount,
       currency: currency,
       receipt: `receipt_order_${Date.now()}`,
     });
+    flowLog('razorpay-created', 'Razorpay order created', { orderId: order.id })
 
   // Persist a payment row so verify/notify flows can resolve details
     try {
@@ -46,6 +69,7 @@ export async function POST(req: Request) {
       const amtToStore = custom_price != null
         ? Number(custom_price)
         : (amount != null ? Number(amount) / 100 : 0);
+      flowLog('compute', 'Amount + mapping pre-insert', { amtToStore })
 
   // Map incoming `type` (which may be a pricing key) to canonical form key
       const map = pricingToForm as unknown as Record<string,string>
@@ -95,7 +119,8 @@ export async function POST(req: Request) {
         created_at: new Date().toISOString(),
       },
     ]
-    if (debug) console.debug('[payments][create-order] insert payload prepared', insertPayload[0])
+  if (debug) console.debug('[payments][create-order] insert payload prepared', insertPayload[0])
+  flowLog('db', 'Attempting payment insert', { payload: insertPayload[0] })
     ;({ data: inserted, error: insErr } = await serverSupabase
         .from('payments')
         .insert(insertPayload)
@@ -111,6 +136,7 @@ export async function POST(req: Request) {
             .select()
             .maybeSingle())
           if (debug) console.debug('[payments][create-order] retry insert without type result', { inserted, insErr })
+          flowLog('db-retry', 'Retry insert without type due to constraint', { ok: !insErr })
         } catch (retryErr) {
           console.error('Retry insert payment without type failed:', retryErr)
         }
@@ -124,6 +150,8 @@ export async function POST(req: Request) {
       console.error('❌ Exception while inserting payment row after order creation:', e);
     }
 
+  const totalMs = Date.now() - startTs
+  flowLog('complete', 'Responding to client', { durationMs: totalMs })
   return NextResponse.json(order, { status: 200 });
   } catch (err) {
     console.error('❌ Razorpay Order Creation Error:', err);
