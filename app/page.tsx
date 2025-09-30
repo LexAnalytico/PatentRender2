@@ -436,6 +436,55 @@ const openFirstFormEmbedded = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quoteView, checkoutPayment, embeddedOrders.length])
 
+  // Track last known authenticated user id to survive focus loss / session race (top-level)
+  const lastKnownUserIdRef = useRef<string | null>(null)
+  // Flag that a previous orders load aborted due to missing user; triggers focus recovery reload
+  const ordersAbortedNoUserRef = useRef<boolean>(false)
+
+  // Periodic session refresh (top-level)
+  useEffect(() => {
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const { data: s } = await supabase.auth.getSession()
+        const uid = s?.session?.user?.id || null
+        if (!cancelled && uid) lastKnownUserIdRef.current = uid
+      } catch {}
+    }
+    refresh()
+    const iv = setInterval(refresh, 3000)
+    return () => { cancelled = true; clearInterval(iv) }
+  }, [])
+
+  // Focus / visibility recovery
+  useEffect(() => {
+    if (quoteView !== 'orders') return
+    const onFocus = () => {
+      if (quoteView === 'orders') {
+        if (embeddedOrders.length === 0 || ordersAbortedNoUserRef.current) {
+          console.debug('[Orders][focus-recover] scheduling reload', { empty: embeddedOrders.length === 0, abortedNoUser: ordersAbortedNoUserRef.current })
+          ordersAbortedNoUserRef.current = false
+          setOrdersReloadKey(k => k + 1)
+        }
+      }
+    }
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && quoteView === 'orders') {
+        if (embeddedOrders.length === 0 || ordersAbortedNoUserRef.current) {
+          console.debug('[Orders][visibility-recover] scheduling reload', { empty: embeddedOrders.length === 0, abortedNoUser: ordersAbortedNoUserRef.current })
+          ordersAbortedNoUserRef.current = false
+          setOrdersReloadKey(k => k + 1)
+        }
+      }
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [quoteView, embeddedOrders.length])
+
   // Load embedded Orders list when switching to Orders inside the quote page
   useEffect(() => {
   let active = true
@@ -463,7 +512,9 @@ const openFirstFormEmbedded = () => {
       // small retry for session readiness (handles the Cmd+Tab back race)
       const getUserId = async () => {
         const { data: sessionRes } = await supabase.auth.getSession()
-        return sessionRes?.session?.user?.id || null
+        const uid = sessionRes?.session?.user?.id || null
+        if (uid) lastKnownUserIdRef.current = uid
+        return uid
       }
       let userId = await getUserId()
       if (!userId) {
@@ -476,12 +527,31 @@ const openFirstFormEmbedded = () => {
         userId = await getUserId()
         if (!userId) console.debug('[Orders][load] third userId fetch empty')
       }
+      // Fallback to last known id if session race after focus loss
+      if (!userId && lastKnownUserIdRef.current) {
+        userId = lastKnownUserIdRef.current
+        console.debug('[Orders][load] using lastKnownUserIdRef fallback after session miss')
+      }
+      // Additional fallback chain: lastKnownUserIdRef -> checkoutPayment.user_id -> persistedOrders[0].user_id
+      if (!userId && lastKnownUserIdRef.current) {
+        userId = lastKnownUserIdRef.current
+        console.debug('[Orders][load] fallback userId from lastKnownUserIdRef')
+      }
+      if (!userId && checkoutPayment?.user_id) {
+        userId = checkoutPayment.user_id
+        console.debug('[Orders][load] fallback userId from checkoutPayment')
+      }
+      if (!userId && checkoutOrders.length > 0 && checkoutOrders[0]?.user_id) {
+        userId = checkoutOrders[0].user_id
+        console.debug('[Orders][load] fallback userId from checkoutOrders[0]')
+      }
       if (!userId) {
         console.log("[Orders] No user session; abort")
         if (active) {
           setEmbeddedOrders([])
           setOrdersLoadError('You are not signed in. Please sign in to view orders.')
           setEmbeddedOrdersLoading(false)
+          ordersAbortedNoUserRef.current = true
         }
         console.debug('[Orders][load] early-return: no user session')
         return
@@ -1830,6 +1900,163 @@ const handleAuth = async (e: React.FormEvent) => {
  
 //add here
 const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+// Track if user left the tab during an active payment (legacy interruption flag)
+const [paymentInterrupted, setPaymentInterrupted] = useState(false)
+const paymentBlurTimerRef = useRef<any>(null)
+
+// Strict focus guard states
+const [focusGuardActive, setFocusGuardActive] = useState(false)
+const [focusViolationReason, setFocusViolationReason] = useState<string|null>(null)
+const [focusViolationCount, setFocusViolationCount] = useState(0)
+const focusGuardStartedAtRef = useRef<number|null>(null)
+const focusLastOkRef = useRef<number|null>(null)
+const focusBlurTimerRef = useRef<any>(null)
+const focusVisibilityTimerRef = useRef<any>(null)
+const MAX_FOCUS_GUARD_DURATION_MS = 5 * 60 * 1000 // safety auto-stop after 5 minutes
+const BLUR_GRACE_MS = 600 // tighter grace for blur
+const VISIBILITY_GRACE_MS = 400 // very strict: almost immediate
+
+const startFocusGuard = useCallback(() => {
+  if (focusGuardActive) return
+  setFocusViolationReason(null)
+  setFocusViolationCount(0)
+  focusGuardStartedAtRef.current = Date.now()
+  focusLastOkRef.current = Date.now()
+  setFocusGuardActive(true)
+  console.debug('[FocusGuard] started')
+}, [focusGuardActive])
+
+const stopFocusGuard = useCallback((label: string) => {
+  if (!focusGuardActive) return
+  setFocusGuardActive(false)
+  if (focusBlurTimerRef.current) clearTimeout(focusBlurTimerRef.current)
+  if (focusVisibilityTimerRef.current) clearTimeout(focusVisibilityTimerRef.current)
+  console.debug('[FocusGuard] stopped', { label })
+}, [focusGuardActive])
+
+// Central interruption routine (moved earlier to avoid use-before-def in focus guard hooks)
+const interruptPayment = useCallback(async (reason: string) => {
+  if (!isProcessingPayment) return
+  if (paymentInterrupted) return
+  console.warn('[Payment][interrupt]', { reason })
+  setPaymentInterrupted(true)
+  try { await supabase.auth.signOut() } catch {}
+}, [isProcessingPayment, paymentInterrupted])
+
+const handleFocusViolation = useCallback(async (reason: string) => {
+  if (!focusGuardActive) return
+  setFocusViolationReason(reason)
+  setFocusViolationCount(c => c + 1)
+  console.warn('[FocusGuard][violation]', { reason })
+  interruptPayment('focus-guard-' + reason)
+  stopFocusGuard('violation-' + reason)
+}, [focusGuardActive, interruptPayment, stopFocusGuard])
+
+// Effect: bind focus guard listeners
+useEffect(() => {
+  if (!focusGuardActive) return
+  const handleVisibility = () => {
+    if (document.visibilityState === 'hidden') {
+      if (focusVisibilityTimerRef.current) clearTimeout(focusVisibilityTimerRef.current)
+      focusVisibilityTimerRef.current = setTimeout(() => handleFocusViolation('visibility-hidden'), VISIBILITY_GRACE_MS)
+    } else {
+      if (focusVisibilityTimerRef.current) {
+        clearTimeout(focusVisibilityTimerRef.current)
+        focusVisibilityTimerRef.current = null
+      }
+      focusLastOkRef.current = Date.now()
+    }
+  }
+  const handleBlur = () => {
+    if (focusBlurTimerRef.current) clearTimeout(focusBlurTimerRef.current)
+    focusBlurTimerRef.current = setTimeout(() => handleFocusViolation('window-blur'), BLUR_GRACE_MS)
+  }
+  const handleFocus = () => {
+    if (focusBlurTimerRef.current) {
+      clearTimeout(focusBlurTimerRef.current)
+      focusBlurTimerRef.current = null
+    }
+    focusLastOkRef.current = Date.now()
+  }
+  const handleKey = (e: KeyboardEvent) => {
+    if (e.metaKey || e.ctrlKey) {
+      handleFocusViolation('meta-ctrl-key')
+    }
+  }
+  const beforeUnload = (e: BeforeUnloadEvent) => {
+    e.preventDefault()
+    e.returnValue = ''
+    handleFocusViolation('before-unload')
+  }
+  document.addEventListener('visibilitychange', handleVisibility)
+  window.addEventListener('blur', handleBlur)
+  window.addEventListener('focus', handleFocus)
+  window.addEventListener('keydown', handleKey, true)
+  window.addEventListener('beforeunload', beforeUnload)
+  const interval = setInterval(() => {
+    if (!focusGuardActive) return
+    const started = focusGuardStartedAtRef.current || 0
+    if (Date.now() - started > MAX_FOCUS_GUARD_DURATION_MS) {
+      stopFocusGuard('auto-timeout')
+    }
+  }, 2000)
+  return () => {
+    document.removeEventListener('visibilitychange', handleVisibility)
+    window.removeEventListener('blur', handleBlur)
+    window.removeEventListener('focus', handleFocus)
+    window.removeEventListener('keydown', handleKey, true)
+    window.removeEventListener('beforeunload', beforeUnload)
+    if (focusBlurTimerRef.current) clearTimeout(focusBlurTimerRef.current)
+    if (focusVisibilityTimerRef.current) clearTimeout(focusVisibilityTimerRef.current)
+    clearInterval(interval)
+  }
+}, [focusGuardActive, handleFocusViolation, stopFocusGuard])
+
+// Overlay while guard active (prevents user interacting with rest of page and signals requirement)
+const FocusGuardOverlay = () => {
+  if (!focusGuardActive) return null
+  return (
+    <div className="fixed inset-0 z-[60] pointer-events-none flex items-start justify-center p-4">
+      <div className="mt-8 px-4 py-2 rounded bg-amber-500/90 text-white text-sm shadow">
+        <strong>Payment in progress.</strong> Keep this tab focused. Leaving the tab will cancel and require re-login.
+      </div>
+    </div>
+  )
+}
+
+// (definition moved above for ordering)
+
+// Legacy interruption watcher still active but only when guard not active (fallback)
+useEffect(() => {
+  if (!isProcessingPayment) return
+  if (focusGuardActive) return // guard handles it
+  const handleVisibility = () => { if (document.visibilityState === 'hidden') interruptPayment('legacy-visibility-hidden') }
+  window.addEventListener('visibilitychange', handleVisibility)
+  return () => { window.removeEventListener('visibilitychange', handleVisibility) }
+}, [isProcessingPayment, focusGuardActive, interruptPayment])
+
+// Overlay for interruption warning
+const PaymentInterruptionBanner = () => {
+  if (!paymentInterrupted) return null
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
+      <div className="bg-white dark:bg-neutral-900 rounded-md shadow-xl max-w-md w-full p-6 space-y-4 text-center">
+        <h2 className="text-lg font-semibold text-red-600">Payment Interrupted</h2>
+        <p className="text-sm text-neutral-700 dark:text-neutral-300">
+          {focusViolationReason ? (
+            <>Focus was lost ({focusViolationReason}). You were signed out for security. Please sign in and retry, keeping this tab focused.</>
+          ) : (
+            <>You switched tabs or applications during payment processing. For security and to ensure your order is recorded correctly, you have been signed out. Please sign back in and retry the payment. Keep this tab in focus until confirmation.</>
+          )}
+        </p>
+        <button
+          onClick={() => { setPaymentInterrupted(false); setShowAuthModal(true); }}
+          className="mt-2 inline-flex items-center justify-center rounded bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm font-medium"
+        >Sign In Again</button>
+      </div>
+    </div>
+  )
+}
   useEffect(() => {
   const script = document.createElement("script");
   script.src = "https://checkout.razorpay.com/v1/checkout.js";
@@ -1960,11 +2187,16 @@ const [isProcessingPayment, setIsProcessingPayment] = useState(false);
         theme: { color: '#1e40af' },
       };
 
+      // Start strict focus guard right before opening checkout
+      startFocusGuard()
+      setIsProcessingPayment(true)
       const rzp = new (window as any).Razorpay(options);
       rzp.open();
     } catch (err: any) {
       console.error('handlePayment error:', err);
       alert('An error occurred while initiating payment.');
+      stopFocusGuard('init-error')
+      setIsProcessingPayment(false)
     }
   };
  
@@ -2221,6 +2453,7 @@ const [isProcessingPayment, setIsProcessingPayment] = useState(false);
    return (
     <div className="min-h-screen bg-gray-50">
       <PaymentProcessingModal isVisible={isProcessingPayment} />
+      <PaymentInterruptionBanner />
       {/* Unified Checkout Thank You Modal (dashboard view) */}
       <CheckoutModal
         isOpen={showCheckoutThankYou}
@@ -2332,11 +2565,14 @@ const [isProcessingPayment, setIsProcessingPayment] = useState(false);
                     </Card>
                   )}
                 </div>
-                <div className="flex justify-center items-center mt-8">
+                <div className="flex flex-col items-center mt-8 space-y-3">
                   <Button className="w-full max-w-sm bg-blue-600 hover:bg-blue-700 text-white" onClick={handlePayment}>
                     <FileText className="h-4 w-4 mr-2" />
                     Make Payment
                   </Button>
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 max-w-lg text-center leading-snug">
+                    Clicking on <span className="font-semibold">Make Payment</span> will open the secure Razorpay window. <strong>Do not switch tabs, minimize, or leave this screen until the payment is completed</strong> or you will be signed out and need to sign in again to retry.
+                  </p>
                 </div>
               </>
             )}
