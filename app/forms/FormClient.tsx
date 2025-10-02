@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
+import { ALLOWED_MIME, MAX_FILE_BYTES, uploadFigure, deleteFigure } from '@/utils/attachments'
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -45,9 +46,15 @@ const applicationTypes = [
   
 ]
 
-interface FormClientProps { orderIdProp?: number | null; typeProp?: string | null; onPrefillStateChange?: (info: { available: boolean; apply: () => void }) => void }
+interface FormClientProps {
+  orderIdProp?: number | null;
+  typeProp?: string | null;
+  onPrefillStateChange?: (info: { available: boolean; apply: () => void }) => void;
+  externalPrefill?: { type: string; orderId: number | null; values: Record<string,string> } | null;
+  onSaveLocal?: (info: { type: string; orderId: number | null; values: Record<string,string> }) => void;
+}
 
-export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillStateChange }: FormClientProps = {}) {
+export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillStateChange, externalPrefill, onSaveLocal }: FormClientProps = {}) {
   // Debug flag (temporarily disabled normal verbose logging)
   const DEBUG = false // typeof window !== 'undefined' && (window as any).FORM_DEBUG !== false;
   const FLOW_DEBUG = typeof window !== 'undefined' && (window as any).FORM_FLOW_DEBUG === true
@@ -73,7 +80,31 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   const [prefillOpen, setPrefillOpen] = useState(false) // deprecated (kept to avoid refactor ripple)
   const [prefillCandidate, setPrefillCandidate] = useState<Record<string, string> | null>(null)
   const [saving, setSaving] = useState(false)
+  const [saveStartedAt, setSaveStartedAt] = useState<number | null>(null)
+  const [saveStall, setSaveStall] = useState(false)
   const [saveSuccessTs, setSaveSuccessTs] = useState<number | null>(null)
+  const [lastSaveDebug, setLastSaveDebug] = useState<null | { started: number; ended?: number; error?: string; payload?: any }>(null)
+  const [lastLoadMeta, setLastLoadMeta] = useState<null | { phase: string; orderId: number | null; type: string; foundExact: boolean; fallbackUsed: boolean; ts: number }>(null)
+  const [manualReloadTick, setManualReloadTick] = useState(0)
+  const hadValuesRef = useRef(false)
+  useEffect(() => { hadValuesRef.current = Object.keys(formValues).some(k => (formValues as any)[k] && String((formValues as any)[k]).trim() !== '') }, [formValues])
+  // Attachments state
+  const [attachments, setAttachments] = useState<Array<{
+    tempId: string
+    id?: string
+    name: string
+    size: number
+    type: string
+    status: 'uploading' | 'done' | 'error' | 'removing'
+    progress: number
+    storage_path?: string
+    errorMsg?: string
+  }>>([])
+  const [loadingAttachments, setLoadingAttachments] = useState(false)
+  const [attachmentsError, setAttachmentsError] = useState<string | null>(null)
+  const [attachmentsDebugInfo, setAttachmentsDebugInfo] = useState<string | null>(null)
+  const [attachmentContext, setAttachmentContext] = useState<{ userId?: string | null }>({})
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const toastHook = useToast?.()
   const toast = toastHook ?? { toast: (opts: any) => { if (opts?.title) alert(`${opts.title}\n${opts?.description || ""}`) } }
   const searchParams = useSearchParams()
@@ -82,6 +113,13 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   const typeFromProps = typeProp ?? null
   // If the form is opened from an order (order_id in URL), lock the application type
   const isOrderLocked = !!(orderIdFromProps || (searchParams?.get("order_id") || ""))
+
+  // Effective order id resolution (props override URL)
+  const orderIdEffective = (() => {
+    const urlOrder = searchParams?.get('order_id') || ''
+    const urlNum = urlOrder ? Number(urlOrder) : null
+    return orderIdProp != null ? orderIdProp : (urlNum != null && !Number.isNaN(urlNum) ? urlNum : null)
+  })()
 
   useEffect(() => {
     const urlPricingKey = searchParams?.get("pricing_key") || ""
@@ -226,15 +264,27 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     const relevantFields = getRelevantFields(selectedType)
     const filledFields = relevantFields.filter((field) => formValues[field.field_title]?.trim())
 
+    let timeoutId: any
     ;(async () => {
       try {
         setSaving(true)
+        const startedAt = Date.now()
+        setSaveStartedAt(startedAt)
+        setLastSaveDebug({ started: startedAt, payload: { tentativeFields: filledFields.length } })
+        // Timeout safeguard (e.g., hanging network/RLS). If not cleared in 25s, reset.
+        timeoutId = setTimeout(() => {
+          setSaveStall(true)
+          if (saveStartedAt) {
+            const elapsed = Date.now() - saveStartedAt
+            setLastSaveDebug(prev => prev ? { ...prev, error: prev.error || `Stalled after ${elapsed}ms (possible network/RLS hang)` } : prev)
+          }
+        }, 15000)
+        let finished = false
         const { data: sessionRes } = await supabase.auth.getSession()
         const userId = sessionRes?.session?.user?.id || null
         if (!userId) throw new Error('Not signed in')
 
-  const orderIdParam = searchParams?.get('order_id') || null
-  const orderId = orderIdParam != null ? Number(orderIdParam) : null
+  const orderId = orderIdEffective
         const payload = {
           user_id: userId,
           order_id: orderId,
@@ -248,18 +298,25 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           .from('form_responses')
           .upsert(payload, { onConflict: 'user_id,order_id,form_type' })
         if (error) throw error
+        finished = true
         toast.toast?.({
           title: 'Form Saved',
           description: `Saved ${filledFields.length}/${relevantFields.length} fields${payload.completed ? ' (Completed)' : ''}.`,
         })
+        try { onSaveLocal?.({ type: selectedType, orderId, values: formValues }) } catch {}
         setSaveSuccessTs(Date.now())
+        setLastSaveDebug(prev => prev ? { ...prev, ended: Date.now(), payload: { ...prev.payload, saved: true, filled: filledFields.length, total: relevantFields.length } } : prev)
       } catch (e: any) {
         console.error('Save error', e)
         toast.toast?.({ title: 'Save failed', description: e?.message || 'Unable to save form', variant: 'destructive' })
         setSaveSuccessTs(null)
+        setLastSaveDebug(prev => prev ? { ...prev, ended: Date.now(), error: e?.message || String(e) } : prev)
       }
       finally {
         setSaving(false)
+        setSaveStall(false)
+        if (saveStartedAt) setSaveStartedAt(null)
+        try { clearTimeout(timeoutId) } catch {}
       }
     })()
   }
@@ -272,25 +329,20 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     })
   }
 
-  // Load form values when type changes: pull DB for this order+type; else offer prefill
+  // Load form values when type or effective order changes
   useEffect(() => {
     if (!selectedType) return
     let active = true
     ;(async () => {
       try {
-        flowLog('load-values:start', 'Begin loading form values', { selectedType })
+        flowLog('load-values:start', 'Begin loading form values', { selectedType, orderIdEffective })
         await maybeDelay('pre-load-values')
         const { data: sessionRes } = await supabase.auth.getSession()
         const userId = sessionRes?.session?.user?.id || null
         if (!userId) { setFormValues({}); return }
-        const orderId = (() => {
-          if (orderIdFromProps != null && !Number.isNaN(Number(orderIdFromProps))) return Number(orderIdFromProps)
-          const v = searchParams?.get('order_id'); const n = v != null ? Number(v) : null; return (n != null && !Number.isNaN(n)) ? n : null
-        })()
-  // if (DEBUG) console.debug('[FormClient][load-values] start', { selectedType, userId, orderId })
-        // Try exact match first: this order + this type
+        const orderId = orderIdEffective
         let exactData: any = null
-  if (orderId != null) {
+        if (orderId != null) {
           const { data: exact, error: exactErr } = await supabase
             .from('form_responses')
             .select('data')
@@ -298,10 +350,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
             .eq('order_id', orderId)
             .eq('form_type', selectedType)
             .maybeSingle()
-          // if (DEBUG) console.debug('[FormClient][load-values] exact query result', { exact, exactErr })
           if (!exactErr && exact?.data) exactData = exact.data
         } else {
-          // No order id: pick latest for this type
           const { data: latest, error: latestErr } = await supabase
             .from('form_responses')
             .select('data, updated_at')
@@ -309,47 +359,360 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
             .eq('form_type', selectedType)
             .order('updated_at', { ascending: false })
             .limit(1)
-          // if (DEBUG) console.debug('[FormClient][load-values] latest query result', { latest, latestErr })
           if (!latestErr && latest && latest.length > 0) exactData = (latest[0] as any).data
         }
-        if (exactData) { if (active) setFormValues(exactData as any); return }
-
-        // No exact data: look for any other form to prefill
+  if (exactData) { if (active) { setFormValues(exactData as any); setLastLoadMeta({ phase: 'load', orderId, type: selectedType, foundExact: true, fallbackUsed: false, ts: Date.now() }) }; return }
         const { data: anyData, error: anyErr } = await supabase
           .from('form_responses')
           .select('data, updated_at')
           .eq('user_id', userId)
           .order('updated_at', { ascending: false })
           .limit(1)
-  // if (DEBUG) console.debug('[FormClient][load-values] any query result', { anyData, anyErr })
         if (!anyErr && anyData && anyData.length > 0 && (anyData[0] as any).data) {
-          // Extract matching fields only
           const relevant = getRelevantFields(selectedType)
           const keys = new Set(relevant.map(r => r.field_title))
-          const candidate: Record<string, string> = {}
+            const candidate: Record<string, string> = {}
           Object.entries((anyData[0] as any).data as Record<string,string>).forEach(([k,v]) => {
             if (keys.has(k) && v) candidate[k] = v as string
           })
           if (Object.keys(candidate).length > 0) {
             setPrefillCandidate(candidate)
-            // if (DEBUG) console.debug('[FormClient][load-values] candidate prefill prepared', { candidateKeys: Object.keys(candidate) })
-            // external button will appear via callback
+            if (active) setLastLoadMeta({ phase: 'load', orderId, type: selectedType, foundExact: false, fallbackUsed: true, ts: Date.now() })
           } else {
-            if (active) setFormValues({})
+            if (active) { if (!hadValuesRef.current) setFormValues({}); setLastLoadMeta({ phase: 'load', orderId, type: selectedType, foundExact: false, fallbackUsed: false, ts: Date.now() }) }
           }
         } else {
-          if (active) setFormValues({})
+          if (active) { if (!hadValuesRef.current) setFormValues({}); setLastLoadMeta({ phase: 'load', orderId, type: selectedType, foundExact: false, fallbackUsed: false, ts: Date.now() }) }
         }
       } catch (e) {
         console.error('[FormClient] Load form values error', e)
         flowLog('load-values:error', 'Exception while loading form values', { error: String(e) })
-        if (active) setFormValues({})
+        if (active) { if (!hadValuesRef.current) setFormValues({}); setLastLoadMeta({ phase: 'load', orderId: orderIdEffective ?? null, type: selectedType, foundExact: false, fallbackUsed: false, ts: Date.now() }) }
       }
     })()
     return () => { active = false }
-  }, [selectedType, orderIdFromProps])
+  }, [selectedType, orderIdEffective, orderIdFromProps, manualReloadTick])
 
   const relevantFields = selectedType ? getRelevantFields(selectedType) : []
+  const manualReloadForm = () => { if (selectedType) setManualReloadTick(t => t + 1) }
+
+  // Load existing attachments for this (user, order, form type)
+  useEffect(() => {
+    if (!selectedType) return
+    if (!orderIdEffective) return // require order context to attach
+    let timedOut = false
+    let active = true
+    ;(async () => {
+      try {
+        setLoadingAttachments(true)
+        setAttachmentsError(null)
+        setAttachmentsDebugInfo(null)
+        const loadStarted = Date.now()
+        const safety = setTimeout(() => {
+          if (active) {
+            timedOut = true
+            setAttachmentsError('Timeout loading attachments (network/RLS)')
+            setLoadingAttachments(false)
+            setAttachmentsDebugInfo(prev => (prev ? prev + '\n' : '') + '[timeout] aborting after 12s')
+          }
+        }, 12000)
+        const { data: sessionRes } = await supabase.auth.getSession()
+        const userId = sessionRes?.session?.user?.id || null
+        setAttachmentContext({ userId })
+        if (!userId) { setLoadingAttachments(false); return }
+        const { data, error } = await supabase
+          .from('form_attachments')
+          .select('id, filename:filename, storage_path, mime_type, size_bytes, deleted')
+          .eq('user_id', userId)
+          .eq('order_id', orderIdEffective)
+          .eq('form_type', selectedType)
+          .eq('deleted', false)
+          .order('uploaded_at', { ascending: true })
+        if (error) throw error
+        if (!active) return
+        const mapped = (data || []).map((r: any) => ({
+          tempId: r.id,
+          id: r.id,
+          name: r.filename,
+          size: r.size_bytes || 0,
+          type: r.mime_type || 'application/octet-stream',
+          status: 'done' as const,
+          progress: 100,
+          storage_path: r.storage_path,
+        }))
+        // Merge with any existing (e.g., in-flight uploads). Key by storage_path or id.
+        setAttachments(prev => {
+          const byId = new Map<string, any>()
+          for (const m of mapped) byId.set(m.id || m.tempId, m)
+          const merged: typeof prev = []
+          // Keep uploading ones not yet in mapped
+            for (const p of prev) {
+              const key = p.id || p.tempId
+              if (!byId.has(key)) merged.push(p)
+            }
+          // Then add fresh mapped records
+          merged.push(...mapped)
+          return merged
+        })
+        if ((data || []).length === 0) {
+          setAttachmentsDebugInfo(`No rows returned for user=${userId} order=${orderIdEffective} type=${selectedType}`)
+        } else {
+          const ms = Date.now() - loadStarted
+          setAttachmentsDebugInfo(`Loaded ${data?.length} attachment row(s). (${ms}ms)`)        
+        }
+        try { clearTimeout(safety) } catch {}
+      } catch (e: any) {
+        if (!active) return
+        setAttachmentsError(e?.message || 'Failed to load attachments')
+        try { toast.toast?.({ title: 'Attachment load failed', description: e?.message || 'Unknown error', variant: 'destructive' }) } catch {}
+      } finally {
+        if (active && !timedOut) setLoadingAttachments(false)
+      }
+    })()
+    return () => { active = false }
+  }, [selectedType, orderIdEffective])
+
+  const manualReloadAttachments = async () => {
+    if (!selectedType || !orderIdEffective) return
+    try {
+      setLoadingAttachments(true)
+      const { data: sessionRes } = await supabase.auth.getSession()
+      const userId = sessionRes?.session?.user?.id || null
+      setAttachmentContext({ userId })
+      if (!userId) { setAttachmentsError('No session user'); setLoadingAttachments(false); return }
+      const { data, error } = await supabase
+        .from('form_attachments')
+        .select('id, filename:filename, storage_path, mime_type, size_bytes, deleted')
+        .eq('user_id', userId)
+        .eq('order_id', orderIdEffective)
+        .eq('form_type', selectedType)
+        .eq('deleted', false)
+        .order('uploaded_at', { ascending: true })
+      if (error) throw error
+      const mapped = (data || []).map((r: any) => ({
+        tempId: r.id,
+        id: r.id,
+        name: r.filename,
+        size: r.size_bytes || 0,
+        type: r.mime_type || 'application/octet-stream',
+        status: 'done' as const,
+        progress: 100,
+        storage_path: r.storage_path,
+      }))
+      setAttachments(prev => {
+        const byId = new Map<string, any>()
+        for (const m of mapped) byId.set(m.id || m.tempId, m)
+        const merged: typeof prev = []
+        for (const p of prev) {
+          const key = p.id || p.tempId
+          if (!byId.has(key)) merged.push(p)
+        }
+        merged.push(...mapped)
+        return merged
+      })
+      setAttachmentsDebugInfo(`Manual reload: ${data?.length || 0} row(s). Filters user=${userId} order=${orderIdEffective} type=${selectedType}`)
+    } catch (e: any) {
+      setAttachmentsError(e?.message || 'Reload failed')
+      try { toast.toast?.({ title: 'Reload failed', description: e?.message || 'Unknown error', variant: 'destructive' }) } catch {}
+    } finally {
+      setLoadingAttachments(false)
+    }
+  }
+
+  const handleFilesSelected = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+    const { data: sessionRes } = await supabase.auth.getSession()
+    const userId = sessionRes?.session?.user?.id || null
+    if (!userId) { alert('You must be signed in to upload files.'); return }
+    if (!orderIdEffective) { alert('Order context missing; save order first.'); return }
+    const fileArray = Array.from(files)
+    ;(window as any).__ATTACH_DEBUG__ = (window as any).__ATTACH_DEBUG__ || { events: [] }
+    const debugPush = (e: any) => { try { (window as any).__ATTACH_DEBUG__.events.push({ ts: Date.now(), ...e }) } catch {} }
+    for (const file of fileArray) {
+      const tempId = crypto.randomUUID()
+      const attachObj = {
+        tempId,
+        name: file.name,
+        size: file.size,
+        type: file.type || '',
+        status: 'uploading' as const,
+        progress: 0,
+      }
+      setAttachments(prev => [...prev, attachObj])
+      // validations
+      if (file.size > MAX_FILE_BYTES) {
+        setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'error', errorMsg: 'File too large' } : a))
+        debugPush({ phase: 'validate', file: file.name, reason: 'too_large', size: file.size })
+        continue
+      }
+      // MIME fallback by extension if missing/empty
+      let effectiveType = file.type
+      if (!effectiveType) {
+        const lower = file.name.toLowerCase()
+        if (lower.endsWith('.pdf')) effectiveType = 'application/pdf'
+        else if (lower.endsWith('.png')) effectiveType = 'image/png'
+        else if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) effectiveType = 'image/jpeg'
+        else if (lower.endsWith('.svg')) effectiveType = 'image/svg+xml'
+      }
+      if (ALLOWED_MIME.length && !ALLOWED_MIME.includes(effectiveType)) {
+        setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'error', errorMsg: 'Unsupported type' } : a))
+        debugPush({ phase: 'validate', file: file.name, reason: 'unsupported_type', provided: file.type, effectiveType })
+        continue
+      }
+      try {
+        // Upload to storage
+        debugPush({ phase: 'upload:start', file: file.name, size: file.size, type: effectiveType })
+        const { path } = await uploadFigure(userId, orderIdEffective, file)
+        debugPush({ phase: 'upload:success', file: file.name, path })
+        // Insert metadata row
+        // Best-effort SHA-256 (may not be supported in older browsers)
+        let sha256: string | null = null
+        try {
+          const buf = await file.arrayBuffer()
+          const digest = await crypto.subtle.digest('SHA-256', buf)
+          sha256 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2,'0')).join('')
+        } catch {}
+        const { data: ins, error: insErr } = await supabase
+          .from('form_attachments')
+          .insert({
+            user_id: userId,
+            order_id: orderIdEffective,
+            form_type: selectedType,
+            filename: file.name,
+            storage_path: path,
+            mime_type: effectiveType,
+            size_bytes: file.size,
+            sha256: sha256,
+            form_response_id: null,
+            deleted: false,
+          })
+          .select('id')
+          .maybeSingle()
+        if (insErr) throw insErr
+        debugPush({ phase: 'insert:success', file: file.name, id: ins?.id })
+        setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, id: ins?.id, status: 'done', progress: 100, storage_path: path } : a))
+        try { toast.toast?.({ title: 'Attachment uploaded', description: file.name }) } catch {}
+      } catch (e: any) {
+        setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'error', errorMsg: e?.message || 'Upload failed' } : a))
+        debugPush({ phase: 'error', file: file.name, message: e?.message || String(e) })
+        try { toast.toast?.({ title: 'Upload failed', description: e?.message || 'Unknown error', variant: 'destructive' }) } catch {}
+      }
+    }
+    debugPush({ phase: 'batch:complete' })
+  }
+
+  const handleRemoveAttachment = async (tempId: string) => {
+    const target = attachments.find(a => a.tempId === tempId)
+    if (!target) return
+    if (target.status === 'removing' || target.status === 'uploading') return // guard double-click & in-flight upload
+    const safetyMs = 10000
+    let safetyTimer: any
+    setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'removing', errorMsg: undefined } : a))
+    const finalizeRemove = () => { try { clearTimeout(safetyTimer) } catch {} }
+    try {
+      safetyTimer = setTimeout(() => {
+        setAttachments(prev => prev.map(a => a.tempId === tempId && a.status === 'removing'
+          ? { ...a, status: 'error', errorMsg: `Removal timeout after ${safetyMs/1000}s` }
+          : a))
+      }, safetyMs)
+      // 1. Soft delete
+      if (target.id) {
+        const { error } = await supabase
+          .from('form_attachments')
+          .update({ deleted: true })
+          .eq('id', target.id)
+        if (error) throw new Error('DB delete failed: ' + (error.message || ''))
+      }
+      // 2. Remove from storage (best effort)
+      if (target.storage_path) {
+        const { error: storageErr } = await deleteFigure(target.storage_path)
+        if (storageErr) {
+          try { toast.toast?.({ title: 'Removed (file retained)', description: storageErr.message || 'Storage object not deleted', variant: 'destructive' }) } catch {}
+        }
+      }
+      // 3. Immediate local removal
+      setAttachments(prev => prev.filter(a => a.tempId !== tempId))
+      finalizeRemove()
+      // 4. Background refresh (non-blocking)
+      ;(async () => {
+        try {
+          const { data: sessionRes } = await supabase.auth.getSession()
+          const userId = sessionRes?.session?.user?.id || null
+            if (userId && orderIdEffective && selectedType) {
+              const { data, error } = await supabase
+                .from('form_attachments')
+                .select('id, filename:filename, storage_path, mime_type, size_bytes, deleted')
+                .eq('user_id', userId)
+                .eq('order_id', orderIdEffective)
+                .eq('form_type', selectedType)
+                .eq('deleted', false)
+                .order('uploaded_at', { ascending: true })
+              if (!error) {
+                const mapped = (data || []).map((r: any) => ({
+                  tempId: r.id,
+                  id: r.id,
+                  name: r.filename,
+                  size: r.size_bytes || 0,
+                  type: r.mime_type || 'application/octet-stream',
+                  status: 'done' as const,
+                  progress: 100,
+                  storage_path: r.storage_path,
+                }))
+                setAttachments(prev => {
+                  // Only add if not already present
+                  const existing = new Set(prev.map(p => p.id || p.tempId))
+                  const add = mapped.filter(m => !existing.has(m.id || m.tempId))
+                  return [...prev, ...add]
+                })
+              }
+            }
+        } catch {}
+      })()
+      try { toast.toast?.({ title: 'Attachment removed', description: target.name }) } catch {}
+      manualReloadForm()
+    } catch (e: any) {
+      finalizeRemove()
+      // Fallback hard delete if RLS blocked soft delete
+      if (target?.id && /row-level security/i.test(e?.message || '')) {
+        try {
+          const { error: hardErr } = await supabase
+            .from('form_attachments')
+            .delete()
+            .eq('id', target.id)
+          if (!hardErr) {
+            setAttachments(prev => prev.filter(a => a.tempId !== tempId))
+            try { toast.toast?.({ title: 'Attachment hard-deleted', description: target.name }) } catch {}
+            return
+          }
+        } catch (_) {}
+      }
+      setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'error', errorMsg: e?.message || 'Remove failed' } : a))
+      try { toast.toast?.({ title: 'Removal failed', description: e?.message || 'Unable to delete attachment', variant: 'destructive' }) } catch {}
+      if (/row-level security/i.test(e?.message || '')) {
+        setAttachmentsDebugInfo(prev => (prev ? prev + '\n' : '') + '[RLS] Delete blocked. Ensure UPDATE / DELETE policies allow auth.uid() = user_id.')
+      }
+    }
+  }
+
+  // Attempt external prefill injection (Option A): after we tried DB lookups and form still empty
+  useEffect(() => {
+    if (!selectedType) return
+    if (!externalPrefill || !externalPrefill.values) return
+    // Only inject if current formValues are effectively empty (no keys or all blank) and prefill type is different or same (we don't care)
+    const hasUserData = Object.values(formValues).some(v => v && String(v).trim() !== '')
+    if (hasUserData) return
+    const relevant = getRelevantFields(selectedType)
+    if (!relevant.length) return
+    const keys = new Set(relevant.map(r => r.field_title))
+    const subset: Record<string,string> = {}
+    for (const [k,v] of Object.entries(externalPrefill.values)) {
+      if (keys.has(k) && v && String(v).trim() !== '') subset[k] = v as string
+    }
+    if (Object.keys(subset).length > 0) {
+      setFormValues(prev => ({ ...subset, ...prev }))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalPrefill, selectedType])
 
   // Post-mount verification: ensure the Select receives the value prop after resolution
   useEffect(() => {
@@ -407,97 +770,218 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
               <div><strong>URL:</strong> {typeof window !== 'undefined' ? window.location.search : ''}</div>
               <div><strong>prefillCandidate keys:</strong> {prefillCandidate ? Object.keys(prefillCandidate).join(', ') : 'none'}</div>
               <div><strong>isOrderLocked:</strong> {String(isOrderLocked)}</div>
+              {lastLoadMeta && (<div><strong>lastLoad:</strong> {lastLoadMeta.foundExact ? 'exact' : (lastLoadMeta.fallbackUsed ? 'fallback' : 'none')} order={String(lastLoadMeta.orderId)} type={lastLoadMeta.type}</div>)}
+              {lastSaveDebug && (
+                <div className="mt-2 border-t pt-1">
+                  <div className="font-semibold">Last Save Attempt</div>
+                  <div>Started: {new Date(lastSaveDebug.started).toLocaleTimeString()}</div>
+                  {lastSaveDebug.ended && <div>Ended: {new Date(lastSaveDebug.ended).toLocaleTimeString()}</div>}
+                  {lastSaveDebug.error && <div className="text-red-700">Error: {lastSaveDebug.error}</div>}
+                  {lastSaveDebug.payload && <div>Meta: {JSON.stringify(lastSaveDebug.payload)}</div>}
+                </div>
+              )}
             </div>
           )}
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="application-type">Application Type</Label>
-            <Select value={selectedType} onValueChange={setSelectedType} disabled={isOrderLocked}>
-              <SelectTrigger id="application-type" disabled={isOrderLocked}>
-                <SelectValue placeholder="Select an application type" />
-              </SelectTrigger>
-              <SelectContent>
-                {applicationTypes.map((type) => (
-                  <SelectItem key={type.key} value={type.key}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {isOrderLocked && (
-              <p className="text-xs text-muted-foreground">Locked by your order. The service was selected during checkout.</p>
+  <CardContent className="space-y-12">
+          <div className="space-y-3">
+            <Label htmlFor="application-type" className="text-sm font-semibold text-gray-800 tracking-wide">Application Type</Label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex-1">
+                <Select value={selectedType} onValueChange={setSelectedType} disabled={isOrderLocked}>
+                  <SelectTrigger id="application-type" disabled={isOrderLocked} className="h-11">
+                    <SelectValue placeholder="Select an application type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {applicationTypes.map((type) => (
+                      <SelectItem key={type.key} value={type.key}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {isOrderLocked && (
+                <span className="text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 px-2 py-1 rounded">Locked by order</span>
+              )}
+            </div>
+            {!selectedType && (
+              <p className="text-xs text-gray-500">Choose an application type to load relevant dynamic fields below.</p>
             )}
           </div>
 
           {selectedType && (
             <>
-              <div className="border-t pt-6">
-                <h3 className="text-lg font-semibold mb-4">
-                  Form Fields for {applicationTypes.find((t) => t.key === selectedType)?.label}
-                </h3>
-                <div className="space-y-4">
-                  {relevantFields.map((field, index) => (
-                    <div key={index} className="space-y-2">
-                      <Label htmlFor={`field-${index}`} className="text-sm font-medium">
-                        {field.field_title}
-                      </Label>
-                      {field.field_title.toLowerCase().includes("description") ||
-                      field.field_title.toLowerCase().includes("comment") ||
-                      field.field_title.toLowerCase().includes("instruction") ||
-                      field.field_title.toLowerCase().includes("statement") ||
-                      field.field_title.toLowerCase().includes("summary") ||
-                      field.field_title.toLowerCase().includes("problem") ||
-                      field.field_title.toLowerCase().includes("solution") ||
-                      field.field_title.toLowerCase().includes("features") ||
-                      field.field_title.toLowerCase().includes("abstract") ||
-                      field.field_title.toLowerCase().includes("claims") ||
-                      field.field_title.toLowerCase().includes("specification") ? (
-                        <Textarea
-                          id={`field-${index}`}
-                          placeholder={`Enter ${field.field_title.toLowerCase()}`}
-                          value={formValues[field.field_title] || ""}
-                          onChange={(e) => handleInputChange(field.field_title, e.target.value)}
-                          className="min-h-[80px]"
-                        />
-                      ) : (
-                        <Input
-                          id={`field-${index}`}
-                          type="text"
-                          placeholder={`Enter ${field.field_title.toLowerCase()}`}
-                          value={formValues[field.field_title] || ""}
-                          onChange={(e) => handleInputChange(field.field_title, e.target.value)}
-                        />
-                      )}
-                    </div>
-                  ))}
+              <div className="pt-2 space-y-10">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-5 w-1 bg-orange-600 rounded-sm" />
+                    <h3 className="text-xl font-semibold tracking-tight text-gray-900">
+                      {applicationTypes.find((t) => t.key === selectedType)?.label} Details
+                    </h3>
+                    <span className="ml-auto text-xs text-gray-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded">
+                      {relevantFields.length} fields
+                    </span>
+                  </div>
+                  <div className="h-px bg-gradient-to-r from-orange-300 via-orange-200 to-transparent mb-6" />
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {relevantFields.map((field, index) => {
+                      const lower = field.field_title.toLowerCase()
+                      const isLong = /(description|comment|instruction|statement|summary|problem|solution|features|abstract|claims|specification)/.test(lower)
+                      const isDrawingsField = /^drawings\s*\/\s*figures$/i.test(field.field_title.trim())
+                      return (
+                        <div key={index} className="group relative rounded-lg border border-orange-100 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
+                          <Label htmlFor={`field-${index}`} className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-600 text-white text-[11px] font-medium shadow-sm">
+                              {index + 1}
+                            </span>
+                            {field.field_title}
+                          </Label>
+                          <div className="mt-2">
+                            {isDrawingsField ? (
+                              <div className="space-y-3">
+                                {/* Hidden input dedicated to this field */}
+                                <input
+                                  ref={fileInputRef}
+                                  type="file"
+                                  hidden
+                                  multiple
+                                  accept={ALLOWED_MIME.join(',')}
+                                  disabled={!selectedType || !orderIdEffective}
+                                  onChange={(e) => {
+                                    const fl = e.target.files
+                                    if (!fl || fl.length === 0) return
+                                    const clone = Array.from(fl)
+                                    const dt = new DataTransfer()
+                                    clone.forEach(f => dt.items.add(f))
+                                    handleFilesSelected(dt.files)
+                                    e.target.value = ''
+                                  }}
+                                />
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={!selectedType || !orderIdEffective}
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="h-8 px-4 bg-orange-600 hover:bg-orange-700 text-white"
+                                  >Upload</Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={!selectedType || !orderIdEffective || loadingAttachments}
+                                    onClick={manualReloadAttachments}
+                                    className="h-8 px-3 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
+                                  >{loadingAttachments ? 'Reloading…' : 'Reload'}</Button>
+                                  <span className="text-[11px] text-gray-500">Allowed: PDF, PNG, JPG, SVG up to {(MAX_FILE_BYTES/1024/1024).toFixed(0)}MB</span>
+                                  {attachmentContext.userId && (
+                                    <span className="text-[9px] text-gray-400 font-mono truncate max-w-[140px]" title={attachmentContext.userId}>uid:{attachmentContext.userId}</span>
+                                  )}
+                                </div>
+                                {attachmentsError && <div className="text-xs text-red-600">{attachmentsError}</div>}
+                                {attachmentsDebugInfo && !attachmentsError && (
+                                  <div className="text-[10px] text-gray-400 font-mono break-all">{attachmentsDebugInfo}</div>
+                                )}
+                                {loadingAttachments && (
+                                  <div className="text-xs text-gray-500">Loading existing attachments…</div>
+                                )}
+                                <div className="space-y-2">
+                                  {attachments.length === 0 && !loadingAttachments && !attachmentsError && (
+                                    <div className="text-xs text-gray-500">No drawings uploaded yet.</div>
+                                  )}
+                                  {attachments.map(a => {
+                                    const statusLabel = a.status === 'uploading' ? 'Uploading…' : a.status === 'done' ? 'Uploaded' : 'Failed'
+                                    return (
+                                      <div key={a.tempId} className="rounded border border-orange-100 bg-white p-2">
+                                        <div className="flex justify-between items-start gap-3">
+                                          <div className="min-w-0 flex-1">
+                                            <div className="text-xs font-medium text-gray-800 truncate" title={a.name}>{a.name}</div>
+                                            <div className={`text-[11px] mt-0.5 ${a.status === 'done' ? 'text-green-600' : a.status === 'error' ? 'text-red-600' : 'text-gray-500'}`}>{statusLabel}</div>
+                                            <div className="text-[11px] text-gray-500 mt-0.5">{(a.size/1024).toFixed(1)} KB • {a.type || 'file'}</div>
+                                            {a.errorMsg && <div className="text-[10px] text-red-600 mt-1">{a.errorMsg}</div>}
+                                            {a.status === 'uploading' && (
+                                              <div className="mt-1 w-full h-1.5 rounded bg-orange-100 overflow-hidden">
+                                                <div className="h-full bg-orange-500 animate-pulse" style={{ width: '80%' }} />
+                                              </div>
+                                            )}
+                                          </div>
+                                          <div className="flex flex-col items-end gap-1">
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => handleRemoveAttachment(a.tempId)}
+                                              disabled={a.status === 'uploading'}
+                                              className="h-6 px-2 text-[11px] text-orange-700 border-orange-200 hover:bg-orange-50"
+                                            >Remove</Button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            ) : (
+                              isLong ? (
+                                <Textarea
+                                  id={`field-${index}`}
+                                  placeholder={`Enter ${lower}`}
+                                  value={formValues[field.field_title] || ""}
+                                  onChange={(e) => handleInputChange(field.field_title, e.target.value)}
+                                  className="min-h-[120px] resize-vertical focus:border-orange-500 focus:ring-orange-500"
+                                />
+                              ) : (
+                                <Input
+                                  id={`field-${index}`}
+                                  type="text"
+                                  placeholder={`Enter ${lower}`}
+                                  value={formValues[field.field_title] || ""}
+                                  onChange={(e) => handleInputChange(field.field_title, e.target.value)}
+                                  className="h-10 focus:border-orange-500 focus:ring-orange-500"
+                                />
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 pt-6 border-t">
-                <div className="flex gap-3 flex-wrap">
+              <div className="flex flex-col gap-4 pt-8 border-t">
+                <div className="flex flex-wrap gap-4 items-center w-full justify-end">
                   <Button
                     onClick={handleSave}
                     disabled={saving}
-                    className={`bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm transition-colors ${saving ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    className={`h-11 px-10 bg-orange-600 hover:bg-orange-700 text-white font-semibold shadow-sm transition-colors ${saving ? 'opacity-70 cursor-not-allowed' : ''}`}
                   >
-                    {saving ? 'Saving...' : 'Save Form'}
+                    {saving ? 'Submitting…' : (isOrderLocked ? 'Submit Application' : 'Save Form')}
                   </Button>
                   <Button
                     onClick={handleCancel}
                     variant="outline"
-                    className="font-medium"
+                    className="h-11 px-6 font-medium border-orange-200 text-orange-700 hover:bg-orange-50"
                     disabled={saving}
                   >
                     Cancel
                   </Button>
+                  {selectedType && (
+                    <Button
+                      type="button"
+                      onClick={manualReloadForm}
+                      variant="outline"
+                      className="h-11 px-4 font-medium border-orange-200 text-orange-700 hover:bg-orange-50"
+                      disabled={saving}
+                    >Reload Form Data</Button>
+                  )}
+                  {saveSuccessTs && (
+                    <div className="flex items-center gap-2 text-sm font-medium text-green-600">
+                      <span className="inline-block w-2 h-2 bg-green-600 rounded-full animate-pulse" />
+                      Data saved
+                    </div>
+                  )}
                 </div>
-                {saveSuccessTs && (
-                  <div className="text-sm text-green-600 font-medium flex items-center gap-2">
-                    <span className="inline-block w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
-                    Data saved
-                  </div>
-                )}
               </div>
             </>
           )}

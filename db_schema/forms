@@ -1,66 +1,706 @@
-In the sample code below I have used service-pricing-to-form.json for the 
-./mapping and form-fields.json for the ./fields file
-This is just an example of my requirement where field type will select the correct 
-form field labels and text boxes to be provided for user to enter his data
-we can style the form later and can you modify the code to get this requirement 
-for the forms
+//patent-form-alt.tsx
+import type React from "react"
+import type { Metadata } from "next"
+import { Geist, Manrope } from "next/font/google"
+import { Analytics } from "@vercel/analytics/next"
+import { Suspense } from "react"
+import "./globals.css"
 
-"use client"
+const geistSans = Geist({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+  variable: "--font-heading",
+  display: "swap",
+})
 
-import { useState } from "react"
-import { fieldToColumnMap } from "./mapping"
-import { fieldRows } from "./fields"
-import { data } from "autoprefixer"
+const manrope = Manrope({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+  variable: "--font-sans",
+  display: "swap",
+})
 
-export default function FieldLookup() {
-  const [input, setInput] = useState("")
-  const [results, setResults] = useState<string[]>([])
+export const metadata: Metadata = {
+  title: "Patent Application Form",
+  description: "Professional patent application management system",
+  generator: "v0.app",
+}
 
-  const handleSearch = () => {
-    // find which JSON column this field maps to
-    const column = fieldToColumnMap[input.trim()]
-    if (!column) {
-      setResults([])
-      alert("No mapping found for that field type")
-      return
-    }
-
-    // filter all rows where that column is "TRUE"
-    const labels = fieldRows
-      .filter(row => String(row[column]).toUpperCase() === "TRUE")
-      .map(row => row.field_title)
-
-    setResults(labels)
-  }
-
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode
+}>) {
   return (
-    <div className="space-y-4 p-4">
-      <label className="block text-sm font-medium">
-        Enter field type
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          placeholder="e.g. response_due_anytime_after_15_days"
-          className="mt-1 w-full border rounded p-2"
-        />
-      </label>
-
-      <button
-        onClick={handleSearch}
-        className="bg-blue-600 text-white px-4 py-2 rounded"
-      >
-        Search
-      </button>
-
-      {results.length > 0 && (
-        <ul className="list-disc pl-5">
-          {results.map(label => (
-            <li key={label}>{label}</li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <html lang="en">
+      <body className={`font-sans ${geistSans.variable} ${manrope.variable} antialiased`}>
+        <Suspense fallback={<div>Loading...</div>}>
+          {children}
+          <Analytics />
+        </Suspense>
+      </body>
+    </html>
   )
 }
 
+//layout.tsx
+import type React from "react"
+import type { Metadata } from "next"
+import { Geist, Manrope } from "next/font/google"
+import { Analytics } from "@vercel/analytics/next"
+import { Suspense } from "react"
+import "./globals.css"
 
+const geistSans = Geist({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+  variable: "--font-heading",
+  display: "swap",
+})
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+  variable: "--font-sans",
+  display: "swap",
+})
+
+export const metadata: Metadata = {
+  title: "Patent Application Form",
+  description: "Professional patent application management system",
+  generator: "v0.app",
+}
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode
+}>) {
+  return (
+    <html lang="en">
+      <body className={`font-sans ${geistSans.variable} ${manrope.variable} antialiased`}>
+        <Suspense fallback={<div>Loading...</div>}>
+          {children}
+          <Analytics />
+        </Suspense>
+      </body>
+    </html>
+  )
+}
+
+//patent-format.tsx
+"use client"
+
+import type React from "react"
+
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+export default function PatentForm() {
+  const [formData, setFormData] = useState({
+    clientReferenceNumber: "",
+    proposedPatentTitle: "",
+    technicalField: "",
+    briefSummary: "",
+    problemStatement: "",
+    proposedSolution: "",
+    keyNovelFeatures: "",
+    closestKnownSolutions: "",
+    inventorApplicantNames: "",
+    disclosureDocument: null as File | null,
+    drawingsFigures: null as File | null,
+    comments: "",
+    applicantFullLegalNames: "",
+    applicantType: "",
+    applicantNationality: "",
+    applicantAddress: "",
+    inventorNames: "",
+    inventorAddress: "",
+    inventorNationality: "",
+    isInventorAlsoApplicant: "",
+    specificationDocument: null as File | null,
+    claims: "",
+    abstract: "",
+    numberOfPages: "",
+    priorityClaimDetails: "",
+    lexAnalyticoReferenceNumber: "",
+    receivingOffice: "",
+    isaChosen: "",
+    languageOfFiling: "",
+    indianApplicantNumber: "",
+    responseDue: "",
+  })
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, files } = e.target
+    if (files && files[0]) {
+      setFormData((prev) => ({ ...prev, [name]: files[0] }))
+    }
+  }
+
+  const handleSave = () => {
+    console.log("Form data saved:", formData)
+    // Add your save logic here
+  }
+
+  const handleCancel = () => {
+    console.log("Form cancelled")
+    // Add your cancel logic here
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="mb-10">
+          <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-blue-500 mb-3 text-balance">
+            Patent Application Form
+          </h1>
+          <p className="text-slate-700 text-lg font-medium text-pretty">
+            Please complete all required fields with accurate information for your patent application.
+          </p>
+        </div>
+
+        <Card className="shadow-xl border-2 border-blue-100 rounded-xl overflow-hidden mb-24">
+          <div className="bg-white">
+            <div className="border-b-4 border-blue-500">
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-500 py-6">
+                <CardTitle className="text-2xl font-bold text-white tracking-wide">BASIC INFORMATION</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6 py-10 px-8">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="clientReferenceNumber" className="text-sm font-bold text-slate-800">
+                      Client Reference Number
+                    </Label>
+                    <Input
+                      id="clientReferenceNumber"
+                      name="clientReferenceNumber"
+                      value={formData.clientReferenceNumber}
+                      onChange={handleInputChange}
+                      className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                      placeholder="Enter reference number"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="proposedPatentTitle" className="text-sm font-bold text-slate-800">
+                      Proposed Patent Title
+                    </Label>
+                    <Input
+                      id="proposedPatentTitle"
+                      name="proposedPatentTitle"
+                      value={formData.proposedPatentTitle}
+                      onChange={handleInputChange}
+                      className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                      placeholder="Enter patent title"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="technicalField" className="text-sm font-bold text-slate-800">
+                    Technical Field
+                  </Label>
+                  <Input
+                    id="technicalField"
+                    name="technicalField"
+                    value={formData.technicalField}
+                    onChange={handleInputChange}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                    placeholder="e.g., Computer Science, Biotechnology"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="briefSummary" className="text-sm font-bold text-slate-800">
+                    Brief Summary of Invention
+                  </Label>
+                  <Textarea
+                    id="briefSummary"
+                    name="briefSummary"
+                    value={formData.briefSummary}
+                    onChange={handleInputChange}
+                    rows={4}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 resize-none transition-all"
+                    placeholder="Provide a concise summary of your invention..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="problemStatement" className="text-sm font-bold text-slate-800">
+                    Problem Statement
+                  </Label>
+                  <Textarea
+                    id="problemStatement"
+                    name="problemStatement"
+                    value={formData.problemStatement}
+                    onChange={handleInputChange}
+                    rows={4}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 resize-none transition-all"
+                    placeholder="Describe the problem your invention solves..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="proposedSolution" className="text-sm font-bold text-slate-800">
+                    Proposed Solution
+                  </Label>
+                  <Textarea
+                    id="proposedSolution"
+                    name="proposedSolution"
+                    value={formData.proposedSolution}
+                    onChange={handleInputChange}
+                    rows={4}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 resize-none transition-all"
+                    placeholder="Explain how your invention addresses the problem..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="keyNovelFeatures" className="text-sm font-bold text-slate-800">
+                    Key Novel Features
+                  </Label>
+                  <Textarea
+                    id="keyNovelFeatures"
+                    name="keyNovelFeatures"
+                    value={formData.keyNovelFeatures}
+                    onChange={handleInputChange}
+                    rows={4}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 resize-none transition-all"
+                    placeholder="List the unique and innovative aspects..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="closestKnownSolutions" className="text-sm font-bold text-slate-800">
+                    Closest Known Solutions (if any)
+                  </Label>
+                  <Textarea
+                    id="closestKnownSolutions"
+                    name="closestKnownSolutions"
+                    value={formData.closestKnownSolutions}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 resize-none transition-all"
+                    placeholder="Describe similar existing solutions..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="inventorApplicantNames" className="text-sm font-bold text-slate-800">
+                    Inventor/Applicant Name(s)
+                  </Label>
+                  <Input
+                    id="inventorApplicantNames"
+                    name="inventorApplicantNames"
+                    value={formData.inventorApplicantNames}
+                    onChange={handleInputChange}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                    placeholder="Enter names"
+                  />
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="disclosureDocument" className="text-sm font-bold text-slate-800">
+                      Disclosure Document
+                    </Label>
+                    <Input
+                      id="disclosureDocument"
+                      name="disclosureDocument"
+                      type="file"
+                      onChange={handleFileChange}
+                      className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 transition-all"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="drawingsFigures" className="text-sm font-bold text-slate-800">
+                      Drawings / Figures
+                    </Label>
+                    <Input
+                      id="drawingsFigures"
+                      name="drawingsFigures"
+                      type="file"
+                      onChange={handleFileChange}
+                      className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="comments" className="text-sm font-bold text-slate-800">
+                    Comments / Additional Instructions
+                  </Label>
+                  <Textarea
+                    id="comments"
+                    name="comments"
+                    value={formData.comments}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 resize-none transition-all"
+                    placeholder="Add any additional notes or instructions..."
+                  />
+                </div>
+              </CardContent>
+            </div>
+
+            <div className="border-b-4 border-blue-500">
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-500 py-6">
+                <CardTitle className="text-2xl font-bold text-white tracking-wide">APPLICANT INFORMATION</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6 py-10 px-8">
+                <div className="space-y-2">
+                  <Label htmlFor="applicantFullLegalNames" className="text-sm font-bold text-slate-800">
+                    Applicant Full Legal Name(s)
+                  </Label>
+                  <Input
+                    id="applicantFullLegalNames"
+                    name="applicantFullLegalNames"
+                    value={formData.applicantFullLegalNames}
+                    onChange={handleInputChange}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                    placeholder="Enter full legal name(s)"
+                  />
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="applicantType" className="text-sm font-bold text-slate-800">
+                      Applicant Type
+                    </Label>
+                    <Select
+                      value={formData.applicantType}
+                      onValueChange={(value) => handleSelectChange("applicantType", value)}
+                    >
+                      <SelectTrigger className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="individual">Individual</SelectItem>
+                        <SelectItem value="company">Company</SelectItem>
+                        <SelectItem value="organization">Organization</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="applicantNationality" className="text-sm font-bold text-slate-800">
+                      Applicant Nationality
+                    </Label>
+                    <Input
+                      id="applicantNationality"
+                      name="applicantNationality"
+                      value={formData.applicantNationality}
+                      onChange={handleInputChange}
+                      className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                      placeholder="Enter nationality"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="applicantAddress" className="text-sm font-bold text-slate-800">
+                    Applicant Address
+                  </Label>
+                  <Textarea
+                    id="applicantAddress"
+                    name="applicantAddress"
+                    value={formData.applicantAddress}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 resize-none transition-all"
+                    placeholder="Enter complete address..."
+                  />
+                </div>
+              </CardContent>
+            </div>
+
+            <div className="border-b-4 border-blue-500">
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-500 py-6">
+                <CardTitle className="text-2xl font-bold text-white tracking-wide">INVENTOR INFORMATION</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6 py-10 px-8">
+                <div className="space-y-2">
+                  <Label htmlFor="inventorNames" className="text-sm font-bold text-slate-800">
+                    Inventor Name(s)
+                  </Label>
+                  <Input
+                    id="inventorNames"
+                    name="inventorNames"
+                    value={formData.inventorNames}
+                    onChange={handleInputChange}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                    placeholder="Enter inventor name(s)"
+                  />
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="inventorNationality" className="text-sm font-bold text-slate-800">
+                      Inventor Nationality
+                    </Label>
+                    <Input
+                      id="inventorNationality"
+                      name="inventorNationality"
+                      value={formData.inventorNationality}
+                      onChange={handleInputChange}
+                      className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                      placeholder="Enter nationality"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="isInventorAlsoApplicant" className="text-sm font-bold text-slate-800">
+                      Is Inventor also Applicant?
+                    </Label>
+                    <Select
+                      value={formData.isInventorAlsoApplicant}
+                      onValueChange={(value) => handleSelectChange("isInventorAlsoApplicant", value)}
+                    >
+                      <SelectTrigger className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all">
+                        <SelectValue placeholder="Select option" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="no">No</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="inventorAddress" className="text-sm font-bold text-slate-800">
+                    Inventor Address
+                  </Label>
+                  <Textarea
+                    id="inventorAddress"
+                    name="inventorAddress"
+                    value={formData.inventorAddress}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 resize-none transition-all"
+                    placeholder="Enter complete address..."
+                  />
+                </div>
+              </CardContent>
+            </div>
+
+            <div className="border-b-4 border-blue-500">
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-500 py-6">
+                <CardTitle className="text-2xl font-bold text-white tracking-wide">FILING DETAILS</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6 py-10 px-8">
+                <div className="space-y-2">
+                  <Label htmlFor="specificationDocument" className="text-sm font-bold text-slate-800">
+                    Specification Document
+                  </Label>
+                  <Input
+                    id="specificationDocument"
+                    name="specificationDocument"
+                    type="file"
+                    onChange={handleFileChange}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 transition-all"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="claims" className="text-sm font-bold text-slate-800">
+                    Claims
+                  </Label>
+                  <Textarea
+                    id="claims"
+                    name="claims"
+                    value={formData.claims}
+                    onChange={handleInputChange}
+                    rows={5}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 resize-none transition-all"
+                    placeholder="Enter patent claims..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="abstract" className="text-sm font-bold text-slate-800">
+                    Abstract
+                  </Label>
+                  <Textarea
+                    id="abstract"
+                    name="abstract"
+                    value={formData.abstract}
+                    onChange={handleInputChange}
+                    rows={4}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 resize-none transition-all"
+                    placeholder="Provide a brief abstract..."
+                  />
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="numberOfPages" className="text-sm font-bold text-slate-800">
+                      Number of Pages in Specification
+                    </Label>
+                    <Input
+                      id="numberOfPages"
+                      name="numberOfPages"
+                      type="number"
+                      value={formData.numberOfPages}
+                      onChange={handleInputChange}
+                      className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="lexAnalyticoReferenceNumber" className="text-sm font-bold text-slate-800">
+                      LexAnalytico Reference Number
+                    </Label>
+                    <Input
+                      id="lexAnalyticoReferenceNumber"
+                      name="lexAnalyticoReferenceNumber"
+                      value={formData.lexAnalyticoReferenceNumber}
+                      onChange={handleInputChange}
+                      className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                      placeholder="Enter reference number"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="priorityClaimDetails" className="text-sm font-bold text-slate-800">
+                    Priority Claim Details
+                  </Label>
+                  <Textarea
+                    id="priorityClaimDetails"
+                    name="priorityClaimDetails"
+                    value={formData.priorityClaimDetails}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 resize-none transition-all"
+                    placeholder="Enter priority claim information..."
+                  />
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="receivingOffice" className="text-sm font-bold text-slate-800">
+                      Receiving Office
+                    </Label>
+                    <Input
+                      id="receivingOffice"
+                      name="receivingOffice"
+                      value={formData.receivingOffice}
+                      onChange={handleInputChange}
+                      className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                      placeholder="Enter office"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="isaChosen" className="text-sm font-bold text-slate-800">
+                      ISA Chosen
+                    </Label>
+                    <Input
+                      id="isaChosen"
+                      name="isaChosen"
+                      value={formData.isaChosen}
+                      onChange={handleInputChange}
+                      className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                      placeholder="Enter ISA"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="languageOfFiling" className="text-sm font-bold text-slate-800">
+                      Language of Filing
+                    </Label>
+                    <Input
+                      id="languageOfFiling"
+                      name="languageOfFiling"
+                      value={formData.languageOfFiling}
+                      onChange={handleInputChange}
+                      className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                      placeholder="e.g., English"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </div>
+
+            <div>
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-500 py-6">
+                <CardTitle className="text-2xl font-bold text-white tracking-wide">RESPONSE INFORMATION</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6 py-10 px-8">
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="indianApplicantNumber" className="text-sm font-bold text-slate-800">
+                      Indian Applicant Number
+                    </Label>
+                    <Input
+                      id="indianApplicantNumber"
+                      name="indianApplicantNumber"
+                      value={formData.indianApplicantNumber}
+                      onChange={handleInputChange}
+                      className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                      placeholder="Enter applicant number"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="responseDue" className="text-sm font-bold text-slate-800">
+                      Response Due
+                    </Label>
+                    <Input
+                      id="responseDue"
+                      name="responseDue"
+                      type="date"
+                      value={formData.responseDue}
+                      onChange={handleInputChange}
+                      className="border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/30 transition-all"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </div>
+          </div>
+        </Card>
+
+        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-white to-blue-50/50 border-t-4 border-blue-500 shadow-2xl z-10">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+            <div className="flex flex-col sm:flex-row justify-end gap-4">
+              <Button
+                onClick={handleCancel}
+                variant="outline"
+                size="lg"
+                className="w-full sm:w-auto border-2 border-slate-400 text-slate-800 hover:bg-slate-100 hover:border-slate-500 font-bold px-10 bg-white shadow-md transition-all"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSave}
+                size="lg"
+                className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-bold px-10 shadow-lg hover:shadow-xl transition-all"
+              >
+                Submit Application
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

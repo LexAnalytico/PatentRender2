@@ -292,6 +292,8 @@ const openFirstFormEmbedded = () => {
   const [checkoutPayment, setCheckoutPayment] = useState<any | null>(null)
   const [checkoutOrders, setCheckoutOrders] = useState<any[]>([])
   const [embeddedMultiForms, setEmbeddedMultiForms] = useState<{id:number,type:string}[] | null>(null)
+  // Cross-form snapshot to enable prefill across multiple forms (Option A implementation)
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<{ type: string; orderId: number | null; values: Record<string,string> } | null>(null)
   // Embedded Orders/Profile state when viewing within the quote view
   const [embeddedOrders, setEmbeddedOrders] = useState<any[]>([])
   const [embeddedOrdersLoading, setEmbeddedOrdersLoading] = useState(false)
@@ -2773,6 +2775,8 @@ const PaymentInterruptionBanner = () => {
                         orderIdProp={selectedFormOrderId}
                         typeProp={selectedFormType}
                         onPrefillStateChange={formPrefillHandle}
+                        externalPrefill={lastSavedSnapshot}
+                        onSaveLocal={(info) => setLastSavedSnapshot(info)}
                       />
                     </CardContent>
                   </Card>
@@ -2795,7 +2799,9 @@ const PaymentInterruptionBanner = () => {
                             <FormClient
                               orderIdProp={f.id}
                               typeProp={f.type}
+                              externalPrefill={lastSavedSnapshot}
                               onPrefillStateChange={idx === 0 ? formPrefillHandle : () => {}}
+                              onSaveLocal={(info) => setLastSavedSnapshot(info)}
                             />
                           </div>
                         </CardContent>
