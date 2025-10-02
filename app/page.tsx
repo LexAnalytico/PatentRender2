@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { supabase } from '../lib/supabase';
 import { fetchServicePricingRules, computePriceFromRules } from "@/utils/pricing";
 import AuthModal from "@/components/AuthModal"; // Adjust path
@@ -295,6 +295,33 @@ const openFirstFormEmbedded = () => {
   // Embedded Orders/Profile state when viewing within the quote view
   const [embeddedOrders, setEmbeddedOrders] = useState<any[]>([])
   const [embeddedOrdersLoading, setEmbeddedOrdersLoading] = useState(false)
+  // Derived grouped representation (payment bundle -> orders[])
+  const groupedOrders = useMemo(() => {
+    if (!embeddedOrders || embeddedOrders.length === 0) return [] as any[]
+    const map = new Map<string, any>()
+    for (const o of embeddedOrders) {
+      const payId = String(o.payment_id || o.paymentId || o.payment?.id || 'single-'+o.id)
+      if (!map.has(payId)) {
+        map.set(payId, { paymentKey: payId, payment_id: o.payment_id ?? null, created_at: o.created_at, orders: [] as any[] })
+      }
+      map.get(payId)!.orders.push(o)
+    }
+    // compute aggregate info
+    const bundles = Array.from(map.values()).map(b => {
+      const total = b.orders.reduce((sum: number, x: any) => sum + (Number(x.amount) || 0), 0)
+      // take earliest created_at among children for stable ordering
+      const firstDate = b.orders.reduce((earliest: string | null, x: any) => {
+        const d = x.created_at
+        if (!d) return earliest
+        if (!earliest) return d
+        return new Date(d) < new Date(earliest) ? d : earliest
+      }, null as string | null)
+      return { ...b, totalAmount: total, date: firstDate }
+    })
+    // sort descending by date
+    bundles.sort((a,b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
+    return bundles
+  }, [embeddedOrders])
   const [ordersLoadError, setOrdersLoadError] = useState<string | null>(null)
   // Embedded Forms selection state
   const [selectedFormOrderId, setSelectedFormOrderId] = useState<number | null>(null)
@@ -2691,22 +2718,40 @@ const PaymentInterruptionBanner = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {embeddedOrders.map((o: any) => (
-                              <tr key={o.id} className="border-t">
-                                <td className="p-2">{(o.categories as any)?.name ?? 'N/A'}</td>
-                                <td className="p-2">{(o.services as any)?.name ?? 'N/A'}</td>
-                                <td className="p-2">{o.amount != null ? formatINR(Number(o.amount)) : '—'}</td>
-                                <td className="p-2">{o.created_at ? new Date(o.created_at).toLocaleString() : 'N/A'}</td>
-                                <td className="p-2">
-                                  <Button size="sm" variant="outline" onClick={() => {
-                                    const t = resolveFormTypeFromOrderLike(o)
-                                    if (!t) { alert('No form available for this order'); return }
-                                    
-                                    openFormEmbedded(o)
-                                  }}>Open</Button>
-                                </td>
-                              </tr>
-                            ))}
+                            {groupedOrders.map(bundle => {
+                              const hasMultiple = bundle.orders.length > 1
+                              const first = bundle.orders[0]
+                              return (
+                                <>
+                                  <tr key={bundle.paymentKey} className="border-t bg-slate-50">
+                                    <td className="p-2 font-medium">{hasMultiple ? 'Multiple Services' : (first.categories as any)?.name ?? 'N/A'}</td>
+                                    <td className="p-2 font-medium">
+                                      {hasMultiple ? `${bundle.orders.length} Services` : (first.services as any)?.name ?? 'N/A'}
+                                    </td>
+                                    <td className="p-2 font-semibold">{formatINR(bundle.totalAmount)}</td>
+                                    <td className="p-2">{bundle.date ? new Date(bundle.date).toLocaleString() : 'N/A'}</td>
+                                    <td className="p-2">
+                                      <Button size="sm" variant="outline" onClick={() => {
+                                        if (hasMultiple) {
+                                          openMultipleFormsEmbedded(bundle.orders)
+                                        } else {
+                                          openFormEmbedded(first)
+                                        }
+                                      }}>{hasMultiple ? 'Open Forms' : 'Open Form'}</Button>
+                                    </td>
+                                  </tr>
+                                  {hasMultiple && bundle.orders.map((child: any) => (
+                                    <tr key={child.id} className="border-t">
+                                      <td className="p-2 pl-8 text-sm text-gray-600">{(child.categories as any)?.name ?? 'N/A'}</td>
+                                      <td className="p-2 text-sm text-gray-700">{(child.services as any)?.name ?? 'N/A'}</td>
+                                      <td className="p-2 text-sm">{child.amount != null ? formatINR(Number(child.amount)) : '—'}</td>
+                                      <td className="p-2 text-sm">{child.created_at ? new Date(child.created_at).toLocaleString() : 'N/A'}</td>
+                                      <td className="p-2 text-xs text-gray-400 italic">—</td>
+                                    </tr>
+                                  ))}
+                                </>
+                              )
+                            })}
                           </tbody>
                         </table>
                       </div>
