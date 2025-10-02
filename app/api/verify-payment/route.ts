@@ -402,13 +402,46 @@ export async function POST(req: NextRequest) {
               svcId = row?.id ?? svcId
               catId = row?.category_id ?? null
             }
+            // Derive per-item canonical form type. Precedence:
+            // 1) explicit cart item form_type / type
+            // 2) pricing key mapping (pricingToForm)
+            // 3) service name mapping
+            // 4) fallback to persisted payment type
+            let derivedType: string | null = null
+            const map = pricingToForm as unknown as Record<string,string>
+            const rawItemType = it.form_type || it.type || null
+            if (rawItemType && typeof rawItemType === 'string') {
+              derivedType = map[rawItemType] ?? rawItemType
+            }
+            if (!derivedType && it.pricing_key) {
+              derivedType = map[it.pricing_key] ?? it.pricing_key
+            }
+            if (!derivedType && it.service_pricing_key) {
+              derivedType = map[it.service_pricing_key] ?? it.service_pricing_key
+            }
+            if (!derivedType && it.name) {
+              const nameKey = String(it.name).trim().toLowerCase()
+              const nameMap: Record<string,string> = {
+                'patentability search': 'patentability_search',
+                'drafting': 'drafting',
+                'provisional filing': 'provisional_filing',
+                'patent application filing': 'complete_non_provisional_filing',
+                'complete non provisional filing': 'complete_non_provisional_filing',
+                'pct filing': 'pct_filing',
+                'ps cs': 'ps_cs',
+                'first examination response': 'fer_response',
+              }
+              if (nameMap[nameKey]) derivedType = nameMap[nameKey]
+            }
+            if (!derivedType && persistedPayment?.type) {
+              derivedType = persistedPayment.type
+            }
             return {
               user_id: persistedPayment.user_id,
               service_id: svcId ?? null,
               category_id: catId ?? null,
               payment_id: persistedPayment.id,
-              // We do not have per-item type reliably from client; leave null or fallback to payment type
-              type: null,
+              type: derivedType ?? null,
               // Persist per-order amount captured from cart item price
               amount: (typeof it.price === 'number' && !Number.isNaN(it.price)) ? it.price : null,
               created_at: new Date().toISOString(),
@@ -417,24 +450,31 @@ export async function POST(req: NextRequest) {
 
           if (rowsToInsert.length > 0) {
             const { data: insertedOrders, error: insOrdersErr } = await serverSupabase.from('orders').insert(rowsToInsert).select()
-            if (insOrdersErr) console.error('order insert (multi) error', insOrdersErr)
-            else {
+            if (insOrdersErr) {
+              console.error('order insert (multi) error', insOrdersErr, { attempted: rowsToInsert.length })
+              flowLog('orders-error', 'Multi order insert failed', { code: (insOrdersErr as any)?.code, hint: (insOrdersErr as any)?.hint })
+            } else {
               if (debug) console.debug('Orders created (multi)', insertedOrders)
               flowLog('orders-created', 'Multi orders inserted', { insertedCount: insertedOrders?.length })
               createdOrders = insertedOrders as any[]
               // Build a client-friendly payload with service labels
               const svcMap = new Map(serviceRows.map((r: any) => [r.id, r]))
-              createdOrdersClient = (createdOrders || []).map((o: any) => ({
-                id: o.id,
-                service_id: o.service_id,
-                category_id: o.category_id,
-                payment_id: o.payment_id,
-                type: o.type ?? (persistedPayment?.type ?? null),
-                payment_type: persistedPayment?.type ?? null,
-                created_at: o.created_at,
-                services: svcMap.get(o.service_id) ? { name: String((svcMap.get(o.service_id) as any).name || 'Service') } : null,
-                service_pricing_key: null,
-              }))
+              createdOrdersClient = (createdOrders || []).map((o: any, idx: number) => {
+                // Re-associate source cart item for pricing key propagation
+                const source = cartItems[idx]
+                const servicePricingKey = source?.pricing_key || source?.service_pricing_key || source?.type || null
+                return {
+                  id: o.id,
+                  service_id: o.service_id,
+                  category_id: o.category_id,
+                  payment_id: o.payment_id,
+                  type: o.type ?? (persistedPayment?.type ?? null),
+                  payment_type: persistedPayment?.type ?? null,
+                  created_at: o.created_at,
+                  services: svcMap.get(o.service_id) ? { name: String((svcMap.get(o.service_id) as any).name || 'Service') } : null,
+                  service_pricing_key: servicePricingKey,
+                }
+              })
             }
           }
         } else {
@@ -502,7 +542,8 @@ export async function POST(req: NextRequest) {
   const notifyResult = await sendPaymentNotification(serverSupabase, { paymentId: razorpay_payment_id, dbPayment: persistedPayment });
   flowLog('complete', 'Verify complete', { orders: createdOrders?.length, notifyOk: notifyResult?.success })
     if (debug) console.debug('[payments][verify] response payload', { persistedPaymentId: persistedPayment?.id, ordersCount: createdOrders?.length, createdOrdersClient })
-    return NextResponse.json({ success: true, persistedPayment, createdOrders, createdOrdersClient: createdOrdersClient, notifyResult }, { status: 200 });
+  const multiInsertFailed = Array.isArray((body as any)?.cart) && (body as any).cart.length > 0 && createdOrders.length === 0
+  return NextResponse.json({ success: true, persistedPayment, createdOrders, createdOrdersClient: createdOrdersClient, notifyResult, multiInsertFailed }, { status: 200 });
   } catch (err) {
     console.error('Payment verification error:', err);
     return NextResponse.json({ verified: false, error: 'Internal Server Error' }, { status: 500 });

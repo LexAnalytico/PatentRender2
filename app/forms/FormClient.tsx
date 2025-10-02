@@ -144,36 +144,10 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   })()
 
   useEffect(() => {
-    const urlPricingKey = searchParams?.get("pricing_key") || ""
-    const urlType = searchParams?.get("type") || ""
-    const orderIdRaw = searchParams?.get("order_id") || ""
+    const urlPricingKey = searchParams?.get('pricing_key') || ''
+    const urlTypeRaw = searchParams?.get('type') || ''
+    const orderIdRaw = searchParams?.get('order_id') || ''
     const orderIdNum = orderIdFromProps != null ? Number(orderIdFromProps) : (orderIdRaw ? Number(orderIdRaw) : null)
-
-  // if (DEBUG) console.debug('[FormClient][mount+url] params', { urlPricingKey, urlType, orderIdNum, typeProp, orderIdProp })
-
-    // Priority 1: pricing_key in URL (pricing rule key) -> map to canonical
-    if (urlPricingKey) {
-  const mapped = getPricingToForm(urlPricingKey)
-  // if (DEBUG) console.debug('[FormClient] pricing_key -> mapped', { urlPricingKey, mapped })
-      if (mapped && applicationTypes.some((t) => t.key === mapped)) {
-        setSelectedType(mapped)
-        return
-      }
-    }
-
-    // Priority 2: Normalize URL type to canonical (if pricing key is provided)
-    let urlCanonical: string | null = null
-    if (urlType) {
-      if (applicationTypes.some((t) => t.key === urlType)) {
-        urlCanonical = urlType
-      } else {
-  const mapped = getPricingToForm(urlType)
-  // if (DEBUG) console.debug('[FormClient] urlType -> mapped', { urlType, mapped })
-        if (mapped && applicationTypes.some((t) => t.key === mapped)) {
-          urlCanonical = mapped
-        }
-      }
-    }
 
     let mounted = true
     ;(async () => {
@@ -181,72 +155,67 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         flowLog('resolve-type:start', 'Begin type resolution')
         await maybeDelay('pre-resolve-type')
         let resolved: string | null = null
+        let urlCanonical: string | null = null
 
-        // If we have an order_id, resolve authoritative type from DB
-    if (orderIdNum != null && !Number.isNaN(orderIdNum)) {
-          const { data: ord, error: ordErr } = await supabase
-            .from('orders')
-            .select('type, payment_id')
-      .eq('id', orderIdNum)
-            .maybeSingle()
-          // if (DEBUG) console.debug('[FormClient] order lookup', { ord, ordErr })
-
-          // Try order.type as canonical or mapped pricing key
-          const ordType = ord?.type ?? null
-          if (ordType) {
-            if (applicationTypes.some((t) => t.key === ordType)) {
-              resolved = ordType
-            } else {
-              const mapped = getPricingToForm(ordType)
-              // if (DEBUG) console.debug('[FormClient] order.type -> mapped', { ordType, mapped })
-              if (mapped && applicationTypes.some((t) => t.key === mapped)) {
-                resolved = mapped
-              }
+        // Only consider URL / pricing mapping if we are NOT given a prop order id (multi-order context uses orderIdProp)
+        if (!orderIdProp) {
+          if (urlPricingKey) {
+            const mapped = getPricingToForm(urlPricingKey)
+            if (mapped && applicationTypes.some(t => t.key === mapped)) urlCanonical = mapped
+          }
+          if (!urlCanonical && urlTypeRaw) {
+            if (applicationTypes.some(t => t.key === urlTypeRaw)) urlCanonical = urlTypeRaw
+            else {
+              const mapped = getPricingToForm(urlTypeRaw)
+              if (mapped && applicationTypes.some(t => t.key === mapped)) urlCanonical = mapped
             }
           }
+        }
 
-          // Fallback: try payments.type
+        // If we have an order id (from props OR url) fetch authoritative type from orders -> payments
+        if (orderIdNum != null && !Number.isNaN(orderIdNum)) {
+          const { data: ord } = await supabase
+            .from('orders')
+            .select('type, payment_id')
+            .eq('id', orderIdNum)
+            .maybeSingle()
+          const ordType = ord?.type || null
+          if (ordType) {
+            if (applicationTypes.some(t => t.key === ordType)) resolved = ordType
+            else {
+              const mapped = getPricingToForm(ordType)
+              if (mapped && applicationTypes.some(t => t.key === mapped)) resolved = mapped
+            }
+          }
           if (!resolved && ord?.payment_id) {
-            const { data: pay, error: payErr } = await supabase
+            const { data: pay } = await supabase
               .from('payments')
               .select('type')
               .eq('id', ord.payment_id)
               .maybeSingle()
-            // if (DEBUG) console.debug('[FormClient] payment lookup', { pay, payErr })
-            const payType = pay?.type ?? null
+            const payType = pay?.type || null
             if (payType) {
-              if (applicationTypes.some((t) => t.key === payType)) {
-                resolved = payType
-              } else {
+              if (applicationTypes.some(t => t.key === payType)) resolved = payType
+              else {
                 const mapped = getPricingToForm(payType)
-                // if (DEBUG) console.debug('[FormClient] payments.type -> mapped', { payType, mapped })
-                if (mapped && applicationTypes.some((t) => t.key === mapped)) {
-                  resolved = mapped
-                }
+                if (mapped && applicationTypes.some(t => t.key === mapped)) resolved = mapped
               }
             }
           }
         }
 
-        // Choose final: prefer explicit typeProp, then resolved-from-order/payment; else fallback to URL
-        const candidateTypeProp = (typeFromProps && applicationTypes.some((t) => t.key === typeFromProps)) ? typeFromProps : null
+        const candidateTypeProp = (typeFromProps && applicationTypes.some(t => t.key === typeFromProps)) ? typeFromProps : null
         const finalType = candidateTypeProp || resolved || urlCanonical
-  // if (DEBUG) console.debug('[FormClient] resolution summary', { candidateTypeProp, resolved, urlCanonical, finalType })
-        if (mounted && finalType && applicationTypes.some((t) => t.key === finalType)) {
-          setSelectedType(finalType)
-          return
+        if (mounted && finalType && applicationTypes.some(t => t.key === finalType)) {
+          setSelectedType(prev => prev || finalType) // do not override if already set
         }
-  // if (mounted && !finalType && DEBUG) console.debug('[FormClient] no finalType resolved; staying empty')
       } catch (e) {
         console.error('[FormClient] Exception resolving form type', e)
         flowLog('resolve-type:error', 'Exception during type resolution', { error: String(e) })
       }
     })()
-
-    return () => {
-      mounted = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { mounted = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, orderIdFromProps, typeFromProps])
 
   // remember last selected application type so checkout can pick it up
@@ -796,6 +765,14 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         <CardHeader className="px-8 pt-8 pb-4">
           <CardTitle className={styleTokens.headerTitle}>IP Application Form Builder</CardTitle>
           <CardDescription className={styleTokens.headerDesc}>Select an application type and fill out the relevant fields for your intellectual property application.</CardDescription>
+          {orderIdProp && (
+            <div className="mt-2 text-[11px] text-gray-500 flex flex-wrap gap-x-4 gap-y-1">
+              <span>orderIdProp={orderIdProp}</span>
+              <span>resolvedType={selectedType || '(empty)'}</span>
+              <span>urlType={(searchParams?.get('type')||'').toString() || '(none)'}</span>
+              <span>urlPricingKey={(searchParams?.get('pricing_key')||'').toString() || '(none)'}</span>
+            </div>
+          )}
           {DEBUG && (
             <div className="mt-3 rounded-md border border-dashed border-blue-300 bg-blue-50 p-3 text-xs text-blue-900 space-y-1">
               <div className="font-semibold">[Debug Panel]</div>

@@ -150,6 +150,25 @@ const openSingleOrderForm = (o: any) => {
             </div>
 
             <div className="p-6">
+              {checkoutOrders.length === 0 && (
+                <div className="mb-6 p-4 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm space-y-2">
+                  <p><strong>We’re processing your services…</strong></p>
+                  <p>Your payment was verified but the individual service orders haven’t appeared yet. This can happen if the order creation step briefly failed or is still completing.</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        try { window.location.reload() } catch {}
+                      }}
+                      className="inline-flex items-center rounded bg-amber-600 px-3 py-1.5 text-white text-xs font-medium hover:bg-amber-700"
+                    >Reload Page</button>
+                    <button
+                      onClick={() => onClose()}
+                      className="inline-flex items-center rounded border border-amber-300 px-3 py-1.5 text-amber-700 text-xs font-medium hover:bg-amber-100"
+                    >Close</button>
+                  </div>
+                  <p className="text-xs opacity-80">If this persists, please contact support with your Payment ID.</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
                   <div className="text-blue-600 text-xs font-medium uppercase tracking-wide mb-1">Payment ID</div>
