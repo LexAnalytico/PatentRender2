@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { styleTokens } from './styleTokens'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { ALLOWED_MIME, MAX_FILE_BYTES, uploadFigure, deleteFigure } from '@/utils/attachments'
@@ -105,6 +106,27 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   const [attachmentsDebugInfo, setAttachmentsDebugInfo] = useState<string | null>(null)
   const [attachmentContext, setAttachmentContext] = useState<{ userId?: string | null }>({})
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  // Multi-author (Applicant Name) handling: store as newline-separated string in formValues
+  const [multiAuthors, setMultiAuthors] = useState<Record<string, string[]>>({})
+  const initializedAuthorsRef = useRef<Set<string>>(new Set())
+  // Initialize multiAuthors only once per matching field when persisted data (with at least one non-empty name) exists
+  useEffect(() => {
+    const pattern = /^(inventor\s*\/\s*)?applicant.*name\(s\)|^(inventor|applicant).*name(s)?$/i
+    let changed = false
+    Object.entries(formValues).forEach(([k,v]) => {
+      if (!pattern.test(k.trim())) return
+      if (initializedAuthorsRef.current.has(k)) return
+      const parts = (v || '').split(/\n+/).map(s => s.trim()).filter(Boolean)
+      if (parts.length) {
+        initializedAuthorsRef.current.add(k)
+        setMultiAuthors(prev => ({ ...prev, [k]: parts }))
+        changed = true
+      }
+    })
+    if (changed) {
+      // no-op placeholder for future logging
+    }
+  }, [formValues])
   const toastHook = useToast?.()
   const toast = toastHook ?? { toast: (opts: any) => { if (opts?.title) alert(`${opts.title}\n${opts?.description || ""}`) } }
   const searchParams = useSearchParams()
@@ -394,6 +416,22 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   }, [selectedType, orderIdEffective, orderIdFromProps, manualReloadTick])
 
   const relevantFields = selectedType ? getRelevantFields(selectedType) : []
+  // Ensure applicant/inventor name fields have at least one row visible even if empty
+  useEffect(() => {
+    if (!relevantFields.length) return
+    let mutated = false
+    const pattern = /^(inventor\s*\/\s*)?applicant.*name\(s\)|^(inventor|applicant).*name(s)?$/i
+    setMultiAuthors(prev => {
+      const next = { ...prev }
+      for (const f of relevantFields) {
+        if (pattern.test(f.field_title.trim()) && !next[f.field_title]) {
+          next[f.field_title] = ['']
+          mutated = true
+        }
+      }
+      return mutated ? next : prev
+    })
+  }, [relevantFields])
   const manualReloadForm = () => { if (selectedType) setManualReloadTick(t => t + 1) }
 
   // Load existing attachments for this (user, order, form type)
@@ -751,16 +789,13 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   }, [prefillCandidate, onPrefillStateChange])
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
-     
+    <div className="py-8 px-4 sm:px-6">
       {/* Prefill banner removed; replaced by external header button in parent component */}
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-balance">IP Application Form Builder</CardTitle>
-          <CardDescription className="text-pretty">
-            Select an application type and fill out the relevant fields for your intellectual property application.
-          </CardDescription>
+      <div className={styleTokens.outer}>
+        <Card className="border-0 shadow-none">
+        <CardHeader className="px-8 pt-8 pb-4">
+          <CardTitle className={styleTokens.headerTitle}>IP Application Form Builder</CardTitle>
+          <CardDescription className={styleTokens.headerDesc}>Select an application type and fill out the relevant fields for your intellectual property application.</CardDescription>
           {DEBUG && (
             <div className="mt-3 rounded-md border border-dashed border-blue-300 bg-blue-50 p-3 text-xs text-blue-900 space-y-1">
               <div className="font-semibold">[Debug Panel]</div>
@@ -783,7 +818,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
             </div>
           )}
         </CardHeader>
-  <CardContent className="space-y-12">
+        <CardContent className="px-8 pb-10 space-y-12">
           <div className="space-y-3">
             <Label htmlFor="application-type" className="text-sm font-semibold text-gray-800 tracking-wide">Application Type</Label>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -810,171 +845,236 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
             )}
           </div>
 
-          {selectedType && (
-            <>
-              <div className="pt-2 space-y-10">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="h-5 w-1 bg-orange-600 rounded-sm" />
-                    <h3 className="text-xl font-semibold tracking-tight text-gray-900">
-                      {applicationTypes.find((t) => t.key === selectedType)?.label} Details
-                    </h3>
-                    <span className="ml-auto text-xs text-gray-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded">
-                      {relevantFields.length} fields
-                    </span>
-                  </div>
-                  <div className="h-px bg-gradient-to-r from-orange-300 via-orange-200 to-transparent mb-6" />
-                  <div className="grid gap-6 md:grid-cols-2">
-                    {relevantFields.map((field, index) => {
-                      const lower = field.field_title.toLowerCase()
-                      const isLong = /(description|comment|instruction|statement|summary|problem|solution|features|abstract|claims|specification)/.test(lower)
-                      const isDrawingsField = /^drawings\s*\/\s*figures$/i.test(field.field_title.trim())
-                      return (
-                        <div key={index} className="group relative rounded-lg border border-orange-100 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
-                          <Label htmlFor={`field-${index}`} className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-orange-600 text-white text-[11px] font-medium shadow-sm">
-                              {index + 1}
-                            </span>
-                            {field.field_title}
-                          </Label>
-                          <div className="mt-2">
-                            {isDrawingsField ? (
-                              <div className="space-y-3">
-                                {/* Hidden input dedicated to this field */}
-                                <input
-                                  ref={fileInputRef}
-                                  type="file"
-                                  hidden
-                                  multiple
-                                  accept={ALLOWED_MIME.join(',')}
+          {selectedType ? (
+            <div className="pt-2 space-y-2">
+              <div className={styleTokens.sectionWrap}>
+                <div className={styleTokens.sectionHeaderRow}>
+                  <span className={styleTokens.sectionAccent} />
+                  <h3 className={styleTokens.sectionTitle}>Basic Information</h3>
+                  <span className="ml-auto text-xs text-gray-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded">{relevantFields.length} fields</span>
+                </div>
+                <div className={styleTokens.sectionDivider} />
+              </div>
+              <div className="px-8">
+                <div className={styleTokens.grid}>
+                  {relevantFields.map((field, index) => {
+                    const lower = field.field_title.toLowerCase()
+                    const isLong = /(description|comment|instruction|statement|summary|problem|solution|features|abstract|claims|specification)/.test(lower)
+                    const isDrawingsField = /^drawings\s*\/\s*figures$/i.test(field.field_title.trim())
+                    const isApplicantField = /^(inventor\s*\/\s*)?applicant.*name\(s\)|^(inventor|applicant).*name(s)?$/.test(field.field_title.trim().toLowerCase())
+                    const forceFullWidth = [
+                      'technical field',
+                      'brief summary of invention',
+                      'problem statement',
+                      'proposed solution',
+                      'key novel features',
+                      'closest known solutions (if any)'
+                    ].includes(lower.trim())
+                    const wrapperClass = isDrawingsField || forceFullWidth ? 'col-span-2 space-y-2' : styleTokens.fieldBlock
+                    return (
+                      <div key={index} className={wrapperClass}>
+                        <Label htmlFor={`field-${index}`} className={styleTokens.label}>
+                          <span className={styleTokens.badgeNumber}>{index + 1}</span>
+                          {field.field_title}
+                        </Label>
+                        <div>
+                          {isDrawingsField ? (
+                            <div className="space-y-3">
+                              <input
+                                ref={fileInputRef}
+                                type="file"
+                                hidden
+                                multiple
+                                accept={ALLOWED_MIME.join(',')}
+                                disabled={!selectedType || !orderIdEffective}
+                                onChange={(e) => {
+                                  const fl = e.target.files
+                                  if (!fl || fl.length === 0) return
+                                  const clone = Array.from(fl)
+                                  const dt = new DataTransfer()
+                                  clone.forEach(f => dt.items.add(f))
+                                  handleFilesSelected(dt.files)
+                                  e.target.value = ''
+                                }}
+                              />
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
                                   disabled={!selectedType || !orderIdEffective}
-                                  onChange={(e) => {
-                                    const fl = e.target.files
-                                    if (!fl || fl.length === 0) return
-                                    const clone = Array.from(fl)
-                                    const dt = new DataTransfer()
-                                    clone.forEach(f => dt.items.add(f))
-                                    handleFilesSelected(dt.files)
-                                    e.target.value = ''
-                                  }}
-                                />
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    disabled={!selectedType || !orderIdEffective}
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="h-8 px-4 bg-orange-600 hover:bg-orange-700 text-white"
-                                  >Upload</Button>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={!selectedType || !orderIdEffective || loadingAttachments}
-                                    onClick={manualReloadAttachments}
-                                    className="h-8 px-3 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
-                                  >{loadingAttachments ? 'Reloading…' : 'Reload'}</Button>
-                                  <span className="text-[11px] text-gray-500">Allowed: PDF, PNG, JPG, SVG up to {(MAX_FILE_BYTES/1024/1024).toFixed(0)}MB</span>
-                                  {attachmentContext.userId && (
-                                    <span className="text-[9px] text-gray-400 font-mono truncate max-w-[140px]" title={attachmentContext.userId}>uid:{attachmentContext.userId}</span>
-                                  )}
-                                </div>
-                                {attachmentsError && <div className="text-xs text-red-600">{attachmentsError}</div>}
-                                {attachmentsDebugInfo && !attachmentsError && (
-                                  <div className="text-[10px] text-gray-400 font-mono break-all">{attachmentsDebugInfo}</div>
+                                  onClick={() => fileInputRef.current?.click()}
+                                  className="h-8 px-4 bg-orange-600 hover:bg-orange-700 text-white"
+                                >Upload</Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={!selectedType || !orderIdEffective || loadingAttachments}
+                                  onClick={manualReloadAttachments}
+                                  className="h-8 px-3 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
+                                >{loadingAttachments ? 'Reloading…' : 'Reload'}</Button>
+                                <span className="text-[11px] text-gray-500">Allowed: PDF, PNG, JPG, SVG up to {(MAX_FILE_BYTES/1024/1024).toFixed(0)}MB</span>
+                                {attachmentContext.userId && (
+                                  <span className="text-[9px] text-gray-400 font-mono truncate max-w-[140px]" title={attachmentContext.userId}>uid:{attachmentContext.userId}</span>
                                 )}
-                                {loadingAttachments && (
-                                  <div className="text-xs text-gray-500">Loading existing attachments…</div>
+                              </div>
+                              {attachmentsError && <div className="text-xs text-red-600 font-medium">{attachmentsError}</div>}
+                              {attachmentsDebugInfo && !attachmentsError && (
+                                <div className={styleTokens.attachmentsMeta}>{attachmentsDebugInfo}</div>
+                              )}
+                              {loadingAttachments && (
+                                <div className="text-xs text-gray-500">Loading existing attachments…</div>
+                              )}
+                              <div className="space-y-2">
+                                {attachments.length === 0 && !loadingAttachments && !attachmentsError && (
+                                  <div className="text-xs text-gray-500">No drawings uploaded yet.</div>
                                 )}
-                                <div className="space-y-2">
-                                  {attachments.length === 0 && !loadingAttachments && !attachmentsError && (
-                                    <div className="text-xs text-gray-500">No drawings uploaded yet.</div>
-                                  )}
-                                  {attachments.map(a => {
-                                    const statusLabel = a.status === 'uploading' ? 'Uploading…' : a.status === 'done' ? 'Uploaded' : 'Failed'
-                                    return (
-                                      <div key={a.tempId} className="rounded border border-orange-100 bg-white p-2">
-                                        <div className="flex justify-between items-start gap-3">
-                                          <div className="min-w-0 flex-1">
-                                            <div className="text-xs font-medium text-gray-800 truncate" title={a.name}>{a.name}</div>
-                                            <div className={`text-[11px] mt-0.5 ${a.status === 'done' ? 'text-green-600' : a.status === 'error' ? 'text-red-600' : 'text-gray-500'}`}>{statusLabel}</div>
-                                            <div className="text-[11px] text-gray-500 mt-0.5">{(a.size/1024).toFixed(1)} KB • {a.type || 'file'}</div>
-                                            {a.errorMsg && <div className="text-[10px] text-red-600 mt-1">{a.errorMsg}</div>}
-                                            {a.status === 'uploading' && (
-                                              <div className="mt-1 w-full h-1.5 rounded bg-orange-100 overflow-hidden">
-                                                <div className="h-full bg-orange-500 animate-pulse" style={{ width: '80%' }} />
-                                              </div>
-                                            )}
-                                          </div>
-                                          <div className="flex flex-col items-end gap-1">
-                                            <Button
-                                              size="sm"
-                                              variant="outline"
-                                              onClick={() => handleRemoveAttachment(a.tempId)}
-                                              disabled={a.status === 'uploading'}
-                                              className="h-6 px-2 text-[11px] text-orange-700 border-orange-200 hover:bg-orange-50"
-                                            >Remove</Button>
-                                          </div>
+                                {attachments.map(a => {
+                                  const statusLabel = a.status === 'uploading'
+                                    ? 'Uploading…'
+                                    : a.status === 'removing'
+                                      ? 'Removing…'
+                                      : a.status === 'done'
+                                        ? 'Uploaded'
+                                        : a.status === 'error'
+                                          ? 'Failed'
+                                          : a.status
+                                  return (
+                                    <div key={a.tempId} className={styleTokens.attachmentItem}>
+                                      <div className="flex justify-between items-start gap-4">
+                                        <div className="min-w-0 flex-1">
+                                          <div className="text-xs font-semibold text-gray-800 truncate" title={a.name}>{a.name}</div>
+                                          <div className={`text-[11px] mt-0.5 ${a.status === 'done' ? 'text-green-600' : a.status === 'error' ? 'text-red-600' : a.status === 'removing' ? 'text-orange-600' : 'text-gray-500'}`}>{statusLabel}</div>
+                                          <div className="text-[11px] text-gray-500 mt-0.5">{(a.size/1024).toFixed(1)} KB • {a.type || 'file'}</div>
+                                          {a.errorMsg && <div className="text-[10px] text-red-600 mt-1">{a.errorMsg}</div>}
+                                          {(a.status === 'uploading' || a.status === 'removing') && (
+                                            <div className={styleTokens.progressBarWrap}>
+                                              <div className={`h-full ${a.status === 'removing' ? 'bg-orange-400' : 'bg-orange-500'} animate-pulse`} style={{ width: '70%' }} />
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="flex flex-col items-end gap-1">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handleRemoveAttachment(a.tempId)}
+                                            disabled={a.status === 'uploading' || a.status === 'removing'}
+                                            className="h-6 px-2 text-[11px] text-orange-700 border-orange-200 hover:bg-orange-50"
+                                          >Remove</Button>
                                         </div>
                                       </div>
-                                    )
-                                  })}
-                                </div>
+                                    </div>
+                                  )
+                                })}
                               </div>
+                            </div>
+                          ) : isApplicantField ? (
+                            <div className="space-y-3">
+                              <div className="flex gap-2 flex-wrap">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => {
+                                    setMultiAuthors(prev => {
+                                      const list = prev[field.field_title] ? [...prev[field.field_title]] : ['']
+                                      list.push('')
+                                      setFormValues(fv => ({ ...fv, [field.field_title]: list.filter(x => x.trim() !== '').join('\n') }))
+                                      return { ...prev, [field.field_title]: list }
+                                    })
+                                  }}
+                                  className="h-8 px-3 text-xs bg-orange-600 hover:bg-orange-700 text-white"
+                                >+ Author</Button>
+                                <p className="text-[10px] text-gray-500 self-center">Add each inventor/applicant separately; they will be saved together.</p>
+                              </div>
+                              <div className="space-y-2">
+                                {(multiAuthors[field.field_title] || ['']).map((author, ai) => (
+                                  <div key={ai} className="flex gap-2 items-center">
+                                    <Input
+                                      id={`field-${index}-author-${ai}`}
+                                      type="text"
+                                      placeholder={`Name ${ai + 1}`}
+                                      value={author}
+                                      onChange={(e) => {
+                                        const val = e.target.value
+                                        setMultiAuthors(prev => {
+                                          const list = [...(prev[field.field_title] || [])]
+                                          list[ai] = val
+                                          setFormValues(fv => ({ ...fv, [field.field_title]: list.filter(x => x.trim() !== '').join('\n') }))
+                                          return { ...prev, [field.field_title]: list }
+                                        })
+                                      }}
+                                      className={styleTokens.input}
+                                    />
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={(multiAuthors[field.field_title] || []).length <= 1}
+                                      onClick={() => {
+                                        setMultiAuthors(prev => {
+                                          let list = [...(prev[field.field_title] || [])]
+                                          list.splice(ai,1)
+                                          if (list.length === 0) list = ['']
+                                          setFormValues(fv => ({ ...fv, [field.field_title]: list.filter(x => x.trim() !== '').join('\n') }))
+                                          return { ...prev, [field.field_title]: list }
+                                        })
+                                      }}
+                                      className="h-8 px-2 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
+                                    >Remove</Button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            isLong ? (
+                              <Textarea
+                                id={`field-${index}`}
+                                placeholder={`Enter ${lower}`}
+                                value={formValues[field.field_title] || ""}
+                                onChange={(e) => handleInputChange(field.field_title, e.target.value)}
+                                className={styleTokens.textarea}
+                              />
                             ) : (
-                              isLong ? (
-                                <Textarea
-                                  id={`field-${index}`}
-                                  placeholder={`Enter ${lower}`}
-                                  value={formValues[field.field_title] || ""}
-                                  onChange={(e) => handleInputChange(field.field_title, e.target.value)}
-                                  className="min-h-[120px] resize-vertical focus:border-orange-500 focus:ring-orange-500"
-                                />
-                              ) : (
-                                <Input
-                                  id={`field-${index}`}
-                                  type="text"
-                                  placeholder={`Enter ${lower}`}
-                                  value={formValues[field.field_title] || ""}
-                                  onChange={(e) => handleInputChange(field.field_title, e.target.value)}
-                                  className="h-10 focus:border-orange-500 focus:ring-orange-500"
-                                />
-                              )
-                            )}
-                          </div>
+                              <Input
+                                id={`field-${index}`}
+                                type="text"
+                                placeholder={`Enter ${lower}`}
+                                value={formValues[field.field_title] || ""}
+                                onChange={(e) => handleInputChange(field.field_title, e.target.value)}
+                                className={styleTokens.input}
+                              />
+                            )
+                          )}
                         </div>
-                      )
-                    })}
-                  </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
-
-              <div className="flex flex-col gap-4 pt-8 border-t">
+              <div className={styleTokens.actionsBar}>
                 <div className="flex flex-wrap gap-4 items-center w-full justify-end">
                   <Button
                     onClick={handleSave}
                     disabled={saving}
-                    className={`h-11 px-10 bg-orange-600 hover:bg-orange-700 text-white font-semibold shadow-sm transition-colors ${saving ? 'opacity-70 cursor-not-allowed' : ''}`}
+                    className={styleTokens.primaryBtn + (saving ? ' opacity-70 cursor-not-allowed' : '')}
                   >
                     {saving ? 'Submitting…' : (isOrderLocked ? 'Submit Application' : 'Save Form')}
                   </Button>
                   <Button
                     onClick={handleCancel}
                     variant="outline"
-                    className="h-11 px-6 font-medium border-orange-200 text-orange-700 hover:bg-orange-50"
+                    className={styleTokens.secondaryBtn}
                     disabled={saving}
                   >
                     Cancel
                   </Button>
-                  {selectedType && (
-                    <Button
-                      type="button"
-                      onClick={manualReloadForm}
-                      variant="outline"
-                      className="h-11 px-4 font-medium border-orange-200 text-orange-700 hover:bg-orange-50"
-                      disabled={saving}
-                    >Reload Form Data</Button>
-                  )}
+                  <Button
+                    type="button"
+                    onClick={manualReloadForm}
+                    variant="outline"
+                    className={styleTokens.tertiaryBtn}
+                    disabled={saving}
+                  >Reload Form Data</Button>
                   {saveSuccessTs && (
                     <div className="flex items-center gap-2 text-sm font-medium text-green-600">
                       <span className="inline-block w-2 h-2 bg-green-600 rounded-full animate-pulse" />
@@ -983,18 +1083,15 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                   )}
                 </div>
               </div>
-            </>
-          )}
-
-          {!selectedType && (
+            </div>
+          ) : (
             <div className="text-center py-12 text-muted-foreground">
-              <p className="text-pretty">
-                Please select an application type to view and edit the relevant form fields.
-              </p>
+              <p className="text-pretty">Please select an application type to view and edit the relevant form fields.</p>
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   )
 }
