@@ -85,6 +85,21 @@ const CheckoutModal = ({
     }
   }
 
+  // Open stacked forms view in single page with multiple order IDs
+  const openStackedFormsPage = (orders: any[]) => {
+    if (!orders?.length) return
+    try {
+      const base = typeof window !== 'undefined' ? window.location.origin : ''
+      const ids = orders.map(o => o.id).filter(Boolean)
+      if (!ids.length) return
+      const url = `${base}/forms?order_ids=${ids.join(',')}`
+      window.open(url, '_blank')
+      onClose()
+    } catch (e) {
+      console.error('Open stacked forms error', e)
+    }
+  }
+
 
     // Optional: close the Thank You modal after opening tabs
     //setShowCheckoutThankYou(false)
@@ -202,14 +217,12 @@ const openSingleOrderForm = (o: any) => {
                     ))}
                   </div>
 
-                  <div className="flex items-center justify-end gap-3">
+                  <div className="flex items-center justify-end">
                     <button
-                      className="inline-flex items-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-                      onClick={() =>
-                        onProceedMultiple ? onProceedMultiple(checkoutOrders) : openAllOrderFormsInTabs(checkoutOrders)
-                      }
+                      className="inline-flex items-center rounded bg-blue-600 px-5 py-2 text-white hover:bg-blue-700"
+                      onClick={() => onProceedMultiple ? onProceedMultiple(checkoutOrders) : openAllOrderFormsInTabs(checkoutOrders)}
                     >
-                      Proceed to Forms
+                      Open Forms
                     </button>
                   </div>
                 </div>

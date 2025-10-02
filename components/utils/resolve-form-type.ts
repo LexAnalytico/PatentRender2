@@ -9,7 +9,8 @@ const CANONICAL_MAP: Record<string,string> = {
   ps_cs: 'ps_cs',
   fer_response: 'fer_response',
   // Common legacy / alternative tokens
-  'patent application filing': 'provisional_filing',
+  // Map human-facing labels to canonical types
+  'patent application filing': 'complete_non_provisional_filing',
   'patentability search': 'patentability_search',
   'first examination response': 'fer_response',
   'complete provisional filing': 'complete_non_provisional_filing',

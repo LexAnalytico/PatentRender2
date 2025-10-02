@@ -262,7 +262,11 @@ export async function POST(req: Request) {
     const clientState = dbUser.state ?? 'N/A';
   // Prefer quote.total, otherwise fallback to payments.total_amount
   const quoteTotal = dbQuote.total != null ? dbQuote.total : (paymentTotal != null ? paymentTotal : 'N/A');
-  const quoteCreatedAt = dbQuote.created_at ? new Date(dbQuote.created_at).toLocaleString() : (paymentDate ? new Date(paymentDate).toLocaleString() : 'N/A');
+  const quoteCreatedAt = dbQuote.created_at
+  ? new Date(dbQuote.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })
+  : (paymentDate
+      ? new Date(paymentDate).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })
+      : "N/A");
   const serviceLabel = typeof serviceName === 'string' ? serviceName : 'N/A';
   const categoryLabel = typeof categoryName === 'string' ? categoryName : 'N/A';
 

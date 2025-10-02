@@ -93,7 +93,7 @@ export function Header() {
               </div>
             </div>
 
-            <a href="#" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
+            <a href="/knowledge-hub" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">
               Knowledge Hub
             </a>
           </nav>

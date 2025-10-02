@@ -10,6 +10,7 @@ import { UserCircleIcon } from "@heroicons/react/24/outline";
 import { PaymentProcessingModal } from "@/components/PaymentProcessingModal";
 // TypeScript/React
 import { useAuthProfile } from "@/app/useAuthProfile"
+import { useAutoRefreshOnFocus } from "@/components/AutoRefocus";
 
 
 
@@ -63,7 +64,34 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 //import type { Session } from "@supabase/supabase-js"
 
+
+
 export default function LegalIPWebsite() {
+
+ function OrdersScreen() {
+  const [orders, setOrders] = useState<any[]>([]);
+
+  async function loadOrders() {
+    console.log("Fetching orders...");
+    const res = await fetch("/api/orders");
+    const data = await res.json();
+    setOrders(data);
+  }
+
+  // 🔄 Refresh when tab regains focus
+  useAutoRefreshOnFocus(loadOrders, { runOnMount: true });
+
+  return (
+    <div>
+      <h1>Orders</h1>
+      {orders.length === 0 ? <p>Loading…</p> : (
+        <ul>
+          {orders.map(o => <li key={o.id}>{o.name}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+}  
   // Dummy state to trigger rerenders for external form prefill updates
   const [prefillAvailable, setPrefillAvailable] = useState(false)
   const [prefillApplyFn, setPrefillApplyFn] = useState<(() => void) | null>(null)
@@ -107,6 +135,21 @@ export default function LegalIPWebsite() {
     } catch (e) {
       console.error('[openFormEmbedded] error', e)
     }
+  }
+  const openMultipleFormsEmbedded = (orders: any[]) => {
+    if (!orders || orders.length === 0) return
+    // build an array of {id, type}
+    const mapped = orders.map(o => ({ id: Number(o.id), type: resolveFormTypeFromOrderLike(o) }))
+    setEmbeddedMultiForms(mapped)
+    // default focus first form
+    const first = mapped[0]
+    setSelectedFormOrderId(first.id)
+    setSelectedFormType(first.type)
+    setShowQuotePage(true)
+    setQuoteView('forms')
+    setShowCheckoutThankYou(false)
+    // close any leftover modal state if not already
+    try { setIsOpen(false) } catch {}
   }
 const openFirstFormEmbedded = () => {
   if (!checkoutOrders || checkoutOrders.length === 0) return
@@ -248,6 +291,7 @@ const openFirstFormEmbedded = () => {
   const [showCheckoutThankYou, setShowCheckoutThankYou] = useState(false)
   const [checkoutPayment, setCheckoutPayment] = useState<any | null>(null)
   const [checkoutOrders, setCheckoutOrders] = useState<any[]>([])
+  const [embeddedMultiForms, setEmbeddedMultiForms] = useState<{id:number,type:string}[] | null>(null)
   // Embedded Orders/Profile state when viewing within the quote view
   const [embeddedOrders, setEmbeddedOrders] = useState<any[]>([])
   const [embeddedOrdersLoading, setEmbeddedOrdersLoading] = useState(false)
@@ -2108,6 +2152,14 @@ const PaymentInterruptionBanner = () => {
         name: 'LegalIP Pro',
         description: firstItem?.name || 'IP Service Payment',
         order_id: order.id || order.id, // server-provided Razorpay order id
+        // Ensure we can react to the user closing the Razorpay popup (X button / outside click)
+        modal: {
+          ondismiss: () => {
+            console.log('[Razorpay] Checkout dismissed by user (no payment). Cleaning up.');
+            stopFocusGuard('dismiss');
+            setIsProcessingPayment(false);
+          }
+        },
   handler: async function (response: any) {
           // response contains razorpay_payment_id, razorpay_order_id, razorpay_signature
           try {
@@ -2191,6 +2243,17 @@ const PaymentInterruptionBanner = () => {
       startFocusGuard()
       setIsProcessingPayment(true)
       const rzp = new (window as any).Razorpay(options);
+      // Capture explicit payment failures (e.g., failed authorization) so we cleanly exit
+      try {
+        rzp.on('payment.failed', (resp: any) => {
+          console.warn('[Razorpay] payment.failed event', resp);
+          alert('Payment was not completed. You can try again.');
+          stopFocusGuard('payment-failed');
+          setIsProcessingPayment(false);
+        });
+      } catch (e) {
+        console.warn('[Razorpay] Unable to attach payment.failed listener', e);
+      }
       rzp.open();
     } catch (err: any) {
       console.error('handlePayment error:', err);
@@ -2461,7 +2524,7 @@ const PaymentInterruptionBanner = () => {
         payment={checkoutPayment}
         orders={checkoutOrders}
         onProceedSingle={openFormEmbedded}
-        onProceedMultiple={(orders) => { if (orders && orders.length > 0) openFormEmbedded(orders[0]) }}
+  onProceedMultiple={(orders) => { if (orders && orders.length > 0) openMultipleFormsEmbedded(orders) }}
       />
       {/* Header */}
       <header className="bg-white shadow-sm border-b sticky top-0 z-50">
@@ -2473,13 +2536,10 @@ const PaymentInterruptionBanner = () => {
             >
               ← Back to Home
             </button>*/}
-            <div className="flex items-center">
-              <Scale className="h-8 w-8 text-blue-600 mr-2" />
-              <span className="text-2xl font-bold text-gray-900">LegalIP Pro</span>
-            </div>
+            <div className="flex items-center" />
             <div className="hidden md:flex items-center space-x-6">
               <a
-                href="#"
+                href="/knowledge-hub"
                 className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors"
               >
                 Knowledge Hub
@@ -2496,7 +2556,7 @@ const PaymentInterruptionBanner = () => {
           <aside className="hidden md:block w-64 shrink-0">
             <div className="bg-white border rounded-lg p-4 sticky top-24">
               <div className="space-y-2">
-                <div className="text-base font-semibold text-gray-800">Dashboard</div>
+                <div className="text-base font-semibold text-gray-800">Settings</div>
                 {/* Services button removed: view selected programmatically */}
                 <Button
                   variant={quoteView === 'orders' ? undefined : 'outline'}
@@ -2513,8 +2573,8 @@ const PaymentInterruptionBanner = () => {
                   Profile
                 </Button>
                 <Button
-                  variant="destructive"
-                  className="w-full justify-start"
+                  variant="outline"
+                  className="w-full justify-start text-slate-600 hover:text-red-600 hover:bg-red-50 border border-slate-200 transition-colors"
                   disabled={!isAuthenticated}
                   onClick={handleLogout}
                 >
@@ -2575,6 +2635,16 @@ const PaymentInterruptionBanner = () => {
                   </p>
                 </div>
               </>
+            )}
+
+            {/* Persistent Dashboard header for all internal tabs */}
+            {quoteView !== 'services' && (
+              <div className="mb-10 sticky top-16 z-40 bg-white pt-5 pb-3 border-b border-slate-200">
+                <h2 className="text-5xl font-semibold tracking-tight text-slate-800 leading-tight select-none">
+                  Dashboard
+                </h2>
+                <div className="mt-3 h-1 w-28 bg-blue-600 rounded" />
+              </div>
             )}
 
             {quoteView === 'orders' && (
@@ -2651,15 +2721,43 @@ const PaymentInterruptionBanner = () => {
                   goToOrders={goToOrders}
                   backToServices={() => setQuoteView('services')}
                 />
-                <Card className="bg-white">
-                  <CardContent className="p-0">
-                    <FormClient
-                      orderIdProp={selectedFormOrderId}
-                      typeProp={selectedFormType}
-                      onPrefillStateChange={formPrefillHandle}
-                    />
-                  </CardContent>
-                </Card>
+                {!embeddedMultiForms && (
+                  <Card className="bg-white">
+                    <CardContent className="p-0">
+                      <FormClient
+                        orderIdProp={selectedFormOrderId}
+                        typeProp={selectedFormType}
+                        onPrefillStateChange={formPrefillHandle}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+                {embeddedMultiForms && (
+                  <div className="space-y-12">
+                    {embeddedMultiForms.map((f, idx) => (
+                      <Card key={f.id} className="bg-white border border-slate-200 shadow-sm">
+                        <CardContent className="p-0">
+                          <div className="px-6 pt-6 flex items-center justify-between">
+                            <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+                              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-medium">{idx+1}</span>
+                              Order #{f.id}
+                            </h2>
+                            <Button size="sm" variant={selectedFormOrderId === f.id ? 'default' : 'outline'} onClick={() => { setSelectedFormOrderId(f.id); setSelectedFormType(f.type); }}>
+                              Focus
+                            </Button>
+                          </div>
+                          <div className="mt-4">
+                            <FormClient
+                              orderIdProp={f.id}
+                              typeProp={f.type}
+                              onPrefillStateChange={idx === 0 ? formPrefillHandle : () => {}}
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </>
             )}
 
@@ -3490,7 +3588,7 @@ const PaymentInterruptionBanner = () => {
         payment={checkoutPayment}
         orders={checkoutOrders}
         onProceedSingle={openFormEmbedded}
-        onProceedMultiple={(orders) => { if (orders && orders.length > 0) openFormEmbedded(orders[0]) }}
+  onProceedMultiple={(orders) => { if (orders && orders.length > 0) openMultipleFormsEmbedded(orders) }}
       />
     </div>
   )
