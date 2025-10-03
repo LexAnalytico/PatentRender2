@@ -10,6 +10,7 @@ import { UserCircleIcon } from "@heroicons/react/24/outline";
 import { PaymentProcessingModal } from "@/components/PaymentProcessingModal";
 // TypeScript/React
 import { useAuthProfile } from "@/app/useAuthProfile"
+import { useRouter } from 'next/navigation'
 import { useAutoRefreshOnFocus } from "@/components/AutoRefocus";
 
 
@@ -157,6 +158,7 @@ const openFirstFormEmbedded = () => {
 }
   const {
   isAuthenticated,
+  user,
   displayName,
   wantsCheckout,
   setWantsCheckout,
@@ -164,6 +166,14 @@ const openFirstFormEmbedded = () => {
   handleLogout: hookLogout,
   upsertUserProfileFromSession,
 } = useAuthProfile()
+  const router = useRouter()
+  const adminEmails = useMemo(() => (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean), [])
+  const isAdmin = !!(user?.email && adminEmails.includes(user.email.toLowerCase()))
+  const primaryAdminEmail = adminEmails[0]
+  const isPrimaryAdmin = !!(user?.email && user.email.toLowerCase() === primaryAdminEmail)
 
   const [isOpen, setIsOpen] = useState(false);
   const toggleMenu = () => setIsOpen(!isOpen);
@@ -2627,7 +2637,7 @@ const PaymentInterruptionBanner = () => {
           <aside className="hidden md:block w-64 shrink-0">
             <div className="bg-white border rounded-lg p-4 sticky top-24">
               <div className="space-y-2">
-                <div className="text-base font-semibold text-gray-800">Settings</div>
+                <div className="text-sm font-semibold tracking-wide uppercase text-gray-700">Dashboard Services</div>
                 {/* Services button removed: view selected programmatically */}
                 <Button
                   variant={quoteView === 'orders' ? undefined : 'outline'}
@@ -2635,6 +2645,14 @@ const PaymentInterruptionBanner = () => {
                   onClick={goToOrders}
                 >
                   Orders
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  disabled={!isPrimaryAdmin}
+                  onClick={() => { if (isPrimaryAdmin) router.push('/admin') }}
+                >
+                  Admin Dashboard
                 </Button>
                 <Button
                   variant={quoteView === 'profile' ? undefined : 'outline'}
@@ -2766,11 +2784,11 @@ const PaymentInterruptionBanner = () => {
 
             {/* Persistent Dashboard header for all internal tabs */}
             {quoteView !== 'services' && (
-              <div className="mb-10 sticky top-16 z-40 bg-white pt-5 pb-3 border-b border-slate-200">
-                <h2 className="text-5xl font-semibold tracking-tight text-slate-800 leading-tight select-none">
+              <div className="mb-8 sticky top-16 z-40 bg-white pt-4 pb-3 border-b border-slate-200">
+                <h2 className="text-4xl font-bold tracking-tight text-slate-800 leading-tight select-none">
                   Dashboard
                 </h2>
-                <div className="mt-3 h-1 w-28 bg-blue-600 rounded" />
+                <div className="mt-2 h-[3px] w-24 bg-gradient-to-r from-blue-600 to-blue-400 rounded" />
               </div>
             )}
 
@@ -3089,6 +3107,19 @@ const PaymentInterruptionBanner = () => {
         <a href="/knowledge-hub" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium">
           Knowledge Hub
         </a>
+        <button
+          onClick={() => { if (isPrimaryAdmin) router.push('/admin') }}
+          disabled={!isPrimaryAdmin}
+          className={`px-3 py-2 text-sm font-medium rounded-md transition-colors border ${
+            isPrimaryAdmin
+              ? 'text-gray-700 hover:text-blue-600 border-transparent hover:border-blue-200'
+              : 'text-gray-400 cursor-not-allowed border-gray-200 bg-gray-50'
+          }`}
+          title={isPrimaryAdmin ? 'Open Admin Dashboard' : 'Only primary admin can access'}
+          aria-disabled={!isPrimaryAdmin}
+        >
+          Admin Dashboard
+        </button>
         {/* Greeting */}
         {isAuthenticated && displayName && (
         <span
@@ -3363,6 +3394,14 @@ const PaymentInterruptionBanner = () => {
                   <Button variant="outline" className="border-neutral-200" onClick={() => scrollToSection('patent-services')}>
                     Explore Patent Services
                   </Button>
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-600"
+                    onClick={() => router.push('/admin')}
+                    disabled={!isPrimaryAdmin}
+                    title={isPrimaryAdmin ? 'Open Admin Dashboard' : 'Primary admin only'}
+                  >
+                    Admin Dashboard
+                  </Button>
                 </div>
               </div>
             </div>
@@ -3467,7 +3506,7 @@ const PaymentInterruptionBanner = () => {
                       <>
                         <div>
                           <Label className="text-sm font-medium text-gray-700">Specification Type</Label>
-                          <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v, goodsServices: 'standard' }))}>
+                          <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v, goodsServices: '' }))}>
                             <SelectTrigger className="mt-1">
                               <SelectValue placeholder="Choose specification" />
                             </SelectTrigger>
@@ -3517,7 +3556,7 @@ const PaymentInterruptionBanner = () => {
                       <>
                         <div>
                           <Label className="text-sm font-medium text-gray-700">Applicant Type</Label>
-                              <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v, goodsServices: 'provisional_filing' }))}>
+                              <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v, goodsServices: '' }))}>
                             <SelectTrigger className="mt-1">
                               <SelectValue placeholder="Choose applicant type" />
                             </SelectTrigger>
@@ -3614,7 +3653,7 @@ const PaymentInterruptionBanner = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v, goodsServices: 'standard' }))}>
+                      <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v, goodsServices: '' }))}>
                         <SelectTrigger className="mt-1">
                           <SelectValue placeholder="Choose search type" />
                         </SelectTrigger>

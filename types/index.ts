@@ -76,3 +76,21 @@ export interface Counters {
   copyrights: number
   clients: number
 }
+
+// Admin / Orders types
+export interface AdminOrderRow {
+  id: number
+  created_at: string
+  service_id: number | null
+  category_id: number | null
+  payment_id: number | null
+  type: string | null
+  amount: number | null
+  user_id: string | null
+  assigned_to?: string | null
+  responsible?: string | null
+  services?: { id: number; name: string } | null
+  categories?: { id: number; name: string } | null
+  payments?: { id: number; razorpay_payment_id?: string | null; total_amount?: number | null; payment_status?: string | null; payment_date?: string | null; type?: string | null } | null
+  user?: { id: string; email: string; first_name?: string | null; last_name?: string | null; company?: string | null } | null
+}
