@@ -1264,7 +1264,7 @@ const patentServices = [
     }
     loadRules()
   }, [showOptionsPanel, selectedServiceTitle])
-
+  
   // Recompute fee preview when selections change
   useEffect(() => {
     if (!pricingRules || !selectedServiceTitle) {
@@ -1543,6 +1543,30 @@ const selectedSearchType = optionsForm.searchType as
 const basePriceTurn = computeSearchPrice(selectedSearchType, "standard")
 const diffExpediated = computeSearchPrice(selectedSearchType, "expediated") //- basePriceTurn
 const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTurn
+
+// Patentability Search specific total (search type + selected or default turnaround)
+const selectedTurn = (optionsForm.goodsServices as "standard" | "expediated" | "rush") || "standard"
+const patentSearchTotal =
+  selectedServiceTitle === "Patentability Search"
+    ? (selectedSearchType ? computeSearchPrice(selectedSearchType as any, optionsForm.goodsServices ? selectedTurn : "standard") : 0)
+    : 0
+
+// Drafting total (specification type + selected/ default turnaround)
+const selectedDraftTurn = (optionsForm.goodsServices as "standard" | "expediated" | "rush") || "standard"
+const draftingTotal =
+  selectedServiceTitle === 'Drafting'
+    ? (optionsForm.searchType
+        ? computeDraftingPrice(optionsForm.searchType as any, optionsForm.goodsServices ? selectedDraftTurn : 'standard')
+        : 0)
+    : 0
+
+// Patent Application Filing total (filing type + applicant type)
+const filingTotal =
+  selectedServiceTitle === 'Patent Application Filing'
+    ? (optionsForm.searchType && optionsForm.goodsServices
+        ? computeFilingPrice(optionsForm.goodsServices as any, (optionsForm.searchType === 'individual' ? 'individual' : 'others'))
+        : 0)
+    : 0
 
 
   const handleOptionsFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2703,14 +2727,14 @@ const PaymentInterruptionBanner = () => {
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={goToServices}>Services</Button>
-                    <Button
+                    {/*<Button
                       variant="outline"
                       disabled
                       title="Refresh disabled (auto-loads when returning; browser reload for hard refresh)"
                       className="opacity-50 cursor-not-allowed"
                     >
                       Refresh
-                    </Button>
+                    </Button>*/}
                   </div>
                 </div>
                 <Card className="bg-white">
@@ -2741,6 +2765,67 @@ const PaymentInterruptionBanner = () => {
                             {groupedOrders.map(bundle => {
                               const hasMultiple = bundle.orders.length > 1
                               const first = bundle.orders[0]
+                              const handleDownloadBundle = async () => {
+                                try {
+                                  const orders = bundle.orders || []
+                                  const paymentId = bundle.paymentKey || ''
+                                  const totalAmount = formatINR(bundle.totalAmount || 0)
+                                  const rowsHtml = orders.map((o: any, idx: number) => {
+                                    const category = (o.categories as any)?.name || (orders[0]?.categories as any)?.name || 'N/A'
+                                    const service = (o.services as any)?.name || 'N/A'
+                                    const amount = o.amount != null ? formatINR(Number(o.amount)) : '—'
+                                    const date = o.created_at ? new Date(o.created_at).toLocaleString() : (bundle.date ? new Date(bundle.date).toLocaleString() : '')
+                                    return `<tr>
+                                      <td style="padding:6px;border-bottom:1px solid #e5e7eb;">${idx + 1}</td>
+                                      <td style="padding:6px;border-bottom:1px solid #e5e7eb;">${category}</td>
+                                      <td style="padding:6px;border-bottom:1px solid #e5e7eb;">${service}</td>
+                                      <td style="padding:6px;border-bottom:1px solid #e5e7eb;text-align:right;">${amount}</td>
+                                      <td style="padding:6px;border-bottom:1px solid #e5e7eb;">${date}</td>
+                                    </tr>`
+                                  }).join('')
+                                  const html = `<!DOCTYPE html><html><head><meta charset='utf-8' />
+                                  <title>Invoice ${paymentId}</title>
+                                  <style>
+                                    body { font-family: Arial, sans-serif; margin:24px; color:#111827; }
+                                    h1 { font-size:20px; margin:0 0 4px; }
+                                    .sub { color:#6b7280; font-size:12px; margin-bottom:16px; }
+                                    table { width:100%; border-collapse: collapse; font-size:12px; }
+                                    th { text-align:left; background:#f3f4f6; padding:6px; font-weight:600; font-size:12px; border-bottom:1px solid #e5e7eb; }
+                                    .totals { margin-top:16px; width:100%; }
+                                    .totals td { padding:4px 0; }
+                                    .totals .label { color:#374151; }
+                                    .totals .value { text-align:right; font-weight:600; }
+                                    .footer { margin-top:24px; font-size:10px; color:#6b7280; border-top:1px solid #e5e7eb; padding-top:8px; }
+                                    @media print { .noprint { display:none; } }
+                                  </style>
+                                  </head><body>
+                                    <div style='display:flex;justify-content:space-between;align-items:flex-start;'>
+                                      <div>
+                                        <h1>Invoice</h1>
+                                        <div class='sub'>Payment ID: ${paymentId || 'N/A'}<br/>Generated: ${new Date().toLocaleString()}</div>
+                                      </div>
+                                      <div style='text-align:right;font-size:12px;'>
+                                        <strong>LegalIP Pro</strong><br/>Professional IP Services<br/>support@legalippro.com
+                                      </div>
+                                    </div>
+                                    <table style='margin-top:12px;'>
+                                      <thead><tr><th>#</th><th>Category</th><th>Service</th><th style='text-align:right;'>Amount (INR)</th><th>Date</th></tr></thead>
+                                      <tbody>${rowsHtml || `<tr><td colspan='5' style='padding:12px;text-align:center;color:#9ca3af;'>No line items</td></tr>`}</tbody>
+                                    </table>
+                                    <table class='totals'>
+                                      <tr><td class='label'>Total</td><td class='value'>${totalAmount}</td></tr>
+                                    </table>
+                                    <div class='footer'>System-generated summary. For official tax invoice please contact support with Payment ID.</div>
+                                    <button class='noprint' onclick='window.print()' style='margin-top:16px;padding:8px 12px;font-size:12px;cursor:pointer;'>Print / Save PDF</button>
+                                    <script>window.addEventListener('load', () => { /* optional auto print */ })</script>
+                                  </body></html>`
+                                  const w = window.open('', '_blank')
+                                  if (w) { w.document.write(html); w.document.close(); }
+                                } catch (e) {
+                                  console.error('Invoice PDF generation failed', e)
+                                  alert('Failed to generate invoice PDF.')
+                                }
+                              }
                               return (
                                 <>
                                   <tr key={bundle.paymentKey} className="border-t bg-slate-50">
@@ -2751,13 +2836,16 @@ const PaymentInterruptionBanner = () => {
                                     <td className="p-2 font-semibold">{formatINR(bundle.totalAmount)}</td>
                                     <td className="p-2">{bundle.date ? new Date(bundle.date).toLocaleString() : 'N/A'}</td>
                                     <td className="p-2">
-                                      <Button size="sm" variant="outline" onClick={() => {
-                                        if (hasMultiple) {
-                                          openMultipleFormsEmbedded(bundle.orders)
-                                        } else {
-                                          openFormEmbedded(first)
-                                        }
-                                      }}>{hasMultiple ? 'Open Forms' : 'Open Form'}</Button>
+                                      <div className="flex gap-2">
+                                        <Button size="sm" variant="outline" onClick={() => {
+                                          if (hasMultiple) {
+                                            openMultipleFormsEmbedded(bundle.orders)
+                                          } else {
+                                            openFormEmbedded(first)
+                                          }
+                                        }}>{hasMultiple ? 'Open Forms' : 'Open Form'}</Button>
+                                        <Button size="sm" variant="outline" onClick={handleDownloadBundle} title="Download invoice PDF">PDF</Button>
+                                      </div>
                                     </td>
                                   </tr>
                                   {hasMultiple && bundle.orders.map((child: any) => (
@@ -3323,7 +3411,7 @@ const PaymentInterruptionBanner = () => {
                       <>
                         <div>
                           <Label className="text-sm font-medium text-gray-700">Specification Type</Label>
-                          <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v }))}>
+                          <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v, goodsServices: 'standard' }))}>
                             <SelectTrigger className="mt-1">
                               <SelectValue placeholder="Choose specification" />
                             </SelectTrigger>
@@ -3354,7 +3442,7 @@ const PaymentInterruptionBanner = () => {
                           <div className="rounded-md border p-3 bg-gray-50 mt-4">
                             <div className="flex items-center justify-between text-sm mb-1">
                               <span>Professional Fee</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(draftingTotal || preview.total)}</span>
                             </div>
                             <div className="flex items-center justify-between text-sm">
                               <span>Government Fee</span>
@@ -3362,7 +3450,7 @@ const PaymentInterruptionBanner = () => {
                             </div>
                             <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
                               <span>Total</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(draftingTotal || preview.total)}</span>
                             </div>
                           </div>
                         </>
@@ -3373,7 +3461,7 @@ const PaymentInterruptionBanner = () => {
                       <>
                         <div>
                           <Label className="text-sm font-medium text-gray-700">Applicant Type</Label>
-                          <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v }))}>
+                              <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v, goodsServices: 'provisional_filing' }))}>
                             <SelectTrigger className="mt-1">
                               <SelectValue placeholder="Choose applicant type" />
                             </SelectTrigger>
@@ -3406,7 +3494,7 @@ const PaymentInterruptionBanner = () => {
                           <div className="rounded-md border p-3 bg-gray-50 mt-4">
                             <div className="flex items-center justify-between text-sm mb-1">
                               <span>Professional Fee</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(filingTotal || preview.total)}</span>
                             </div>
                             <div className="flex items-center justify-between text-sm">
                               <span>Government Fee</span>
@@ -3414,7 +3502,7 @@ const PaymentInterruptionBanner = () => {
                             </div>
                             <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
                               <span>Total</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
+                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(filingTotal || preview.total)}</span>
                             </div>
                           </div>
                         </>
@@ -3470,7 +3558,7 @@ const PaymentInterruptionBanner = () => {
                           </TooltipContent>
                         </Tooltip>
                       </div>
-                      <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v }))}>
+                      <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v, goodsServices: 'standard' }))}>
                         <SelectTrigger className="mt-1">
                           <SelectValue placeholder="Choose search type" />
                         </SelectTrigger>
@@ -3527,7 +3615,7 @@ const PaymentInterruptionBanner = () => {
                       </div>
                       <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
                         <span>Total</span>
-                        <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
+                        <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(patentSearchTotal || preview.total)}</span>
                       </div>
                     </div>
                   </div>

@@ -116,6 +116,7 @@ export function computePriceFromRules(rules: PricingRule[], opts: SelectedOption
   const st = (opts.searchType || "").toLowerCase();
   const t = (opts.goodsServices?.dropdown || "").toLowerCase();
   let combinedKey = "";
+  let appliedCore = false; // whether we've applied a core search/drafting pricing component
   if (st === "full_without_opinion" && t) {
     combinedKey = `full_without_opinion_${t}`;
   } else if (st === "full_with_opinion" && t) {
@@ -128,7 +129,31 @@ export function computePriceFromRules(rules: PricingRule[], opts: SelectedOption
   }
   if (combinedKey) {
     const r = getRule(combinedKey);
-    if (r) total += r.amount;
+    if (r) {
+      // Pricing precedence change: the combined key (search type + turnaround) represents the core
+      // amount and should REPLACE any previously accumulated turnaround/search base portion.
+      // Current accumulated components before this line: option1, NICE classes, goods_services add-on.
+      // We keep those, but ensure we do not double count a professional base fee later.
+      total += r.amount;
+      appliedCore = true;
+    }
+  }
+
+  // Fallback: if no turnaround selected yet but user chose a search type, use its base rule
+  if (!appliedCore && st) {
+    const baseKeyMap: Record<string,string> = {
+      quick: 'search_type_quick',
+      full_without_opinion: 'search_type_full_without_opinion',
+      full_with_opinion: 'search_type_full_with_opinion',
+    }
+    const k = baseKeyMap[st]
+    if (k) {
+      const r = getRule(k)
+      if (r) {
+        total += r.amount
+        appliedCore = true
+      }
+    }
   }
 
   // Patent Application Filing: goodsServices.dropdown holds a direct key
@@ -161,9 +186,11 @@ export function computePriceFromRules(rules: PricingRule[], opts: SelectedOption
     total += priorRule.amount
   }
 
-  // Professional fee always applies (if defined)
-  const profRule = getRule("professional_fee")
-  if (profRule) total += profRule.amount
+  // Professional fee applies only if we did NOT already apply a combined search/turnaround key.
+  if (!appliedCore) {
+    const profRule = getRule("professional_fee")
+    if (profRule) total += profRule.amount
+  }
 
   return total
 }  
