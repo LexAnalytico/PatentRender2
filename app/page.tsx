@@ -2652,6 +2652,62 @@ const PaymentInterruptionBanner = () => {
                   Logout
                 </Button>
               </div>
+              {/* Duplicated Service Cart (compact) */}
+              <div className="mt-6 border-t pt-4">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                  <Scale className="h-4 w-4 text-blue-600 mr-2" />
+                  Your Cart
+                </h4>
+                <div className="max-h-72 overflow-y-auto pr-1 space-y-3">
+                  {cartItems.length === 0 ? (
+                    <div className="text-center py-6">
+                      <ShoppingCart className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                      <p className="text-xs text-gray-500">No items yet</p>
+                    </div>
+                  ) : (
+                    cartItems.map(item => (
+                      <div key={item.id} className="p-3 bg-gray-50 rounded-md border flex items-start">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-medium text-gray-900 leading-snug break-words">{item.name}</p>
+                          <p className="text-[11px] text-gray-500 mb-1">{item.category}</p>
+                          {item.details && <p className="text-[11px] text-gray-600 line-clamp-2 mb-1">{item.details}</p>}
+                          <span className="text-xs font-semibold text-blue-600">{formatINR(item.price)}</span>
+                        </div>
+                        <Button
+                          onClick={() => removeFromCart(item.id)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 ml-2 h-6 w-6 p-0"
+                          title="Remove"
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="mt-4 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-600">Estimate</span>
+                    <span className="font-semibold text-blue-600">{formatINR(getTotalPrice())}</span>
+                  </div>
+                  <Button
+                    className="w-full bg-blue-600 hover:bg-blue-700 h-8 text-xs"
+                    onClick={goToQuotePage}
+                    disabled={cartItems.length === 0}
+                  >
+                    Checkout
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full h-8 text-xs"
+                    onClick={() => clearCart()}
+                    disabled={cartItems.length === 0}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
             </div>
           </aside>
 
