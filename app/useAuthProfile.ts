@@ -96,6 +96,22 @@ export function useAuthProfile(): AuthProfile {
       refreshDisplayName()
     })
 
+    // Safari deferred logout completion
+    ;(async () => {
+      try {
+        const marker = typeof window !== 'undefined' ? localStorage.getItem('pending_logout') : null
+        if (marker === '1') {
+          console.debug('[auth] processing pending Safari logout')
+          localStorage.removeItem('pending_logout')
+          try { await supabase.auth.signOut() } catch (e) { console.warn('[auth] pending logout signOut error', e) }
+          try { await supabase.auth.signOut({ scope: 'global' } as any) } catch {}
+          setIsAuthenticated(false)
+          setUser(null)
+          setDisplayName('')
+        }
+      } catch {}
+    })()
+
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!active) return
       const u = session?.user ?? null
@@ -126,10 +142,18 @@ export function useAuthProfile(): AuthProfile {
   }, [])
 
   const handleLogout = useCallback(async () => {
-    await supabase.auth.signOut()
+    const isSafari = typeof navigator !== 'undefined' && /safari/i.test(navigator.userAgent) && !/chrome|chromium|android/i.test(navigator.userAgent)
+    if (isSafari) {
+      try { localStorage.setItem('pending_logout', '1') } catch {}
+      // Immediate hard reload; signOut will be finalized on mount
+      try { window.location.replace(window.location.origin + '/') } catch { window.location.href = '/' }
+      return
+    }
+    // Non-Safari normal path
+    try { await supabase.auth.signOut() } catch (e) { console.error('[logout] signOut error', e) }
     setIsAuthenticated(false)
     setUser(null)
-    setDisplayName("")
+    setDisplayName('')
     setWantsCheckout(false)
   }, [])
 
