@@ -2013,7 +2013,25 @@ const interruptPayment = useCallback(async (reason: string) => {
   if (paymentInterrupted) return
   console.warn('[Payment][interrupt]', { reason })
   setPaymentInterrupted(true)
-  try { await supabase.auth.signOut() } catch {}
+  try {
+    const env = process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.VERCEL_ENV || 'local'
+    console.debug('[Payment][interrupt] attempting signOut', { env })
+    const result = await supabase.auth.signOut()
+    console.debug('[Payment][interrupt] signOut result', result)
+    // Fallback: if session still present after short delay in prod, force cookie clear via location reload
+    setTimeout(async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        if (data?.session) {
+          console.warn('[Payment][interrupt] session still present post signOut, forcing hard reload')
+          window.location.replace('/')
+        }
+      } catch {}
+    }, 400)
+  } catch (e) {
+    console.error('[Payment][interrupt] signOut threw', e)
+    try { window.location.replace('/') } catch {}
+  }
 }, [isProcessingPayment, paymentInterrupted])
 
 const handleFocusViolation = useCallback(async (reason: string) => {
@@ -3282,15 +3300,8 @@ const PaymentInterruptionBanner = () => {
             <div className="space-y-2">
               <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={goToQuotePage}>
                 Go To Payments
-              </Button>
-               
-              <Button
-                onClick={downloadQuotationPDF}
-                className="w-full bg-green-600 hover:bg-green-700 flex items-center justify-center gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Download Quotation PDF
-              </Button>
+              </Button> 
+              
               <Button
                 variant="outline"
                 className="w-full bg-transparent"
