@@ -16,26 +16,28 @@ export const servicePricing = {
 }
 
 export const bannerSlides: BannerSlide[] = [
-  {
-    title: "Protect Your Intellectual Property",
-    description:
-      "Comprehensive IP services to safeguard your innovations and creative works with expert legal guidance",
-    image: "/placeholder.svg?height=400&width=600&text=IP+Protection+Services",
-  },
-  {
-    title: "Patent Registration Made Simple",
-    description: "Expert guidance through the complex patent application process with guaranteed results",
-    image: "/placeholder.svg?height=400&width=600&text=Patent+Application+Filing",
-  },
+  // Newer slides surfaced first
   {
     title: "Trademark Your Brand Identity",
     description: "Secure your brand with professional trademark services and comprehensive protection strategies",
-    image: "/placeholder.svg?height=400&width=600&text=Trademark+Registration",
+    image: "/img_1.jpg",
   },
   {
     title: "Copyright Protection Services",
     description: "Protect your creative works with comprehensive copyright solutions and enforcement support",
-    image: "/placeholder.svg?height=400&width=600&text=Copyright+Protection",
+    image: "/img_2.jpg",
+  },
+  // Older slides moved later in rotation
+  {
+    title: "Protect Your Intellectual Property",
+    description:
+      "Comprehensive IP services to safeguard your innovations and creative works with expert legal guidance",
+    image: "/img_3.jpg",
+  },
+  {
+    title: "Patent Registration Made Simple",
+    description: "Expert guidance through the complex patent application process with guaranteed results",
+    image: "/img_4.jpg",
   },
 ]
 

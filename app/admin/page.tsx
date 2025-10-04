@@ -176,7 +176,7 @@ export default function AdminDashboardPage() {
 									<table className="w-full text-sm border-collapse">
 										<thead>
 											<tr className="text-left text-xs uppercase tracking-wide text-gray-500 border-b">
-												<th className="p-2">Order ID</th>
+												<th className="p-2">Order No.</th>
 												<th className="p-2">User</th>
 												<th className="p-2">Service</th>
 												<th className="p-2">Category</th>

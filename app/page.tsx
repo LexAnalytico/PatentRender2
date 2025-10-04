@@ -4,6 +4,7 @@ import type React from "react"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { supabase } from '../lib/supabase';
 import { fetchServicePricingRules, computePriceFromRules } from "@/utils/pricing";
+import { bannerSlides as staticBannerSlides } from "@/constants/data"
 import AuthModal from "@/components/AuthModal"; // Adjust path
 import { Footer } from "@/components/layout/Footer"
 import { UserCircleIcon } from "@heroicons/react/24/outline";
@@ -881,32 +882,12 @@ useEffect(() => {
   }, [])
 
 
-  const defaultBannerSlides = [
-    {
-      title: "Protect Your Intellectual Property",
-      description:
-        "Comprehensive IP services to safeguard your innovations and creative works with expert legal guidance",
-      image: "/placeholder.svg?height=400&width=600&text=IP+Protection+Services",
-    },
-    {
-      title: "Patent Registration Made Simple",
-      description: "Expert guidance through the complex patent application process with guaranteed results",
-      image: "/placeholder.svg?height=400&width=600&text=Patent+Application+Filing",
-    },
-    {
-      title: "Trademark Your Brand Identity",
-      description: "Secure your brand with professional trademark services and comprehensive protection strategies",
-      image: "/placeholder.svg?height=400&width=600&text=Trademark+Registration",
-    },
-    {
-      title: "Copyright Protection Services",
-      description: "Protect your creative works with comprehensive copyright solutions and enforcement support",
-      image: "/placeholder.svg?height=400&width=600&text=Copyright+Protection",
-    },
-  ]
-  const [bannerSlides, setBannerSlides] = useState(defaultBannerSlides)
+  const [bannerSlides, setBannerSlides] = useState(staticBannerSlides)
 
   useEffect(() => {
+    // New logic: by default ALWAYS use static /public img_1..4.
+    // Only override when a full replacement set is available AND feature flag explicitly enabled.
+    if (process.env.NEXT_PUBLIC_ENABLE_BANNER_API !== '1') return
     let cancelled = false
     const loadBanners = async () => {
       try {
@@ -914,17 +895,21 @@ useEffect(() => {
         if (!res.ok) return
         const json = await res.json()
         const images: Array<{ url: string; filename: string }> = Array.isArray(json.images) ? json.images : []
-        if (!cancelled) {
-          // Keep original titles/descriptions; only replace the images for the first N slides
-          const slides = defaultBannerSlides.map((s) => ({ ...s }))
-          const n = Math.min(images.length, slides.length)
-          for (let i = 0; i < n; i++) {
+        // Only apply if we have a complete set matching slide count (avoid partial mixed sources)
+        if (!cancelled && images.length >= staticBannerSlides.length) {
+          const slides = staticBannerSlides.map((s: any) => ({ ...s }))
+          for (let i = 0; i < slides.length; i++) {
             slides[i].image = images[i].url
           }
           setBannerSlides(slides as any)
           setCurrentSlide(0)
+          console.debug('[Banner] remote override applied')
+        } else {
+          if (!cancelled) console.debug('[Banner] remote override skipped (flag set but incomplete set)')
         }
-      } catch {}
+      } catch (e) {
+        console.debug('[Banner] remote load failed; using static images', e)
+      }
     }
     loadBanners()
     return () => { cancelled = true }
@@ -2438,6 +2423,13 @@ const PaymentInterruptionBanner = () => {
     })
 
     const quotationNumber = `LIP-${Date.now().toString().slice(-6)}`
+    // Attempt to enrich with latest payment + orders context if available
+    const payment = checkoutPayment as any
+    const paymentMode = payment?.payment_method || payment?.paymentMode || 'N/A'
+    const paymentId = payment?.razorpay_payment_id || payment?.id || 'N/A'
+    // Prefer orders associated with latest checkout; fallback to cart items
+    const orderIds = (checkoutOrders || []).map(o => o.id).filter(Boolean)
+    const orderIdsLabel = orderIds.length ? orderIds.join(', ') : 'N/A'
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -2576,6 +2568,9 @@ const PaymentInterruptionBanner = () => {
             <h3>Quotation Details</h3>
             <strong>Quotation #:</strong> ${quotationNumber}<br>
             <strong>Date:</strong> ${currentDate}<br>
+            <strong>Order ID(s):</strong> ${orderIdsLabel}<br>
+            <strong>Payment ID:</strong> ${paymentId}<br>
+            <strong>Payment Mode:</strong> ${paymentMode}<br>
             <strong>Valid Until:</strong> ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(
               "en-US",
               {
@@ -2629,6 +2624,7 @@ const PaymentInterruptionBanner = () => {
             <span>Total Estimated Cost:</span>
             <span>${new Intl.NumberFormat('en-IN', { style: 'currency', 'currency': 'INR', maximumFractionDigits: 0 }).format(getTotalPrice())}</span>
           </div>
+          ${paymentId !== 'N/A' ? `<div class="total-row" style="margin-top:8px;font-size:12px;color:#555;">Reference: Payment ${paymentId} (${paymentMode})</div>` : ''}
         </div>
 
         <div class="terms">
@@ -2717,14 +2713,7 @@ const PaymentInterruptionBanner = () => {
                 >
                   Orders
                 </Button>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  disabled={!isPrimaryAdmin}
-                  onClick={() => { if (isPrimaryAdmin) router.push('/admin') }}
-                >
-                  Admin Dashboard
-                </Button>
+                
                 <Button
                   variant={quoteView === 'profile' ? undefined : 'outline'}
                   className={`w-full justify-start ${quoteView === 'profile' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
@@ -2912,17 +2901,22 @@ const PaymentInterruptionBanner = () => {
                                 try {
                                   const orders = bundle.orders || []
                                   const paymentId = bundle.paymentKey || ''
+                                  const paymentMode = (first?.payments as any)?.payment_method || 'N/A'
+                                  const orderIdsStr = orders.map((o: any) => o.id).join(', ')
                                   const totalAmount = formatINR(bundle.totalAmount || 0)
                                   const rowsHtml = orders.map((o: any, idx: number) => {
+                                    const paymentIdRow = (o.payments as any)?.razorpay_payment_id || paymentId || '—'
                                     const category = (o.categories as any)?.name || (orders[0]?.categories as any)?.name || 'N/A'
                                     const service = (o.services as any)?.name || 'N/A'
                                     const amount = o.amount != null ? formatINR(Number(o.amount)) : '—'
+                                    const mode = (o.payments as any)?.payment_method || paymentMode || '—'
                                     const date = o.created_at ? new Date(o.created_at).toLocaleString() : (bundle.date ? new Date(bundle.date).toLocaleString() : '')
                                     return `<tr>
-                                      <td style="padding:6px;border-bottom:1px solid #e5e7eb;">${idx + 1}</td>
+                                      <td style="padding:6px;border-bottom:1px solid #e5e7eb;">${paymentIdRow}</td>
                                       <td style="padding:6px;border-bottom:1px solid #e5e7eb;">${category}</td>
                                       <td style="padding:6px;border-bottom:1px solid #e5e7eb;">${service}</td>
                                       <td style="padding:6px;border-bottom:1px solid #e5e7eb;text-align:right;">${amount}</td>
+                                      <td style="padding:6px;border-bottom:1px solid #e5e7eb;">${mode}</td>
                                       <td style="padding:6px;border-bottom:1px solid #e5e7eb;">${date}</td>
                                     </tr>`
                                   }).join('')
@@ -2945,20 +2939,22 @@ const PaymentInterruptionBanner = () => {
                                     <div style='display:flex;justify-content:space-between;align-items:flex-start;'>
                                       <div>
                                         <h1>Invoice</h1>
-                                        <div class='sub'>Payment ID: ${paymentId || 'N/A'}<br/>Generated: ${new Date().toLocaleString()}</div>
+                                        <div class='sub'>
+                                         Generated: ${new Date().toLocaleString()}
+                                        </div>
                                       </div>
                                       <div style='text-align:right;font-size:12px;'>
                                         <strong>LegalIP Pro</strong><br/>Professional IP Services<br/>support@legalippro.com
                                       </div>
                                     </div>
                                     <table style='margin-top:12px;'>
-                                      <thead><tr><th>#</th><th>Category</th><th>Service</th><th style='text-align:right;'>Amount (INR)</th><th>Date</th></tr></thead>
-                                      <tbody>${rowsHtml || `<tr><td colspan='5' style='padding:12px;text-align:center;color:#9ca3af;'>No line items</td></tr>`}</tbody>
+                                      <thead><tr><th>Payment ID</th><th>Category</th><th>Service</th><th style='text-align:right;'>Amount (INR)</th><th>Payment Mode</th><th>Date</th></tr></thead>
+                                      <tbody>${rowsHtml || `<tr><td colspan='6' style='padding:12px;text-align:center;color:#9ca3af;'>No line items</td></tr>`}</tbody>
                                     </table>
                                     <table class='totals'>
                                       <tr><td class='label'>Total</td><td class='value'>${totalAmount}</td></tr>
                                     </table>
-                                    <div class='footer'>System-generated summary. For official tax invoice please contact support with Payment ID.</div>
+                                    <div class='footer'>System-generated summary. For official tax invoice please contact support referencing the Payment ID above.</div>
                                     <button class='noprint' onclick='window.print()' style='margin-top:16px;padding:8px 12px;font-size:12px;cursor:pointer;'>Print / Save PDF</button>
                                     <script>window.addEventListener('load', () => { /* optional auto print */ })</script>
                                   </body></html>`
