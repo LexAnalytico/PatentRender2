@@ -18,9 +18,12 @@ export function Header() {
       .map(e => e.trim().toLowerCase())
       .filter(Boolean)
     const email = user?.email?.toLowerCase() || ""
+    const isPrimary = !!email && raw.length > 0 && raw[0] === email
+    const isAdmin = !!email && raw.includes(email)
     return {
-      isAdmin: !!email && raw.includes(email),
-      isPrimaryAdmin: !!email && raw.length > 0 && raw[0] === email,
+      isAdmin,
+      isPrimaryAdmin: isPrimary,
+      isSecondaryAdmin: isAdmin && !isPrimary,
       list: raw,
     }
   }, [user])
@@ -63,19 +66,19 @@ export function Header() {
               <RefreshCcw className="h-4 w-4" />
             </button>
 
-            {/* Admin Dashboard button (primary admin only) */}
+            {/* Admin Dashboard button (primary + secondary) */}
             <button
-              onClick={() => { if (adminInfo.isPrimaryAdmin) router.push('/admin') }}
-              disabled={!adminInfo.isPrimaryAdmin}
+              onClick={() => { if (adminInfo.isAdmin) router.push('/admin') }}
+              disabled={!adminInfo.isAdmin}
               className={`px-3 py-2 text-sm font-medium rounded-md transition-colors border ${
-                adminInfo.isPrimaryAdmin
+                adminInfo.isAdmin
                   ? 'text-gray-700 hover:text-blue-600 border-transparent hover:border-blue-200'
                   : 'text-gray-400 cursor-not-allowed border-gray-200 bg-gray-50'
               }`}
-              title={adminInfo.isPrimaryAdmin ? 'Open Admin Dashboard' : 'Only primary admin can access'}
-              aria-disabled={!adminInfo.isPrimaryAdmin}
+              title={adminInfo.isAdmin ? (adminInfo.isPrimaryAdmin ? 'Primary Admin: full access' : 'Secondary Admin: limited view') : 'Admins only'}
+              aria-disabled={!adminInfo.isAdmin}
             >
-              Admin Dashboard
+              {adminInfo.isPrimaryAdmin ? 'Admin Dashboard' : adminInfo.isSecondaryAdmin ? 'My Admin View' : 'Admin Dashboard'}
             </button>
 
             {/* Welcome text */}

@@ -8,6 +8,7 @@ import AuthModal from "@/components/AuthModal"; // Adjust path
 import { Footer } from "@/components/layout/Footer"
 import { UserCircleIcon } from "@heroicons/react/24/outline";
 import { PaymentProcessingModal } from "@/components/PaymentProcessingModal";
+import { debugLog } from '@/lib/logger'
 // TypeScript/React
 import { useAuthProfile } from "@/app/useAuthProfile"
 import { useRouter } from 'next/navigation'
@@ -529,49 +530,24 @@ const openFirstFormEmbedded = () => {
   // Flag that a previous orders load aborted due to missing user; triggers focus recovery reload
   const ordersAbortedNoUserRef = useRef<boolean>(false)
 
-  // Periodic session refresh (top-level)
+  // Periodic session refresh (top-level) - restored after cleanup
   useEffect(() => {
     let cancelled = false
-    const refresh = async () => {
+    const refreshSession = async () => {
       try {
         const { data: s } = await supabase.auth.getSession()
         const uid = s?.session?.user?.id || null
         if (!cancelled && uid) lastKnownUserIdRef.current = uid
-      } catch {}
+      } catch (e) {
+        console.debug('[session][refresh] err', e)
+      }
     }
-    refresh()
-    const iv = setInterval(refresh, 3000)
+    refreshSession()
+    const iv = setInterval(refreshSession, 3000)
     return () => { cancelled = true; clearInterval(iv) }
   }, [])
 
-  // Focus / visibility recovery
-  useEffect(() => {
-    if (quoteView !== 'orders') return
-    const onFocus = () => {
-      if (quoteView === 'orders') {
-        if (embeddedOrders.length === 0 || ordersAbortedNoUserRef.current) {
-          console.debug('[Orders][focus-recover] scheduling reload', { empty: embeddedOrders.length === 0, abortedNoUser: ordersAbortedNoUserRef.current })
-          ordersAbortedNoUserRef.current = false
-          setOrdersReloadKey(k => k + 1)
-        }
-      }
-    }
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible' && quoteView === 'orders') {
-        if (embeddedOrders.length === 0 || ordersAbortedNoUserRef.current) {
-          console.debug('[Orders][visibility-recover] scheduling reload', { empty: embeddedOrders.length === 0, abortedNoUser: ordersAbortedNoUserRef.current })
-          ordersAbortedNoUserRef.current = false
-          setOrdersReloadKey(k => k + 1)
-        }
-      }
-    }
-    window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', onVisibility)
-    return () => {
-      window.removeEventListener('focus', onFocus)
-      document.removeEventListener('visibilitychange', onVisibility)
-    }
-  }, [quoteView, embeddedOrders.length])
+  // (Removed duplicate corrupted session refresh block)
 
   // Load embedded Orders list when switching to Orders inside the quote page
   useEffect(() => {
@@ -1134,7 +1110,7 @@ const patentServices = [
       price,
       category,
     }
-  console.debug('addToCart - newItem', newItem)
+  debugLog('addToCart - newItem', newItem)
     setCartItems((prev) => [...prev, newItem])
   }
 
@@ -1384,7 +1360,7 @@ const patentServices = [
     const government = Math.max(0, total - professional)
 
     // Debug: log recompute context
-    console.log("[Preview] Recompute", {
+  debugLog("[Preview] Recompute", {
       service: selectedServiceTitle,
       applicationType,
       searchType: optionsForm.searchType,
@@ -1662,6 +1638,19 @@ const filingTotal =
     setOptionsForm((prev) => ({ ...prev, proofFileNames: files }))
   }
 
+  // When focusing a form in multi-form mode, scroll it into view & flash highlight
+  useEffect(() => {
+    if (!embeddedMultiForms || !selectedFormOrderId) return
+    const el = document.getElementById(`embedded-form-${selectedFormOrderId}`)
+    if (!el) return
+    try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch {}
+    el.classList.add('ring-2','ring-amber-400','ring-offset-2')
+    const t = setTimeout(() => {
+      el.classList.remove('ring-2','ring-amber-400','ring-offset-2')
+    }, 1600)
+    return () => clearTimeout(t)
+  }, [selectedFormOrderId, embeddedMultiForms])
+
   const toggleApplicantType = (label: string) => {
     setOptionsForm((prev) => {
       const set = new Set(prev.applicantTypes)
@@ -1693,10 +1682,23 @@ const filingTotal =
       applicationType = optionsForm.searchType as any
     }
 
-    // Derive selected turnaround / filing key (fallback to 'standard')
-    const selectedTurnaround = optionsForm.goodsServices && optionsForm.goodsServices !== "0"
+    // Derive selected turnaround / filing key. For Patent Application Filing we want a filing key.
+    let selectedTurnaround = optionsForm.goodsServices && optionsForm.goodsServices !== "0"
       ? optionsForm.goodsServices
       : "standard"
+    if (selectedServiceTitle === "Patent Application Filing") {
+      const filingKeys = new Set([
+        "provisional_filing",
+        "complete_specification_filing",
+        "ps_cs_filing",
+        "pct_filing",
+      ])
+      // If user hasn't explicitly chosen a filing type yet (value is 'standard' or something invalid),
+      // default to provisional_filing so pricing & form mapping are correct.
+      if (!filingKeys.has(selectedTurnaround)) {
+        selectedTurnaround = 'provisional_filing'
+      }
+    }
 
     const selectedOptions = {
       applicationType,
@@ -1750,7 +1752,7 @@ const filingTotal =
     }
            
     // Debug: log add-to-cart computation context
-    console.log("[Cart] Add with options", {
+  debugLog("[Cart] Add with options", {
       service: selectedServiceTitle,
       serviceId,
       applicationType,
@@ -1783,16 +1785,8 @@ const filingTotal =
         pricingKey = `${base}_${t}`
       }
     } else if (selectedServiceTitle === "Patent Application Filing") {
-      // For filing, the turnaround dropdown contains direct keys
-      const filingKeys = new Set([
-        "provisional_filing",
-        "complete_specification_filing",
-        "ps_cs_filing",
-        "pct_filing",
-      ])
-      if (selectedTurnaround && filingKeys.has(selectedTurnaround)) {
-        pricingKey = selectedTurnaround
-      }
+      // For filing, we already normalized selectedTurnaround above; just assign.
+      pricingKey = selectedTurnaround
     } else if (selectedServiceTitle === "First Examination Response") {
       // For FER, the searchType contains direct keys
       const ferKeys = new Set([
@@ -1806,7 +1800,7 @@ const filingTotal =
       }
     }
    
-    console.log("[Cart] Determined pricing key:", pricingKey)
+  debugLog("[Cart] Determined pricing key:", pricingKey)
    
     // Store the pricing key in localStorage so checkout can use it
     if (pricingKey) {
@@ -1860,6 +1854,10 @@ const filingTotal =
       price,
       category: selectedServiceCategory,
       details,
+    // Provide pricing/mapping keys so order creation can derive correct form type
+    pricing_key: pricingKey || undefined,
+    service_pricing_key: pricingKey || undefined,
+    type: pricingKey || undefined,
     }
   console.debug('options-panel add - newItem', newItem)
     setCartItems((prev) => [...prev, newItem])
@@ -1926,7 +1924,7 @@ const goToServices = () => {
 // 3) In the auth listener, honor intent but don’t force navigation otherwise
 useEffect(() => {
   const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
-    console.log("[auth] event:", event, "user:", !!session?.user)
+  debugLog("[auth] event", { event, hasUser: !!session?.user })
     if (event === "SIGNED_IN" && session?.user) {
       upsertUserProfileFromSession()
       setShowAuthModal(false)
@@ -2027,28 +2025,27 @@ const handleAuth = async (e: React.FormEvent) => {
 };
 
   const handleLogout = async () => {
-  try {
-    await hookLogout()
-    // Ensure session is cleared
-    const { data } = await supabase.auth.getSession()
-    if (data?.session) {
-      // force clear a second time
-      await supabase.auth.signOut()
+    try {
+      await hookLogout()
+      // Ensure session is cleared
+      const { data } = await supabase.auth.getSession()
+      if (data?.session) {
+        // force clear a second time
+        await supabase.auth.signOut()
+      }
+    } finally {
+      setShowQuotePage(false)
+      setShowAuthModal(false)
+      setIsOpen(false)
+      resetAuthForm()
+      setCartItems([])
+      try { localStorage.removeItem("cart_items_v1") } catch {}
+      setShowOptionsPanel(false)
+      setSelectedServiceTitle(null)
+      setSelectedServiceCategory(null)
+      resetOptionsForm()
     }
-  } finally {
-    setShowQuotePage(false)
-    //setShowAuthModal(true)
-    setShowAuthModal(false)
-    setIsOpen(false)
-    resetAuthForm()
-    setCartItems([])
-    try { localStorage.removeItem("cart_items_v1") } catch {}
-    setShowOptionsPanel(false)
-    setSelectedServiceTitle(null)
-    setSelectedServiceCategory(null)
-    resetOptionsForm()
   }
-}
  
   const resetAuthForm = () => {
     setAuthForm({
@@ -2109,7 +2106,7 @@ const startFocusGuard = useCallback(() => {
   focusGuardStartedAtRef.current = Date.now()
   focusLastOkRef.current = Date.now()
   setFocusGuardActive(true)
-  console.debug('[FocusGuard] started')
+  debugLog('[FocusGuard] started')
 }, [focusGuardActive])
 
 const stopFocusGuard = useCallback((label: string) => {
@@ -2117,7 +2114,7 @@ const stopFocusGuard = useCallback((label: string) => {
   setFocusGuardActive(false)
   if (focusBlurTimerRef.current) clearTimeout(focusBlurTimerRef.current)
   if (focusVisibilityTimerRef.current) clearTimeout(focusVisibilityTimerRef.current)
-  console.debug('[FocusGuard] stopped', { label })
+  debugLog('[FocusGuard] stopped', { label })
 }, [focusGuardActive])
 
 // Central interruption routine (moved earlier to avoid use-before-def in focus guard hooks)
@@ -2128,9 +2125,9 @@ const interruptPayment = useCallback(async (reason: string) => {
   setPaymentInterrupted(true)
   try {
     const env = process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.VERCEL_ENV || 'local'
-    console.debug('[Payment][interrupt] attempting signOut', { env })
+  debugLog('[Payment][interrupt] attempting signOut', { env })
     const result = await supabase.auth.signOut()
-    console.debug('[Payment][interrupt] signOut result', result)
+  debugLog('[Payment][interrupt] signOut result', result)
     // Fallback: if session still present after short delay in prod, force cookie clear via location reload
     setTimeout(async () => {
       try {
@@ -2279,7 +2276,7 @@ const PaymentInterruptionBanner = () => {
       // 2) create an order on the server so the secret key stays on the server
       // read pricing key determined when adding to cart
       const selectedPricingKey = (typeof window !== 'undefined') ? (localStorage.getItem('selected_pricing_key') || null) : null
-      console.log("[Checkout] Using pricing key:", selectedPricingKey)
+  debugLog("[Checkout] Using pricing key", selectedPricingKey)
      
       const orderResp = await fetch('/api/create-order', {
         method: 'POST',
@@ -2315,7 +2312,7 @@ const PaymentInterruptionBanner = () => {
         // Ensure we can react to the user closing the Razorpay popup (X button / outside click)
         modal: {
           ondismiss: () => {
-            console.log('[Razorpay] Checkout dismissed by user (no payment). Cleaning up.');
+            debugLog('[Razorpay] Checkout dismissed by user (no payment). Cleaning up.')
             stopFocusGuard('dismiss');
             setIsProcessingPayment(false);
           }
@@ -2690,12 +2687,7 @@ const PaymentInterruptionBanner = () => {
       <header className="bg-white shadow-sm border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            {/*<button
-              onClick={() => setShowQuotePage(false)}
-              className="text-blue-600 hover:underline text-sm font-medium"
-            >
-              ← Back to Home
-            </button>*/}
+            {/* Back to Home button removed during cleanup */}
             <div className="flex items-center" />
             <div className="hidden md:flex items-center space-x-6">
               <a
@@ -2882,14 +2874,7 @@ const PaymentInterruptionBanner = () => {
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={goToServices}>Services</Button>
-                    {/*<Button
-                      variant="outline"
-                      disabled
-                      title="Refresh disabled (auto-loads when returning; browser reload for hard refresh)"
-                      className="opacity-50 cursor-not-allowed"
-                    >
-                      Refresh
-                    </Button>*/}
+                    {/* Legacy disabled Refresh button removed */}
                   </div>
                 </div>
                 <Card className="bg-white">
@@ -3093,16 +3078,34 @@ const PaymentInterruptionBanner = () => {
                 {embeddedMultiForms && (
                   <div className="space-y-12">
                     {embeddedMultiForms.map((f, idx) => (
-                      <Card key={f.id} className="bg-white border border-slate-200 shadow-sm">
+                      <Card id={`embedded-form-${f.id}`} key={f.id} className="bg-white border border-slate-200 shadow-sm scroll-mt-24 transition-shadow">
                         <CardContent className="p-0">
                           <div className="px-6 pt-6 flex items-center justify-between">
                             <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
                               <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-medium">{idx+1}</span>
-                              Order #{f.id}
+                              {(() => {
+                                // Attempt to find the corresponding order object (from embeddedOrders or checkoutOrders) to pull payment id
+                                const sourceOrder = (embeddedOrders || []).find(o => Number(o.id) === Number(f.id)) || (checkoutOrders || []).find(o => Number(o.id) === Number(f.id))
+                                const payId = (sourceOrder && (sourceOrder.payments as any)?.razorpay_payment_id) || null
+                                return payId ? `Payment ${payId}` : `Order #${f.id}`
+                              })()}
                             </h2>
-                            <Button size="sm" variant={selectedFormOrderId === f.id ? 'default' : 'outline'} onClick={() => { setSelectedFormOrderId(f.id); setSelectedFormType(f.type); }}>
-                              Focus
-                            </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant={selectedFormOrderId === f.id ? 'default' : 'outline'}
+                                    onClick={() => { setSelectedFormOrderId(f.id); setSelectedFormType(f.type); }}
+                                  >
+                                    Focus
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-xs text-xs leading-snug">
+                                  Make this form the active one: scroll it into view, highlight it briefly, and sync shared prefill context.
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
                           <div className="mt-4">
                             <FormClient
@@ -3237,17 +3240,17 @@ const PaymentInterruptionBanner = () => {
           Knowledge Hub
         </a>
         <button
-          onClick={() => { if (isPrimaryAdmin) router.push('/admin') }}
-          disabled={!isPrimaryAdmin}
+          onClick={() => { if (isAdmin) router.push('/admin') }}
+          disabled={!isAdmin}
           className={`px-3 py-2 text-sm font-medium rounded-md transition-colors border ${
-            isPrimaryAdmin
+            isAdmin
               ? 'text-gray-700 hover:text-blue-600 border-transparent hover:border-blue-200'
               : 'text-gray-400 cursor-not-allowed border-gray-200 bg-gray-50'
           }`}
-          title={isPrimaryAdmin ? 'Open Admin Dashboard' : 'Only primary admin can access'}
-          aria-disabled={!isPrimaryAdmin}
+          title={isAdmin ? (isPrimaryAdmin ? 'Primary Admin: full access' : 'Secondary Admin: limited view') : 'Admins only'}
+          aria-disabled={!isAdmin}
         >
-          Admin Dashboard
+          {isPrimaryAdmin ? 'Admin Dashboard' : isAdmin ? 'My Admin View' : 'Admin Dashboard'}
         </button>
         {/* Auth greeting (redundant Sign In button removed; use profile menu) */}
         {isAuthenticated && displayName && (
@@ -3520,14 +3523,7 @@ const PaymentInterruptionBanner = () => {
                   <Button variant="outline" className="border-neutral-200" onClick={() => scrollToSection('patent-services')}>
                     Explore Patent Services
                   </Button>
-                  <Button
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-600"
-                    onClick={() => router.push('/admin')}
-                    disabled={!isPrimaryAdmin}
-                    title={isPrimaryAdmin ? 'Open Admin Dashboard' : 'Primary admin only'}
-                  >
-                    Admin Dashboard
-                  </Button>
+                  {/* Removed duplicate Admin Dashboard button (header provides access) */}
                 </div>
               </div>
             </div>

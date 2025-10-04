@@ -19,7 +19,7 @@
   "ps_cs_rush": "drafting",
 
   "provisional_filing": "provisional_filing",
-  "complete_specification_filing": "provisional_filing",
+  "complete_specification_filing": "complete_non_provisional_filing",
   "ps_cs_filing": "ps_cs",
   "pct_filing": "pct_filing",
 
@@ -30,6 +30,6 @@
 
   "complete_specification_filing_others": "complete_non_provisional_filing",
   "pct_filing_others": "pct_filing",
-  "provisional_filing_others": "complete_non_provisional_filing",
+  "provisional_filing_others": "provisional_filing",
   "ps_cs_filing_others": "ps_cs"
 }

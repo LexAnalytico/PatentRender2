@@ -14,6 +14,7 @@ import { useSearchParams } from "next/navigation"
 import { useToast } from "@/components/hooks/use-toast"
 import formData from "../data/forms-fields.json"
 import pricingToForm from '../data/service-pricing-to-form.json'
+import formCharLimits from '../data/form-char-limits.json'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 
@@ -235,10 +236,32 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     }
   }
 
+  // Enforce hard char/word limits (truncate) based on formCharLimits metadata
+  const enforceLimit = (fieldTitle: string, raw: string): string => {
+    try {
+      const key = fieldTitle.trim().toLowerCase().replace(/\s+/g,'_')
+      const meta: any = (formCharLimits as any)[key]
+      if (!meta) return raw
+      if (meta.kind === 'chars' && typeof meta.max === 'number') {
+        if (raw.length > meta.max) return raw.slice(0, meta.max)
+        return raw
+      }
+      if (meta.kind === 'words' && typeof meta.max === 'number') {
+        const words = raw.trim() ? raw.trim().split(/\s+/) : []
+        if (words.length > meta.max) {
+          return words.slice(0, meta.max).join(' ')
+        }
+        return raw
+      }
+      return raw
+    } catch { return raw }
+  }
+
   const handleInputChange = (fieldTitle: string, value: string) => {
+    const limited = enforceLimit(fieldTitle, value)
     setFormValues((prev) => ({
       ...prev,
-      [fieldTitle]: value,
+      [fieldTitle]: limited,
     }))
   }
 
@@ -847,15 +870,53 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                       'key novel features',
                       'closest known solutions (if any)'
                     ].includes(lower.trim())
-                    const wrapperClass = isDrawingsField || forceFullWidth ? 'col-span-2 space-y-2' : styleTokens.fieldBlock
+                    const limitMeta = (() => {
+                      // Normalize: lowercase, remove spaces around slashes, remove punctuation except underscores, collapse to single underscores
+                      const raw = field.field_title.trim().toLowerCase()
+                        .replace(/\s*\/\s*/g,'_')
+                        .replace(/[()]/g,'')
+                        .replace(/\?/g,'')
+                        .replace(/\s+/g,'_')
+                        .replace(/__+/g,'_')
+                      const key = raw
+                      const lm: any = (formCharLimits as any)[key]
+                      return lm || null
+                    })()
+                    const value = formValues[field.field_title] || ''
+                    let remaining: number | null = null
+                    if (limitMeta && limitMeta.kind === 'chars' && typeof limitMeta.max === 'number') {
+                      remaining = limitMeta.max - value.length
+                    } else if (limitMeta && limitMeta.kind === 'words' && typeof limitMeta.max === 'number') {
+                      const words = value.trim() ? value.trim().split(/\s+/).length : 0
+                      remaining = limitMeta.max - words
+                    }
+                    const limitBasedWide = (() => {
+                      if (!limitMeta) return false
+                      if (limitMeta.kind === 'chars' && typeof limitMeta.max === 'number') return limitMeta.max > 50
+                      if (limitMeta.kind === 'words' && typeof limitMeta.max === 'number') return limitMeta.max > 50
+                      return false
+                    })()
+                    const wrapperClass = (isDrawingsField || forceFullWidth || (limitBasedWide && !isDrawingsField && !isApplicantField)) ? 'col-span-2 space-y-2' : styleTokens.fieldBlock
                     return (
                       <div key={index} className={wrapperClass}>
                         <Label htmlFor={`field-${index}`} className={styleTokens.label}>
                           <span className={styleTokens.badgeNumber}>{index + 1}</span>
                           {field.field_title}
+                          {limitMeta && limitMeta.kind !== 'upload' && (
+                            <span className="ml-2 text-[10px] font-normal text-gray-500">
+                              {limitMeta.kind === 'chars' && typeof limitMeta.max === 'number' && `${value.length}/${limitMeta.max} ch`}
+                              {limitMeta.kind === 'words' && typeof limitMeta.max === 'number' && `${(value.trim()?value.trim().split(/\s+/).length:0)}/${limitMeta.max} w`}
+                              {remaining != null && remaining <= 25 && remaining >= 0 && (
+                                <span className="ml-1 text-orange-600">{remaining} left</span>
+                              )}
+                              {remaining != null && remaining < 0 && (
+                                <span className="ml-1 text-red-600">over by {Math.abs(remaining)}</span>
+                              )}
+                            </span>
+                          )}
                         </Label>
                         <div>
-                          {isDrawingsField ? (
+                          { (isDrawingsField || (limitMeta && limitMeta.kind === 'upload')) ? (
                             <div className="space-y-3">
                               <input
                                 ref={fileInputRef}
@@ -976,7 +1037,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                         setMultiAuthors(prev => {
                                           const list = [...(prev[field.field_title] || [])]
                                           list[ai] = val
-                                          setFormValues(fv => ({ ...fv, [field.field_title]: list.filter(x => x.trim() !== '').join('\n') }))
+                                          setFormValues(fv => ({ ...fv, [field.field_title]: enforceLimit(field.field_title, list.filter(x => x.trim() !== '').join('\n')) }))
                                           return { ...prev, [field.field_title]: list }
                                         })
                                       }}
@@ -992,7 +1053,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                           let list = [...(prev[field.field_title] || [])]
                                           list.splice(ai,1)
                                           if (list.length === 0) list = ['']
-                                          setFormValues(fv => ({ ...fv, [field.field_title]: list.filter(x => x.trim() !== '').join('\n') }))
+                                          setFormValues(fv => ({ ...fv, [field.field_title]: enforceLimit(field.field_title, list.filter(x => x.trim() !== '').join('\n')) }))
                                           return { ...prev, [field.field_title]: list }
                                         })
                                       }}
@@ -1003,13 +1064,13 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                               </div>
                             </div>
                           ) : (
-                            isLong ? (
+                            (isLong || limitBasedWide) ? (
                               <Textarea
                                 id={`field-${index}`}
                                 placeholder={`Enter ${lower}`}
                                 value={formValues[field.field_title] || ""}
                                 onChange={(e) => handleInputChange(field.field_title, e.target.value)}
-                                className={styleTokens.textarea}
+                                className={`${styleTokens.textarea} whitespace-pre-wrap break-words`}
                               />
                             ) : (
                               <Input
@@ -1018,7 +1079,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                 placeholder={`Enter ${lower}`}
                                 value={formValues[field.field_title] || ""}
                                 onChange={(e) => handleInputChange(field.field_title, e.target.value)}
-                                className={styleTokens.input}
+                                className={`${styleTokens.input} break-words`}
                               />
                             )
                           )}
@@ -1045,13 +1106,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                   >
                     Cancel
                   </Button>
-                  <Button
-                    type="button"
-                    onClick={manualReloadForm}
-                    variant="outline"
-                    className={styleTokens.tertiaryBtn}
-                    disabled={saving}
-                  >Reload Form Data</Button>
+                  
                   {saveSuccessTs && (
                     <div className="flex items-center gap-2 text-sm font-medium text-green-600">
                       <span className="inline-block w-2 h-2 bg-green-600 rounded-full animate-pulse" />

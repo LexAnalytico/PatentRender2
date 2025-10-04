@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,7 +13,18 @@ import { createClient } from '@supabase/supabase-js'
 
 const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
 
+// Optional: explicit secondary admins (comma separated). If not provided, all after the first primary are secondary.
+let SECONDARY_ADMINS_RAW = (process.env.NEXT_PUBLIC_SECONDARY_ADMINS || '')
+  .split(',')
+  .map(e => e.trim().toLowerCase())
+  .filter(Boolean)
+if (SECONDARY_ADMINS_RAW.length === 0) {
+  SECONDARY_ADMINS_RAW = ADMIN_EMAILS.slice(1)
+}
+const SECONDARY_ADMINS = SECONDARY_ADMINS_RAW
+
 import type { AdminOrderRow } from '@/types'
+import { debugLog } from '@/lib/logger'
 
 export default function AdminDashboardPage() {
 	const router = useRouter()
@@ -64,6 +75,32 @@ export default function AdminDashboardPage() {
 	const primaryAdmin = ADMIN_EMAILS[0]
 	const otherAdmins = ADMIN_EMAILS.filter(e => e !== primaryAdmin)
 
+	const isPrimary = useMemo(() => email ? email.toLowerCase() === primaryAdmin : false, [email, primaryAdmin])
+	const isSecondary = useMemo(() => {
+		if (!email) return false
+		const lower = email.toLowerCase()
+		if (lower === primaryAdmin) return false
+		return SECONDARY_ADMINS.includes(lower)
+	}, [email, primaryAdmin])
+
+	useEffect(() => {
+		debugLog('[AdminPage] role-eval', { email, primaryAdmin, SECONDARY_ADMINS, isPrimary, isSecondary, totalOrders: orders.length })
+	}, [email, primaryAdmin, isPrimary, isSecondary, orders.length])
+
+	// Secondary admin view: only show orders where assigned_to or responsible matches them.
+	const filteredOrders = useMemo(() => {
+		if (isPrimary) return orders // primary sees all
+		if (isSecondary) {
+			const lower = (email || '').toLowerCase()
+			return orders.filter(o => (
+				(o.assigned_to && o.assigned_to.toLowerCase() === lower) ||
+				(o.responsible && o.responsible.toLowerCase() === lower)
+			))
+		}
+		// Non-primary but not recognized secondary (future roles) -> empty for safety
+		return []
+	}, [orders, isPrimary, isSecondary, email])
+
 	const handleAssign = async (orderId: number) => {
 		const assignee = selectedAssignee[orderId]
 		if (!assignee) return
@@ -113,8 +150,10 @@ export default function AdminDashboardPage() {
 			<header className="bg-white border-b sticky top-0 z-40">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
 					<div className="flex items-center gap-3">
-						<Button variant="ghost" onClick={() => router.push('/')}><ArrowLeft className="h-4 w-4 mr-1" /> Home</Button>
-						<h1 className="text-xl font-semibold tracking-tight">Admin Orders Dashboard</h1>
+						<Button variant="ghost" onClick={() => router.push('/')}>\<ArrowLeft className="h-4 w-4 mr-1" /> Home</Button>
+						<h1 className="text-xl font-semibold tracking-tight">
+							{isPrimary ? 'Admin Orders Dashboard' : isSecondary ? 'My Assigned Orders' : 'Admin Orders'}
+						</h1>
 					</div>
 					<div className="flex items-center gap-2">
 						<Button variant="outline" size="sm" onClick={fetchAll} disabled={loading}>
@@ -144,19 +183,19 @@ export default function AdminDashboardPage() {
 												<th className="p-2">Amount</th>
 												<th className="p-2">Payment</th>
 												<th className="p-2">Status</th>
-												<th className="p-2">Responsible</th>
-												{email && email.toLowerCase() === primaryAdmin && <th className="p-2">Forward</th>}
 												<th className="p-2">Created</th>
+												<th className="p-2">Responsible</th>
+												{isPrimary && <th className="p-2">Forward</th>}
 											</tr>
 										</thead>
 										<tbody>
 											{loading && (
-												<tr><td className="p-4 text-gray-500" colSpan={8}>Loading…</td></tr>
+												<tr><td className="p-4 text-gray-500" colSpan={isPrimary ? 10 : 9}>Loading…</td></tr>
 											)}
-											{!loading && orders.length === 0 && (
-												<tr><td className="p-4 text-gray-500" colSpan={8}>No orders found.</td></tr>
+											{!loading && filteredOrders.length === 0 && (
+												<tr><td className="p-4 text-gray-500" colSpan={isPrimary ? 10 : 9}>{isSecondary ? 'No orders assigned to you yet.' : 'No orders found.'}</td></tr>
 											)}
-											{!loading && orders.map(o => {
+											{!loading && filteredOrders.map(o => {
 												const userName = o.user ? ([o.user.first_name, o.user.last_name].filter(Boolean).join(' ') || o.user.email) : '—'
 												return (
 													<tr key={o.id} className="border-b last:border-b-0 hover:bg-slate-50">
@@ -169,7 +208,7 @@ export default function AdminDashboardPage() {
 														<td className="p-2 text-xs">{o.payments?.payment_status || '—'}</td>
 														<td className="p-2 text-xs whitespace-nowrap">{o.created_at ? new Date(o.created_at).toLocaleString() : '—'}</td>
 														<td className="p-2 text-xs">{o.responsible || o.assigned_to || '—'}</td>
-														{email && email.toLowerCase() === primaryAdmin && (
+														{isPrimary && (
 															<td className="p-2 text-xs">
 																<div className="flex items-center gap-1">
 																	<select

@@ -1,0 +1,36 @@
+Updates Complete
+Implemented A + C.
+
+What Changed
+Added logger.ts with debugLog, infoLog helpers and environment/localStorage gating:
+Active when NEXT_PUBLIC_DEBUG=1 (build-time) or localStorage.DEBUG = '1'.
+Replaced non-critical console.log / console.debug calls in page.tsx with debugLog:
+Preview recompute
+Cart add flows (simple and options panel)
+Pricing key determination
+Auth state listener
+Focus guard start/stop
+Payment interruption sign-out diagnostics
+Razorpay checkout dismissal
+Checkout pricing key usage
+Left console.warn / console.error (intentional: still surface problems in production).
+Removed obvious dead/commented blocks:
+Old “Back to Home” commented button
+Disabled legacy “Refresh” button block in Orders header
+Replaced with brief cleanup comments to avoid reintroduction confusion.
+
+Build/Type Status
+No TypeScript errors in modified files (page.tsx, logger.ts).
+How To Enable Debug Output Now
+In browser devtools console:
+
+localStorage.DEBUG = '1'; window.location.reload();
+
+Or at build/runtime:
+
+NEXT_PUBLIC_DEBUG=1 npm run build
+
+Next Optional Hardening (suggestions)
+Add ESLint rule to forbid raw console.log/console.debug.
+Expand logger with levels + server-side structured logging.
+Strip debug blocks in production via Babel/Next.js plugin if size matters.
