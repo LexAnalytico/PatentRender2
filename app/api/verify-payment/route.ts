@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import crypto from 'crypto';
 import { supabase } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
+import Razorpay from 'razorpay';
 import nodemailer from 'nodemailer';
 import pricingToForm from '@/app/data/service-pricing-to-form.json'
 
@@ -192,6 +193,42 @@ export async function POST(req: NextRequest) {
       ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '', process.env.SUPABASE_SERVICE_ROLE_KEY)
       : supabase;
 
+    // Fetch Razorpay payment object to capture method / instrument details
+    let paymentMethod: string | null = null
+    let paymentMethodDetails: any = null
+    try {
+      const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID
+      const keySecret = process.env.RAZORPAY_KEY_SECRET
+      if (keyId && keySecret && razorpay_payment_id) {
+        const rz = new Razorpay({ key_id: keyId, key_secret: keySecret })
+        const rpPayment: any = await rz.payments.fetch(razorpay_payment_id)
+        if (rpPayment) {
+          paymentMethod = rpPayment.method || null
+          // Build a concise details object depending on method
+          const detail: any = { raw_status: rpPayment.status }
+          if (rpPayment.method === 'card') {
+            detail.card_network = rpPayment.card?.network
+            detail.card_type = rpPayment.card?.type
+            detail.last4 = rpPayment.card?.last4
+            detail.issuer = rpPayment.card?.issuer
+          } else if (rpPayment.method === 'upi') {
+            detail.vpa = rpPayment.vpa
+          } else if (rpPayment.method === 'netbanking') {
+            detail.bank = rpPayment.bank
+          } else if (rpPayment.method === 'wallet') {
+            detail.wallet = rpPayment.wallet
+          } else if (rpPayment.method === 'emi') {
+            detail.emi_plan_id = rpPayment.emi_plan_id
+          } else if (rpPayment.method === 'paylater') {
+            detail.provider = rpPayment.provider
+          }
+          paymentMethodDetails = detail
+        }
+      }
+    } catch (pmErr) {
+      console.error('[payments][verify] failed fetching payment method info', pmErr)
+    }
+
     // Try to reuse existing payment amount if present (created at order time)
     let existingPaymentByOrder: any = null;
     try {
@@ -255,6 +292,8 @@ export async function POST(req: NextRequest) {
               razorpay_payment_id: razorpay_payment_id,
               service_id: serviceToStore ?? null,
               type: typeToStore ?? null,
+              payment_method: paymentMethod,
+              payment_method_details: paymentMethodDetails ? JSON.stringify(paymentMethodDetails) : null,
             })
             .eq('id', existingPaymentByOrder.id)
             .select()
@@ -273,6 +312,8 @@ export async function POST(req: NextRequest) {
                   razorpay_payment_id: razorpay_payment_id,
                   service_id: serviceToStore ?? null,
                   type: null,
+                  payment_method: paymentMethod,
+                  payment_method_details: paymentMethodDetails ? JSON.stringify(paymentMethodDetails) : null,
                 })
                 .eq('id', existingPaymentByOrder.id)
                 .select()
@@ -297,6 +338,8 @@ export async function POST(req: NextRequest) {
               razorpay_payment_id: razorpay_payment_id,
               service_id: serviceToStore ?? null,
               type: typeToStore ?? null,
+              payment_method: paymentMethod,
+              payment_method_details: paymentMethodDetails ? JSON.stringify(paymentMethodDetails) : null,
             })
             .eq('razorpay_order_id', razorpay_order_id)
             .select()
@@ -318,6 +361,8 @@ export async function POST(req: NextRequest) {
           service_id: serviceToStore ?? null,
           type: typeToStore ?? null,
           created_at: new Date().toISOString(),
+          payment_method: paymentMethod,
+          payment_method_details: paymentMethodDetails ? JSON.stringify(paymentMethodDetails) : null,
         }
         ;({ data: inserted, error: insErr } = await serverSupabase
           .from('payments')

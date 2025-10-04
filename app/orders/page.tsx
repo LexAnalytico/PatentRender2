@@ -162,9 +162,28 @@ function OrdersPageInner() {
               {ready ? 'Your order is ready. You can proceed to forms.' : stage === 'orders_materializing' ? 'Creating order records…' : stage === 'payment_pending' ? 'Waiting for payment confirmation…' : 'Finalizing…'}
             </p>
             <div className="flex flex-col gap-2">
-              <Button onClick={handleViewForms} disabled={!ready} className={!ready ? 'opacity-60 cursor-not-allowed' : ''}>
-                {ready ? 'View Forms' : 'Please Wait'}
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={handleViewForms} disabled={!ready} className={!ready ? 'opacity-60 cursor-not-allowed' : ''}>
+                  {ready ? 'View Forms' : 'Please Wait'}
+                </Button>
+                {ready && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      try {
+                        const firstOrder = status?.orders && status.orders.length > 0 ? status.orders[0] : null
+                        if (!firstOrder) { alert('No order available to invoice yet.'); return }
+                        // Placeholder: implement real invoice generation; for now open printable window
+                        const html = `<html><head><title>Invoice #${firstOrder.id}</title></head><body><h1>Invoice</h1><p>Order ID: ${firstOrder.id}</p><p>Type: ${firstOrder.type || ''}</p><p>Status: Paid</p></body></html>`
+                        const w = window.open('', '_blank')
+                        if (w) { w.document.write(html); w.document.close(); w.focus(); }
+                      } catch (e) { console.error('Invoice download error', e); alert('Failed to open invoice.') }
+                    }}
+                  >
+                    Download Invoice
+                  </Button>
+                )}
+              </div>
               {ready && <Button variant="outline" onClick={() => setOverlayVisible(false)}>Stay on Orders</Button>}
             </div>
             {!ready && pollCount > 5 && (

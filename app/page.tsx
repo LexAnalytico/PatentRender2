@@ -194,6 +194,11 @@ const openFirstFormEmbedded = () => {
       details?: string
     }>
   >([])
+  // Helper to open sign-in modal without touching cart/checkout state
+  const openSignIn = () => {
+    setAuthMode('signin')
+    setShowAuthModal(true)
+  }
   const [cartLoaded, setCartLoaded] = useState(false)
 
   // Load cart from localStorage after mount to avoid SSR/client mismatch
@@ -420,7 +425,7 @@ const openFirstFormEmbedded = () => {
         ;[servicesRes, categoriesRes, paymentsRes] = await Promise.all([
           serviceIds.length ? supabase.from('services').select('id, name').in('id', serviceIds) : Promise.resolve({ data: [], error: null }),
           categoryIds.length ? supabase.from('categories').select('id, name').in('id', categoryIds) : Promise.resolve({ data: [], error: null }),
-          paymentIds.length ? supabase.from('payments').select('id, razorpay_payment_id, total_amount, payment_status, payment_date, service_id, type').in('id', paymentIds) : Promise.resolve({ data: [], error: null }),
+          paymentIds.length ? supabase.from('payments').select('id, razorpay_order_id, razorpay_payment_id, payment_method, total_amount, payment_status, payment_date, service_id, type').in('id', paymentIds) : Promise.resolve({ data: [], error: null }),
         ])
       } catch (joinErr) {
         console.warn('[Orders][prefetch] ancillary lookups failed', joinErr)
@@ -716,7 +721,7 @@ const openFirstFormEmbedded = () => {
             ? supabase.from("categories").select("id, name").in("id", categoryIds)
             : Promise.resolve({ data: [], error: null }),
           paymentIds.length
-            ? supabase.from("payments").select("id, razorpay_payment_id, total_amount, payment_status, payment_date, service_id, type").in("id", paymentIds)
+            ? supabase.from("payments").select("id, razorpay_order_id, razorpay_payment_id, payment_method, total_amount, payment_status, payment_date, service_id, type").in("id", paymentIds)
             : Promise.resolve({ data: [], error: null }),
         ])
       } catch (joinErr) {
@@ -952,7 +957,7 @@ useEffect(() => {
 const patentServices = [
     {
       title: "Patentability Search",
-      description: "Comprehensive prior art search and patentability analysis",
+      description: "A patentability (novelty) search is conducted before filing a patent to determine if an invention meets protection criteria—novelty, utility, and non-obviousness. It reviews patents, applications, publications, and other prior art that may affect patentability. Our experts analyze thoroughly, prepare precise documents, and guide you through the process to maximize protection and value.",
       icon: <Scale className="h-8 w-8 text-blue-600" />,
     },
     {
@@ -1233,6 +1238,67 @@ const patentServices = [
     response_due_within_11_15_days?: number
     response_due_within_4_10_days?: number
   }>({})
+  // Safari: when tab is backgrounded some derived prices show 0 until next interaction.
+  // Track visibility changes to force recalculation.
+  const [visibilityTick, setVisibilityTick] = useState(0)
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const onVis = () => { if (!document.hidden) setVisibilityTick(t => t + 1) }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [])
+
+  // Nudge recomputations also on window focus (Safari sometimes fails visibilitychange alone)
+  useEffect(() => {
+    const onFocus = () => {
+      if (!showQuotePage && typeof window !== 'undefined' && window.location.pathname === '/') {
+        setVisibilityTick(t => t + 1)
+      }
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [showQuotePage])
+
+  // Safari targeted hard refresh (main landing page only) if pricing context was likely GC'd
+  useEffect(() => {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return
+    const isSafari = /safari/i.test(navigator.userAgent) && !/chrome|chromium|android/i.test(navigator.userAgent)
+    if (!isSafari) return
+    let lastPreviewTotal: number | null = preview.total
+    const handleVisReload = () => {
+      if (document.hidden) return
+      // Only run on root path
+      if (window.location.pathname !== '/') return
+      // Heuristic group:
+      // A) Options panel open & selected service present but zero total while rules exist
+      const condA = showOptionsPanel && !!selectedServiceTitle && pricingRules && pricingRules.length > 0 && preview.total === 0
+      // B) Previously had a non-zero total then after tab return it is zero while rules exist (state loss)
+      const condB = (lastPreviewTotal !== null && lastPreviewTotal > 0 && preview.total === 0 && pricingRules && pricingRules.length > 0)
+      // C) Selected service set (user mid-flow) but both preview total and all per-service pricing aggregates (if any) zero
+      // (We only have preview.total directly here; broader aggregates could be added)
+  const condC = showOptionsPanel && !!selectedServiceTitle && preview.total === 0 && pricingRules && pricingRules.length > 0
+      const needsReload = condA || condB || condC
+      if (needsReload) {
+        // Prevent reload loop: store last reload ts
+        const last = Number(localStorage.getItem('safari_refresh_ts') || '0')
+        const attempts = Number(localStorage.getItem('safari_refresh_attempts') || '0')
+        const now = Date.now()
+        if (attempts < 2 && (now - last > 4000)) {
+          try {
+            localStorage.setItem('safari_refresh_ts', String(now))
+            localStorage.setItem('safari_refresh_attempts', String(attempts + 1))
+          } catch {}
+          window.location.reload()
+        } else {
+          // Fallback: if we hit attempt cap, try a soft state nudge by updating visibilityTick
+          setVisibilityTick(t => t + 1)
+        }
+      }
+      lastPreviewTotal = preview.total
+    }
+    document.addEventListener('visibilitychange', handleVisReload)
+    return () => document.removeEventListener('visibilitychange', handleVisReload)
+  }, [showOptionsPanel, selectedServiceTitle, pricingRules, preview.total])
  
   // Load pricing rules when modal opens
   useEffect(() => {
@@ -1273,7 +1339,7 @@ const patentServices = [
       }
     }
     loadRules()
-  }, [showOptionsPanel, selectedServiceTitle])
+  }, [showOptionsPanel, selectedServiceTitle, visibilityTick])
   
   // Recompute fee preview when selections change
   useEffect(() => {
@@ -1329,7 +1395,7 @@ const patentServices = [
     })
 
     setPreview({ total, professional, government })
-  }, [pricingRules, optionsForm, selectedServiceTitle])
+  }, [pricingRules, optionsForm, selectedServiceTitle, visibilityTick])
 
   // Compute and show prices next to Applicant Type options for Patent Application Filing
   useEffect(() => {
@@ -1358,7 +1424,7 @@ const patentServices = [
     if (!prices.individual || prices.individual <= 0) prices.individual = fallback
     if (!prices.others || prices.others <= 0) prices.others = fallback
     setApplicantPrices(prices)
-  }, [pricingRules, selectedServiceTitle, optionsForm.goodsServices, optionsForm.niceClasses, optionsForm.useType])
+  }, [pricingRules, selectedServiceTitle, optionsForm.goodsServices, optionsForm.niceClasses, optionsForm.useType, visibilityTick])
 
   // Compute and show prices for First Examination Response options
   useEffect(() => {
@@ -1405,7 +1471,7 @@ const patentServices = [
       if (!prices[k] || prices[k] <= 0) prices[k] = fallbackFER
     }
     setFerPrices(prices)
-  }, [pricingRules, selectedServiceTitle, optionsForm.applicantTypes, optionsForm.niceClasses, optionsForm.useType])
+  }, [pricingRules, selectedServiceTitle, optionsForm.applicantTypes, optionsForm.niceClasses, optionsForm.useType, visibilityTick])
 
   // Helpers for turnaround pricing display in modal
 const formatINR = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n)
@@ -1571,10 +1637,22 @@ const draftingTotal =
     : 0
 
 // Patent Application Filing total (filing type + applicant type)
+// Previous logic required BOTH applicant type (stored in searchType) and filing type (goodsServices) before showing any total,
+// which left the fee preview empty right after picking an applicant type. We now assume a default provisional filing
+// when the user has chosen applicant type but not yet a filing type so the total populates immediately.
+const effectiveFilingType = (
+  optionsForm.goodsServices && optionsForm.goodsServices !== ''
+    ? optionsForm.goodsServices
+    : 'provisional_filing'
+) as 'provisional_filing' | 'complete_specification_filing' | 'ps_cs_filing' | 'pct_filing'
+
 const filingTotal =
   selectedServiceTitle === 'Patent Application Filing'
-    ? (optionsForm.searchType && optionsForm.goodsServices
-        ? computeFilingPrice(optionsForm.goodsServices as any, (optionsForm.searchType === 'individual' ? 'individual' : 'others'))
+    ? (optionsForm.searchType
+        ? computeFilingPrice(
+            effectiveFilingType,
+            (optionsForm.searchType === 'individual' ? 'individual' : 'others') as 'individual' | 'others'
+          )
         : 0)
     : 0
 
@@ -1823,20 +1901,21 @@ const filingTotal =
   }
  
   const goToQuotePage = () => {
-  if (cartItems.length === 0) {
-    alert("Your cart is empty. Please add a service first.")
-    return
-  }
-  if (!isAuthenticated) {
-    setWantsCheckout(true)
-    setShowAuthModal(true)
-  } else {
-    setIsOpen(false) // close dropdown if coming from header menu
+    if (cartItems.length === 0) {
+      alert("Your cart is empty. Please add a service first.")
+      return
+    }
+    if (!isAuthenticated) {
+      setWantsCheckout(true) // mark intent so auth listener can continue
+      setAuthMode('signin')
+      setShowAuthModal(true)
+      return
+    }
+    setIsOpen(false)
     setInitialQuoteView('services')
     setShowQuotePage(true)
     setQuoteView('services')
   }
-}
 // Programmatic navigation to services view (e.g., from Orders or external trigger)
 const goToServices = () => {
   setInitialQuoteView('services')
@@ -2670,7 +2749,8 @@ const PaymentInterruptionBanner = () => {
                   Logout
                 </Button>
               </div>
-              {/* Duplicated Service Cart (compact) */}
+              {/* Duplicated Service Cart (compact) - hidden on Selected Services view */}
+              {quoteView !== 'services' && (
               <div className="mt-6 border-t pt-4">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
                   <Scale className="h-4 w-4 text-blue-600 mr-2" />
@@ -2726,6 +2806,7 @@ const PaymentInterruptionBanner = () => {
                   </Button>
                 </div>
               </div>
+              )}
             </div>
           </aside>
 
@@ -2828,11 +2909,14 @@ const PaymentInterruptionBanner = () => {
                         <table className="w-full table-auto border-collapse">
                           <thead>
                             <tr className="text-left text-sm text-gray-500">
+                               <th className="p-2">Order ID</th>
                               <th className="p-2">Category</th>
                               <th className="p-2">Service</th>
                               <th className="p-2">Amount</th>
+                              <th className="p-2">Payment Mode</th>
                               <th className="p-2">Date</th>
-                              <th className="p-2">Form</th>
+                              <th className="p-2">Forms</th>
+                              <th className="p-2">Download Invoice</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -2902,35 +2986,80 @@ const PaymentInterruptionBanner = () => {
                               }
                               return (
                                 <>
+                                  
                                   <tr key={bundle.paymentKey} className="border-t bg-slate-50">
-                                    <td className="p-2 font-medium">{hasMultiple ? 'Multiple Services' : (first.categories as any)?.name ?? 'N/A'}</td>
+                                    {/* Razorpay Order ID */}
                                     <td className="p-2 font-medium">
-                                      {hasMultiple ? `${bundle.orders.length} Services` : (first.services as any)?.name ?? 'N/A'}
+                                      {(first?.payments as any)?.razorpay_payment_id || '—'}
                                     </td>
+                                    {/* Category */}
+                                    <td className="p-2 font-medium">
+                                      {hasMultiple ? 'Multiple Services' : ((first.categories as any)?.name ?? 'N/A')}
+                                    </td>
+                                    {/* Service */}
+                                    <td className="p-2 font-medium">
+                                      {hasMultiple ? `${bundle.orders.length} Services` : ((first.services as any)?.name ?? 'N/A')}
+                                    </td>
+                                    {/* Amount (bundle total) */}
                                     <td className="p-2 font-semibold">{formatINR(bundle.totalAmount)}</td>
+                                    {/* Payment Mode */}
+                                    <td className="p-2 font-medium">{(first?.payments as any)?.payment_method || '—'}</td>
+                                    {/* Date */}
                                     <td className="p-2">{bundle.date ? new Date(bundle.date).toLocaleString() : 'N/A'}</td>
+                                    {/* Forms */}
                                     <td className="p-2">
-                                      <div className="flex gap-2">
-                                        <Button size="sm" variant="outline" onClick={() => {
-                                          if (hasMultiple) {
-                                            openMultipleFormsEmbedded(bundle.orders)
-                                          } else {
-                                            openFormEmbedded(first)
-                                          }
-                                        }}>{hasMultiple ? 'Open Forms' : 'Open Form'}</Button>
-                                        <Button size="sm" variant="outline" onClick={handleDownloadBundle} title="Download invoice PDF">PDF</Button>
-                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          if (hasMultiple) openMultipleFormsEmbedded(bundle.orders)
+                                          else openFormEmbedded(first)
+                                        }}
+                                      >
+                                        {hasMultiple ? 'Open Forms' : 'Open Form'}
+                                      </Button>
+                                    </td>
+                                    {/* Invoice */}
+                                    <td className="p-2">
+                                      <Button size="sm" variant="outline" onClick={handleDownloadBundle} title="Download invoice PDF">
+                                        PDF
+                                      </Button>
                                     </td>
                                   </tr>
+
+                             
                                   {hasMultiple && bundle.orders.map((child: any) => (
                                     <tr key={child.id} className="border-t">
-                                      <td className="p-2 pl-8 text-sm text-gray-600">{(child.categories as any)?.name ?? 'N/A'}</td>
-                                      <td className="p-2 text-sm text-gray-700">{(child.services as any)?.name ?? 'N/A'}</td>
-                                      <td className="p-2 text-sm">{child.amount != null ? formatINR(Number(child.amount)) : '—'}</td>
-                                      <td className="p-2 text-sm">{child.created_at ? new Date(child.created_at).toLocaleString() : 'N/A'}</td>
+                                      {/* Razorpay Order ID (repeat or show em dash) */}
+                                      <td className="p-2 text-sm text-gray-600">
+                                        {(child?.payments as any)?.razorpay_payment_id || '—'}
+                                      </td>
+                                      {/* Category */}
+                                      <td className="p-2 pl-8 text-sm text-gray-600">
+                                        {(child.categories as any)?.name ?? 'N/A'}
+                                      </td>
+                                      {/* Service */}
+                                      <td className="p-2 text-sm text-gray-700">
+                                        {(child.services as any)?.name ?? 'N/A'}
+                                      </td>
+                                      {/* Amount (per order) */}
+                                      <td className="p-2 text-sm">
+                                        {child.amount != null ? formatINR(Number(child.amount)) : '—'}
+                                      </td>
+                                      {/* Payment Mode (child) */}
+                                      <td className="p-2 text-sm text-gray-600">
+                                        {(child?.payments as any)?.payment_method || '—'}
+                                      </td>
+                                      {/* Date */}
+                                      <td className="p-2 text-sm">
+                                        {child.created_at ? new Date(child.created_at).toLocaleString() : 'N/A'}
+                                      </td>
+                                      {/* Forms/Invoice placeholders for child rows */}
                                       <td className="p-2 text-xs text-gray-400 italic">—</td>
+                                      <td className="p-2 text-xs text-gray-300 italic">—</td>
                                     </tr>
                                   ))}
+
                                 </>
                               )
                             })}
@@ -3120,15 +3249,15 @@ const PaymentInterruptionBanner = () => {
         >
           Admin Dashboard
         </button>
-        {/* Greeting */}
+        {/* Auth greeting (redundant Sign In button removed; use profile menu) */}
         {isAuthenticated && displayName && (
-        <span
-          className="text-gray-700 text-sm max-w-[180px] truncate"
-          title={displayName}
-        >
-          Welcome, {displayName}
-        </span>
-      )}
+          <span
+            className="text-gray-700 text-sm max-w-[180px] truncate"
+            title={displayName}
+          >
+            Welcome, {displayName}
+          </span>
+        )}
         <div className="relative">
           <button onClick={toggleMenu} className="focus:outline-none">
             <UserCircleIcon className="h-8 w-8 text-gray-700 hover:text-blue-600" />
@@ -3152,13 +3281,9 @@ const PaymentInterruptionBanner = () => {
               Dashboard
             </button>
 
-            {/* Sign In: always shown; disabled once signed in */}
+            {/* Sign In: opens auth modal directly (no cart dependency) */}
             <button
-              onClick={() => {
-                if (isAuthenticated) return
-                goToQuotePage()
-                setIsOpen(false)
-              }}
+              onClick={() => { if (!isAuthenticated) openSignIn(); setIsOpen(false) }}
               className={`block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 ${isAuthenticated ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
               disabled={isAuthenticated}
               aria-disabled={isAuthenticated}
@@ -3354,6 +3479,7 @@ const PaymentInterruptionBanner = () => {
               </div>
             </div>
           </section>
+
 
           {/* Trademark Services */}
           <section id="trademark-services" className="bg-neutral-50 py-8 rounded-lg mt-8 border border-neutral-200 scroll-mt-24">

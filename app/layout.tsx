@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Navbar from "@/components/Navbar"; // ✅ import your Navbar
+import RefreshAppButton from "@/components/RefreshAppButton";
 import AutoLogout from '@/components/AutoLogout'
 import "./globals.css"; // ✅ make sure Tailwind or CSS is applied
 import { GeistSans } from "geist/font/sans"
@@ -23,6 +24,7 @@ export default function RootLayout({
         <Navbar />
   <AutoLogout />
         <main>{children}</main>
+        <RefreshAppButton />
       </body>
     </html>
   );
