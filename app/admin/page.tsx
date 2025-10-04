@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, RefreshCw, ShieldCheck } from 'lucide-react'
-import { createClient } from '@supabase/supabase-js'
+// Reuse shared supabase client so we inherit existing auth state & subscriptions
+import { supabase } from '@/lib/supabase'
 
 // Light client-side admin page that calls our admin API route.
 // Access is gated both via UI (admin email list) and server route header check / RLS.
@@ -35,21 +36,56 @@ export default function AdminDashboardPage() {
 	const [error, setError] = useState<string | null>(null)
 	const [email, setEmail] = useState<string | null>(null)
 
-	// Minimal Supabase client to read the current session for email only
-	const supabase = createClient(
-		process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-		process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
-	)
+	// Track whether we've attempted at least one session fetch (for improved messaging)
+	const [sessionFetches, setSessionFetches] = useState(0)
+	const emailRef = useRef<string | null>(null)
+	emailRef.current = email
 
+	// Subscribe to auth state changes (covers re-entry after complex navigation flows like payment -> forms -> orders -> home -> admin)
 	useEffect(() => {
 		let active = true
 		;(async () => {
+			const started = performance.now()
 			const { data } = await supabase.auth.getSession()
+			if (!active) return
+			setSessionFetches(f => f + 1)
 			const userEmail = data?.session?.user?.email || null
-			if (active) setEmail(userEmail)
+			setEmail(userEmail)
+			debugLog('[AdminPage] initial-session', { hasSession: !!data?.session, durationMs: Math.round(performance.now() - started), userEmail })
 		})()
-		return () => { active = false }
+		const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+			if (!active) return
+			setEmail(session?.user?.email || null)
+			debugLog('[AdminPage] auth-change', { event: _event, hasSession: !!session, email: session?.user?.email })
+		})
+		return () => {
+			active = false
+			sub?.subscription?.unsubscribe()
+		}
 	}, [])
+
+	// Fallback: if after 1.5s we still have no email, try one more explicit getSession (handles rare race where Supabase hasn't hydrated local session yet)
+	useEffect(() => {
+		if (emailRef.current) return
+		const t = setTimeout(async () => {
+			if (emailRef.current) return
+			try {
+				const started = performance.now()
+				const { data } = await supabase.auth.getSession()
+				setSessionFetches(f => f + 1)
+				const nextEmail = data?.session?.user?.email || null
+				if (!emailRef.current && nextEmail) {
+					setEmail(nextEmail)
+					debugLog('[AdminPage] fallback-session-success', { durationMs: Math.round(performance.now() - started) })
+				} else {
+					debugLog('[AdminPage] fallback-session-miss')
+				}
+			} catch (e) {
+				debugLog('[AdminPage] fallback-session-error', { message: (e as any)?.message })
+			}
+		}, 1500)
+		return () => clearTimeout(t)
+	}, [email])
 
 	const fetchAll = useCallback(async () => {
 		if (!email) return
@@ -165,7 +201,9 @@ export default function AdminDashboardPage() {
 			</header>
 			<main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 				{!email && (
-					<div className="text-sm text-gray-500">Detecting session…</div>
+					<div className="text-sm text-gray-500">
+						{sessionFetches < 2 ? 'Detecting session…' : 'No active session detected. Please refresh or sign in again.'}
+					</div>
 				)}
 				{email && ADMIN_EMAILS.includes(email.toLowerCase()) && (
 					<>

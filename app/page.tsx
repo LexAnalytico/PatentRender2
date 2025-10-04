@@ -57,6 +57,8 @@ import { Button } from "@/components/ui/button"
 import CheckoutModal from "@/components/checkout-modal"
 import FormClient from "./forms/FormClient"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import ServicesPanel from '@/components/dashboard/ServicesPanel'
+import FormsPanel from '@/components/dashboard/FormsPanel'
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -531,21 +533,32 @@ const openFirstFormEmbedded = () => {
   // Flag that a previous orders load aborted due to missing user; triggers focus recovery reload
   const ordersAbortedNoUserRef = useRef<boolean>(false)
 
-  // Periodic session refresh (top-level) - restored after cleanup
+  // Session warm-up without continuous polling: one immediate fetch + short burst retries, then rely on auth listener.
   useEffect(() => {
     let cancelled = false
-    const refreshSession = async () => {
+    let attempts = 0
+    const MAX_ATTEMPTS = 4
+    const BASE_DELAY = 120
+    const tryFetch = async () => {
+      if (cancelled || attempts >= MAX_ATTEMPTS) return
+      attempts += 1
       try {
         const { data: s } = await supabase.auth.getSession()
         const uid = s?.session?.user?.id || null
-        if (!cancelled && uid) lastKnownUserIdRef.current = uid
+        if (uid) {
+          lastKnownUserIdRef.current = uid
+          return // stop burst on success
+        }
       } catch (e) {
-        console.debug('[session][refresh] err', e)
+        if (process.env.NEXT_PUBLIC_DEBUG === '1') console.debug('[session][burst] err', e)
+      }
+      if (!cancelled && attempts < MAX_ATTEMPTS) {
+        const delay = BASE_DELAY * attempts // simple linear backoff
+        setTimeout(tryFetch, delay)
       }
     }
-    refreshSession()
-    const iv = setInterval(refreshSession, 3000)
-    return () => { cancelled = true; clearInterval(iv) }
+    tryFetch()
+    return () => { cancelled = true }
   }, [])
 
   // (Removed duplicate corrupted session refresh block)
@@ -2243,15 +2256,40 @@ const PaymentInterruptionBanner = () => {
     </div>
   )
 }
-  useEffect(() => {
-  const script = document.createElement("script");
-  script.src = "https://checkout.razorpay.com/v1/checkout.js";
-  script.async = true;
-  document.body.appendChild(script);
-}, []);
+  // Removed unconditional Razorpay script injection. We'll lazy-load just-in-time in handlePayment.
+  const loadRazorpayScript = useCallback((): Promise<boolean> => {
+    if (typeof window === 'undefined') return Promise.resolve(false)
+    if ((window as any).Razorpay) return Promise.resolve(true)
+    // Add preconnect hints only once
+    const ensurePreconnect = (href: string) => {
+      if (document.querySelector(`link[rel=preconnect][href='${href}']`)) return
+      const l = document.createElement('link')
+      l.rel = 'preconnect'
+      l.href = href
+      l.crossOrigin = 'anonymous'
+      document.head.appendChild(l)
+    }
+    ensurePreconnect('https://checkout.razorpay.com')
+    ensurePreconnect('https://rzp.io')
+    return new Promise(resolve => {
+      const script = document.createElement('script')
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+      script.async = true
+      script.onload = () => resolve(!!(window as any).Razorpay)
+      script.onerror = () => resolve(false)
+      document.body.appendChild(script)
+    })
+  }, [])
 
   const handlePayment = async () => {
     try {
+      // JIT load Razorpay script if not yet present
+      const ok = await loadRazorpayScript()
+      if (!ok) {
+        alert('Unable to load payment module. Check your network and try again.')
+        return
+      }
+      const paymentStartTs = performance.now()
       const amount = Math.round(calculateAdjustedTotal() * 100); // paise
 
       // 1) fetch authenticated user's details so we can attach user_id to the order
@@ -2306,6 +2344,7 @@ const PaymentInterruptionBanner = () => {
           // response contains razorpay_payment_id, razorpay_order_id, razorpay_signature
           try {
               setIsProcessingPayment(true);
+      const verifyStart = performance.now()
       // Forward the payment result to the server for signature verification
             const verifyResp = await fetch('/api/verify-payment', {
               method: 'POST',
@@ -2338,6 +2377,14 @@ const PaymentInterruptionBanner = () => {
               setIsProcessingPayment(false);  
               return;
             }
+            // Payment & verification succeeded: stop focus guard to avoid unintended logout
+            stopFocusGuard('payment-success')
+            debugLog('[Payment][timing]', {
+              phase: 'success',
+              razorpay_order_id: response.razorpay_order_id,
+              verifyDurationMs: Math.round(performance.now() - verifyStart),
+              totalFlowMs: Math.round(performance.now() - paymentStartTs)
+            })
             
             // Show local Thank You modal so the user can open forms immediately
             const persisted = verifyJson.persistedPayment ?? null;
@@ -2367,6 +2414,7 @@ const PaymentInterruptionBanner = () => {
             console.error('Error verifying payment:', err);
             alert('Payment succeeded but verification failed. We will investigate.');
             setIsProcessingPayment(false);  
+            stopFocusGuard('payment-verify-exception')
           }
         },
         
@@ -2384,7 +2432,7 @@ const PaymentInterruptionBanner = () => {
       // Start strict focus guard right before opening checkout
       startFocusGuard()
       setIsProcessingPayment(true)
-      const rzp = new (window as any).Razorpay(options);
+  const rzp = new (window as any).Razorpay(options);
       // Capture explicit payment failures (e.g., failed authorization) so we cleanly exit
       try {
         rzp.on('payment.failed', (resp: any) => {
@@ -2794,54 +2842,13 @@ const PaymentInterruptionBanner = () => {
           {/* Main: Selected Services and Payment */}
           <div className="flex-1">
             {quoteView === 'services' && (
-              <>
-                <div className="mb-8">
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">Your Selected Services</h1>
-                  <p className="text-gray-600">Review your selected IP protection services and customize your quote</p>
-                </div>
-                <div className="space-y-6">
-                  {cartItems.map((item) => (
-                    <Card key={item.id} className="bg-white">
-                      <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center mb-2">
-                              <span className="inline-block px-3 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full mr-3">{item.category}</span>
-                              <h3 className="text-lg font-semibold text-gray-900">{item.name}</h3>
-                            </div>
-                            <p className="text-gray-600 text-sm mb-3">Professional {item.category.toLowerCase()} service with comprehensive coverage and expert guidance.</p>
-                            {item.details && (<p className="text-xs text-gray-500 mb-2">Details: {item.details}</p>)}
-                            <div className="flex items-center justify-between">
-                              <span className="text-2xl font-bold text-blue-600">{formatINR(item.price)}</span>
-                              <Button onClick={() => removeFromCart(item.id)} variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">Remove</Button>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-
-                  {cartItems.length === 0 && (
-                    <Card className="bg-white">
-                      <CardContent className="p-12 text-center">
-                        <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">No services selected</h3>
-                        <p className="text-gray-600 mb-4">Add some services to create your quote</p>
-                        <Button onClick={() => setShowQuotePage(false)} className="bg-blue-600 hover:bg-blue-700">Browse Services</Button>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-                <div className="flex flex-col items-center mt-8 space-y-3">
-                  <Button className="w-full max-w-sm bg-blue-600 hover:bg-blue-700 text-white" onClick={handlePayment}>
-                    <FileText className="h-4 w-4 mr-2" />
-                    Make Payment
-                  </Button>
-                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 max-w-lg text-center leading-snug">
-                    Clicking on <span className="font-semibold">Make Payment</span> will open the secure Razorpay window. <strong>Do not switch tabs, minimize, or leave this screen until the payment is completed</strong> or you will be signed out and need to sign in again to retry.
-                  </p>
-                </div>
-              </>
+              <ServicesPanel
+                cartItems={cartItems as any}
+                onRemove={removeFromCart}
+                onMakePayment={handlePayment}
+                onBrowseServices={() => setShowQuotePage(false)}
+                formatAmount={formatINR}
+              />
             )}
 
             {/* Persistent Dashboard header for all internal tabs */}
@@ -3053,71 +3060,22 @@ const PaymentInterruptionBanner = () => {
               </>
             )}
             {quoteView === 'forms' && (
-              <>
-                <FormHeaderWithPrefill
-                  goToOrders={goToOrders}
-                  backToServices={() => setQuoteView('services')}
-                />
-                {!embeddedMultiForms && (
-                  <Card className="bg-white">
-                    <CardContent className="p-0">
-                      <FormClient
-                        orderIdProp={selectedFormOrderId}
-                        typeProp={selectedFormType}
-                        onPrefillStateChange={formPrefillHandle}
-                        externalPrefill={lastSavedSnapshot}
-                        onSaveLocal={(info) => setLastSavedSnapshot(info)}
-                      />
-                    </CardContent>
-                  </Card>
-                )}
-                {embeddedMultiForms && (
-                  <div className="space-y-12">
-                    {embeddedMultiForms.map((f, idx) => (
-                      <Card id={`embedded-form-${f.id}`} key={f.id} className="bg-white border border-slate-200 shadow-sm scroll-mt-24 transition-shadow">
-                        <CardContent className="p-0">
-                          <div className="px-6 pt-6 flex items-center justify-between">
-                            <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-                              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-medium">{idx+1}</span>
-                              {(() => {
-                                // Attempt to find the corresponding order object (from embeddedOrders or checkoutOrders) to pull payment id
-                                const sourceOrder = (embeddedOrders || []).find(o => Number(o.id) === Number(f.id)) || (checkoutOrders || []).find(o => Number(o.id) === Number(f.id))
-                                const payId = (sourceOrder && (sourceOrder.payments as any)?.razorpay_payment_id) || null
-                                return payId ? `Payment ${payId}` : `Order #${f.id}`
-                              })()}
-                            </h2>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="sm"
-                                    variant={selectedFormOrderId === f.id ? 'default' : 'outline'}
-                                    onClick={() => { setSelectedFormOrderId(f.id); setSelectedFormType(f.type); }}
-                                  >
-                                    Focus
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom" className="max-w-xs text-xs leading-snug">
-                                  Make this form the active one: scroll it into view, highlight it briefly, and sync shared prefill context.
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
-                          <div className="mt-4">
-                            <FormClient
-                              orderIdProp={f.id}
-                              typeProp={f.type}
-                              externalPrefill={lastSavedSnapshot}
-                              onPrefillStateChange={idx === 0 ? formPrefillHandle : () => {}}
-                              onSaveLocal={(info) => setLastSavedSnapshot(info)}
-                            />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-              </>
+              <FormsPanel
+                embeddedMultiForms={embeddedMultiForms}
+                selectedFormOrderId={selectedFormOrderId}
+                selectedFormType={selectedFormType}
+                lastSavedSnapshot={lastSavedSnapshot}
+                prefillAvailable={prefillAvailable}
+                onPrefillApply={() => { if (prefillAvailable && prefillApplyFn) prefillApplyFn() }}
+                onPrefillStateChange={formPrefillHandle}
+                onSetActive={(id, type) => { setSelectedFormOrderId(id); setSelectedFormType(type); }}
+                goToOrders={goToOrders}
+                backToServices={() => setQuoteView('services')}
+                formPrefillHandleFirst={formPrefillHandle}
+                setLastSavedSnapshot={(info) => setLastSavedSnapshot(info)}
+                embeddedOrders={embeddedOrders}
+                checkoutOrders={checkoutOrders}
+              />
             )}
 
             {quoteView === 'profile' && (
