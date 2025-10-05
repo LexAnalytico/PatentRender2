@@ -1,0 +1,28 @@
+To make the current admin panel fully “plug‑and‑play” (easy to rip out later), I’ve started the isolation work:
+
+What’s done just now
+Added adminConfig.ts with a single getAdminConfig() source of truth plus helper predicates (isAdminEmail, isPrimaryAdmin, isSecondaryAdmin).
+Added a feature flag NEXT_PUBLIC_ENABLE_ADMIN_PANEL (defaults to enabled if unset).
+Refactored page.tsx to import from that config instead of parsing env variables inline.
+Implemented an early return “Admin panel disabled” state if the flag is off.
+Marked the related todo (Add admin feature flag & config) completed.
+How this helps
+All environment concerns are centralized. When you build a dedicated admin project later you can:
+
+Copy adminConfig.ts.
+Move admin (and any admin API routes) to the new repo.
+Set the feature flag to 0 here (or remove the route folder) and the main app won’t reference any admin logic.
+Recommended next steps (tell me which to proceed with)
+Graceful disable behavior (instead of plain text message, optionally redirect to /).
+Extract admin‐specific types to types/admin.ts (orders, payments, assignment shape) so you can delete them cleanly later.
+Add an README_ADMIN.md documenting:
+Purpose / scope
+Env vars required
+How to disable / remove
+Extraction checklist
+Ensure admin API route(s) also use adminConfig (I haven’t refactored those yet—let me know and I’ll do it).
+Dependency audit: verify admin code only imports shared stable modules (supabase, logger, UI primitives). If something is app‑specific, wrap it with an adapter.
+Minimal usage notes
+To disable the admin panel now: Set NEXT_PUBLIC_ENABLE_ADMIN_PANEL=0 in your env (e.g. local .env.local or deployment env). The /admin route will show a lightweight disabled message and leak no data.
+
+Let me know which of the follow‑ups you want next (README, types isolation, graceful redirect, API refactor, etc.) and I’ll implement immediately.

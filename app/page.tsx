@@ -8,7 +8,7 @@ import { bannerSlides as staticBannerSlides } from "@/constants/data"
 import AuthModal from "@/components/AuthModal"; // Adjust path
 import { Footer } from "@/components/layout/Footer"
 import { UserCircleIcon } from "@heroicons/react/24/outline";
-import { PaymentProcessingModal } from "@/components/PaymentProcessingModal";
+import CheckoutLayer from '@/components/panels/CheckoutLayer'
 import { debugLog } from '@/lib/logger'
 // TypeScript/React
 import { useAuthProfile } from "@/app/useAuthProfile"
@@ -54,11 +54,11 @@ import {
 } from "lucide-react"
 import { Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import CheckoutModal from "@/components/checkout-modal"
 import FormClient from "./forms/FormClient"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import ServicesPanel from '@/components/dashboard/ServicesPanel'
 import FormsPanel from '@/components/dashboard/FormsPanel'
+import ProfilePanel from '@/components/panels/ProfilePanel'
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -66,6 +66,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs" // Import Tabs components
 import { resolveFormTypeFromOrderLike } from '@/components/utils/resolve-form-type'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
+import OptionsDialog from '@/components/panels/OptionsDialog'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 //import type { Session } from "@supabase/supabase-js"
 
@@ -310,6 +311,9 @@ const openFirstFormEmbedded = () => {
   const [showCheckoutThankYou, setShowCheckoutThankYou] = useState(false)
   const [checkoutPayment, setCheckoutPayment] = useState<any | null>(null)
   const [checkoutOrders, setCheckoutOrders] = useState<any[]>([])
+  // Quotation preview modal state (inline PDF/HTML view)
+  const [showQuotePreview, setShowQuotePreview] = useState(false)
+  const [quotePreviewUrl, setQuotePreviewUrl] = useState<string | null>(null)
   const [embeddedMultiForms, setEmbeddedMultiForms] = useState<{id:number,type:string}[] | null>(null)
   // Cross-form snapshot to enable prefill across multiple forms (Option A implementation)
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<{ type: string; orderId: number | null; values: Record<string,string> } | null>(null)
@@ -349,6 +353,8 @@ const openFirstFormEmbedded = () => {
   const [selectedFormType, setSelectedFormType] = useState<string | null>(null)
   const [embeddedProfile, setEmbeddedProfile] = useState<any | null>(null)
   const [embeddedProfileSaving, setEmbeddedProfileSaving] = useState(false)
+  const [embeddedProfileLoading, setEmbeddedProfileLoading] = useState(false)
+  const embeddedProfileRetryRef = useRef(0)
 
   // (Removed local resolveFormTypeFromOrderLike; using shared util for consistency)
 
@@ -438,12 +444,41 @@ const openFirstFormEmbedded = () => {
       const servicesMap = new Map((servicesRes?.data ?? []).map((s: any) => [s.id, s]))
       const categoriesMap = new Map((categoriesRes?.data ?? []).map((c: any) => [c.id, c]))
       const paymentsMap = new Map((paymentsRes?.data ?? []).map((p: any) => [p.id, p]))
-
+      // Fetch current user profile once, attach to each order for downstream invoice rendering
+      const fetchCurrentUserProfile = async (): Promise<{
+        id: string | null
+        email: string | null
+        first_name: string | null
+        last_name: string | null
+        phone: string | null
+      } | null> => {
+        try {
+          const { data: s } = await supabase.auth.getSession()
+            const uid = s?.session?.user?.id || null
+            const email = s?.session?.user?.email || null
+            if (!uid) return null
+            const { data: u, error } = await supabase
+              .from('users')
+              .select('id, email, first_name, last_name, phone')
+              .eq('id', uid)
+              .maybeSingle()
+            if (error) return { id: uid, email, first_name: null, last_name: null, phone: null }
+            return {
+              id: u?.id ?? uid,
+              email: u?.email ?? email,
+              first_name: u?.first_name ?? null,
+              last_name: u?.last_name ?? null,
+              phone: u?.phone ?? null,
+            }
+        } catch { return null }
+      }
+      const userProfile = await fetchCurrentUserProfile()
       const merged = ordersRaw.map((o: any) => ({
         ...o,
         services: servicesMap.get(o.service_id) ?? null,
         categories: categoriesMap.get(o.category_id) ?? null,
         payments: paymentsMap.get(o.payment_id) ?? null,
+        user: userProfile || undefined,
       }))
       return merged
     } catch (e) {
@@ -721,12 +756,41 @@ const openFirstFormEmbedded = () => {
       const servicesMap = new Map((servicesRes?.data ?? []).map((s: any) => [s.id, s]))
       const categoriesMap = new Map((categoriesRes?.data ?? []).map((c: any) => [c.id, c]))
       const paymentsMap = new Map((paymentsRes?.data ?? []).map((p: any) => [p.id, p]))
-
+      // Fetch current user profile once per load; could cache in ref if needed
+      const fetchCurrentUserProfile = async (): Promise<{
+        id: string | null
+        email: string | null
+        first_name: string | null
+        last_name: string | null
+        phone: string | null
+      } | null> => {
+        try {
+          const { data: s } = await supabase.auth.getSession()
+          const uid = s?.session?.user?.id || null
+          const email = s?.session?.user?.email || null
+          if (!uid) return null
+          const { data: u, error } = await supabase
+            .from('users')
+            .select('id, email, first_name, last_name, phone')
+            .eq('id', uid)
+            .maybeSingle()
+          if (error) return { id: uid, email, first_name: null, last_name: null, phone: null }
+          return {
+            id: u?.id ?? uid,
+            email: u?.email ?? email,
+            first_name: u?.first_name ?? null,
+            last_name: u?.last_name ?? null,
+            phone: u?.phone ?? null,
+          }
+        } catch { return null }
+      }
+      const userProfile = await fetchCurrentUserProfile()
       const merged = ordersRaw.map((o: any) => ({
         ...o,
         services: servicesMap.get(o.service_id) ?? null,
         categories: categoriesMap.get(o.category_id) ?? null,
         payments: paymentsMap.get(o.payment_id) ?? null,
+        user: userProfile || undefined,
       }))
 
       if (active) {
@@ -788,15 +852,25 @@ if (quoteView === "orders") {
   }, [quoteView, ordersReloadKey])
 
 
-  // Load embedded Profile when switching to Profile inside the quote page
+  // Load embedded Profile when switching to Profile or when auth becomes available
   useEffect(() => {
-    const loadProfile = async () => {
+    const loadProfile = async (reason: string) => {
       try {
+        setEmbeddedProfileLoading(true)
         const sess = await supabase.auth.getSession()
         const email = (sess as any)?.data?.session?.user?.email ?? null
         const userId = (sess as any)?.data?.session?.user?.id ?? null
-        if (!email || !userId) { setEmbeddedProfile(null); return }
-        // Fetch profile row from users table by id, fallback by email
+        if (!email || !userId) {
+          if (isAuthenticated && embeddedProfileRetryRef.current < 1) {
+            embeddedProfileRetryRef.current += 1
+            setTimeout(() => loadProfile('retry-auth-not-ready'), 160)
+          } else {
+            setEmbeddedProfile(null)
+            setEmbeddedProfileLoading(false)
+          }
+          return
+        }
+        embeddedProfileRetryRef.current = 0
         let prof: any | null = null
         const { data: byId, error: errById } = await supabase
           .from('users')
@@ -817,10 +891,49 @@ if (quoteView === "orders") {
       } catch (e) {
         console.error('Failed to load embedded profile', e)
         setEmbeddedProfile(null)
+      } finally {
+        setEmbeddedProfileLoading(false)
       }
     }
-    if (quoteView === 'profile') loadProfile()
-  }, [quoteView])
+    if (quoteView === 'profile' && isAuthenticated) {
+      loadProfile('enter-profile')
+    }
+  }, [quoteView, isAuthenticated, user?.id, supabase])
+
+  const refreshEmbeddedProfile = useCallback(() => {
+    if (quoteView !== 'profile') return
+    embeddedProfileRetryRef.current = 0
+    ;(async () => {
+      try {
+        setEmbeddedProfileLoading(true)
+        const sess = await supabase.auth.getSession()
+        const email = (sess as any)?.data?.session?.user?.email ?? null
+        const userId = (sess as any)?.data?.session?.user?.id ?? null
+        if (!email || !userId) { setEmbeddedProfile(null); setEmbeddedProfileLoading(false); return }
+        let prof: any | null = null
+        const { data: byId } = await supabase
+          .from('users')
+          .select('id, email, first_name, last_name, company, phone, address, city, state, country')
+          .eq('id', userId)
+          .maybeSingle()
+        if (byId) prof = byId
+        if (!prof) {
+          const { data: byEmail } = await supabase
+            .from('users')
+            .select('id, email, first_name, last_name, company, phone, address, city, state, country')
+            .eq('email', email)
+            .maybeSingle()
+          if (byEmail) prof = byEmail
+        }
+        if (!prof) prof = { id: userId, email }
+        setEmbeddedProfile(prof)
+      } catch (e) {
+        console.error('[Profile] manual refresh failed', e)
+      } finally {
+        setEmbeddedProfileLoading(false)
+      }
+    })()
+  }, [quoteView, supabase])
 
   const saveEmbeddedProfile = async () => {
     if (!embeddedProfile) return
@@ -2094,8 +2207,14 @@ const focusLastOkRef = useRef<number|null>(null)
 const focusBlurTimerRef = useRef<any>(null)
 const focusVisibilityTimerRef = useRef<any>(null)
 const MAX_FOCUS_GUARD_DURATION_MS = 5 * 60 * 1000 // safety auto-stop after 5 minutes
-const BLUR_GRACE_MS = 600 // tighter grace for blur
-const VISIBILITY_GRACE_MS = 400 // very strict: almost immediate
+// Relaxed grace periods to reduce false positives during payment popup rendering
+const BLUR_GRACE_MS = 1800 // was 600ms – allow brief focus shifts (e.g. Razorpay internal iframe focus)
+const VISIBILITY_GRACE_MS = 1200 // was 400ms – tolerate transient visibility changes
+
+// Classify which violations are truly high‑risk (we sign the user out) vs low‑risk (warn first)
+const isHighRiskViolation = (reason: string) => {
+  return reason === 'before-unload' || reason.startsWith('meta-')
+}
 
 const startFocusGuard = useCallback(() => {
   if (focusGuardActive) return
@@ -2115,18 +2234,24 @@ const stopFocusGuard = useCallback((label: string) => {
   debugLog('[FocusGuard] stopped', { label })
 }, [focusGuardActive])
 
-// Central interruption routine (moved earlier to avoid use-before-def in focus guard hooks)
+// Central interruption routine – now selective: preserves session for low-risk reasons
 const interruptPayment = useCallback(async (reason: string) => {
   if (!isProcessingPayment) return
   if (paymentInterrupted) return
-  console.warn('[Payment][interrupt]', { reason })
+  const highRisk = reason.includes('before-unload') || reason.includes('meta-')
+  console.warn('[Payment][interrupt]', { reason, highRisk })
   setPaymentInterrupted(true)
+  if (!highRisk) {
+    // Preserve session for benign focus/visibility interruptions
+    debugLog('[Payment][interrupt] low-risk interruption – session preserved')
+    setIsProcessingPayment(false)
+    return
+  }
   try {
     const env = process.env.NEXT_PUBLIC_VERCEL_ENV || process.env.VERCEL_ENV || 'local'
-  debugLog('[Payment][interrupt] attempting signOut', { env })
+    debugLog('[Payment][interrupt] high-risk signOut', { env })
     const result = await supabase.auth.signOut()
-  debugLog('[Payment][interrupt] signOut result', result)
-    // Fallback: if session still present after short delay in prod, force cookie clear via location reload
+    debugLog('[Payment][interrupt] signOut result', result)
     setTimeout(async () => {
       try {
         const { data } = await supabase.auth.getSession()
@@ -2140,16 +2265,27 @@ const interruptPayment = useCallback(async (reason: string) => {
     console.error('[Payment][interrupt] signOut threw', e)
     try { window.location.replace('/') } catch {}
   }
-}, [isProcessingPayment, paymentInterrupted])
+}, [isProcessingPayment, paymentInterrupted, supabase])
 
 const handleFocusViolation = useCallback(async (reason: string) => {
   if (!focusGuardActive) return
+  // Update violation state
   setFocusViolationReason(reason)
   setFocusViolationCount(c => c + 1)
-  console.warn('[FocusGuard][violation]', { reason })
+  const nextCount = focusViolationCount + 1
+  const highRisk = isHighRiskViolation(reason)
+  console.warn('[FocusGuard][violation]', { reason, highRisk, nextCount })
+
+  // Low-risk (blur / visibility) gets one grace attempt before interrupting
+  if (!highRisk && nextCount < 2) {
+    debugLog('[FocusGuard] low-risk first violation – warning only')
+    return // keep guard active; allow user to refocus without logout
+  }
+
+  // High-risk OR repeated low-risk -> interrupt
   interruptPayment('focus-guard-' + reason)
   stopFocusGuard('violation-' + reason)
-}, [focusGuardActive, interruptPayment, stopFocusGuard])
+}, [focusGuardActive, focusViolationCount, interruptPayment, stopFocusGuard])
 
 // Effect: bind focus guard listeners
 useEffect(() => {
@@ -2211,20 +2347,6 @@ useEffect(() => {
   }
 }, [focusGuardActive, handleFocusViolation, stopFocusGuard])
 
-// Overlay while guard active (prevents user interacting with rest of page and signals requirement)
-const FocusGuardOverlay = () => {
-  if (!focusGuardActive) return null
-  return (
-    <div className="fixed inset-0 z-[60] pointer-events-none flex items-start justify-center p-4">
-      <div className="mt-8 px-4 py-2 rounded bg-amber-500/90 text-white text-sm shadow">
-        <strong>Payment in progress.</strong> Keep this tab focused. Leaving the tab will cancel and require re-login.
-      </div>
-    </div>
-  )
-}
-
-// (definition moved above for ordering)
-
 // Legacy interruption watcher still active but only when guard not active (fallback)
 useEffect(() => {
   if (!isProcessingPayment) return
@@ -2234,28 +2356,7 @@ useEffect(() => {
   return () => { window.removeEventListener('visibilitychange', handleVisibility) }
 }, [isProcessingPayment, focusGuardActive, interruptPayment])
 
-// Overlay for interruption warning
-const PaymentInterruptionBanner = () => {
-  if (!paymentInterrupted) return null
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4">
-      <div className="bg-white dark:bg-neutral-900 rounded-md shadow-xl max-w-md w-full p-6 space-y-4 text-center">
-        <h2 className="text-lg font-semibold text-red-600">Payment Interrupted</h2>
-        <p className="text-sm text-neutral-700 dark:text-neutral-300">
-          {focusViolationReason ? (
-            <>Focus was lost ({focusViolationReason}). You were signed out for security. Please sign in and retry, keeping this tab focused.</>
-          ) : (
-            <>You switched tabs or applications during payment processing. For security and to ensure your order is recorded correctly, you have been signed out. Please sign back in and retry the payment. Keep this tab in focus until confirmation.</>
-          )}
-        </p>
-        <button
-          onClick={() => { setPaymentInterrupted(false); setShowAuthModal(true); }}
-          className="mt-2 inline-flex items-center justify-center rounded bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm font-medium"
-        >Sign In Again</button>
-      </div>
-    </div>
-  )
-}
+// (FocusGuardOverlay & PaymentInterruptionBanner moved to CheckoutLayer component)
   // Removed unconditional Razorpay script injection. We'll lazy-load just-in-time in handlePayment.
   const loadRazorpayScript = useCallback((): Promise<boolean> => {
     if (typeof window === 'undefined') return Promise.resolve(false)
@@ -2429,10 +2530,9 @@ const PaymentInterruptionBanner = () => {
         theme: { color: '#1e40af' },
       };
 
-      // Start strict focus guard right before opening checkout
-      startFocusGuard()
+      // Create Razorpay instance first; starting the guard too early can catch benign iframe focus transitions
       setIsProcessingPayment(true)
-  const rzp = new (window as any).Razorpay(options);
+      const rzp = new (window as any).Razorpay(options);
       // Capture explicit payment failures (e.g., failed authorization) so we cleanly exit
       try {
         rzp.on('payment.failed', (resp: any) => {
@@ -2445,6 +2545,8 @@ const PaymentInterruptionBanner = () => {
         console.warn('[Razorpay] Unable to attach payment.failed listener', e);
       }
       rzp.open();
+      // Defer enabling strict focus guard slightly to avoid flagging the modal initialization as a violation
+      setTimeout(() => startFocusGuard(), 120);
     } catch (err: any) {
       console.error('handlePayment error:', err);
       alert('An error occurred while initiating payment.');
@@ -2462,8 +2564,8 @@ const PaymentInterruptionBanner = () => {
     return cartItems.some((item) => item.category === category)
   }
 
-  const downloadQuotationPDF = () => {
-    // Create the PDF content as HTML
+  const buildQuotationHtml = () => {
+    // Reusable builder for quotation HTML string
     const currentDate = new Date().toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
@@ -2479,7 +2581,7 @@ const PaymentInterruptionBanner = () => {
     const orderIds = (checkoutOrders || []).map(o => o.id).filter(Boolean)
     const orderIdsLabel = orderIds.length ? orderIds.join(', ') : 'N/A'
 
-    const htmlContent = `
+    return `
       <!DOCTYPE html>
       <html>
       <head>
@@ -2694,38 +2796,68 @@ const PaymentInterruptionBanner = () => {
       </body>
       </html>
     `
+  }
 
-    // Create a new window and write the HTML content
-    const printWindow = window.open("", "_blank")
-    if (printWindow) {
-      printWindow.document.write(htmlContent)
-      printWindow.document.close()
+  // Legacy behavior (still used for explicit external open if desired)
+  const openQuotationInNewTab = () => {
+    const html = buildQuotationHtml()
+    const w = window.open('', '_blank')
+    if (w) { w.document.write(html); w.document.close() }
+  }
 
-      // Wait for content to load, then trigger print
-      printWindow.onload = () => {
-        setTimeout(() => {
-          printWindow.print()
-          printWindow.close()
-        }, 250)
+  // New inline preview: create Blob URL and show in dialog (iframe)
+  const previewQuotationInline = () => {
+    try {
+      const html = buildQuotationHtml()
+      const blob = new Blob([html], { type: 'text/html' })
+      const url = URL.createObjectURL(blob)
+      if (quotePreviewUrl) {
+        try { URL.revokeObjectURL(quotePreviewUrl) } catch {}
       }
+      setQuotePreviewUrl(url)
+      setShowQuotePreview(true)
+    } catch (e) {
+      console.error('Failed building quotation preview', e)
+      // fallback to old flow
+      openQuotationInNewTab()
     }
   }
+
+  const printInlineQuotation = () => {
+    // Print contents of iframe if loaded
+    const iframe = document.getElementById('quotation-preview-iframe') as HTMLIFrameElement | null
+    try {
+      if (iframe?.contentWindow) {
+        iframe.contentWindow.focus()
+        iframe.contentWindow.print()
+      }
+    } catch (e) {
+      console.warn('Inline print failed, opening new tab fallback', e)
+      openQuotationInNewTab()
+    }
+  }
+
+  useEffect(() => {
+    return () => { if (quotePreviewUrl) { try { URL.revokeObjectURL(quotePreviewUrl) } catch {} } }
+  }, [quotePreviewUrl])
      
  
   /// Quote Page Component
  if (showQuotePage) {
    return (
     <div className="min-h-screen bg-gray-50">
-      <PaymentProcessingModal isVisible={isProcessingPayment} />
-      <PaymentInterruptionBanner />
-      {/* Unified Checkout Thank You Modal (dashboard view) */}
-      <CheckoutModal
-        isOpen={showCheckoutThankYou}
-        onClose={() => setShowCheckoutThankYou(false)}
-        payment={checkoutPayment}
-        orders={checkoutOrders}
+      {/* Consolidated payment overlays */}
+      <CheckoutLayer
+        isProcessing={isProcessingPayment}
+        paymentInterrupted={paymentInterrupted}
+        focusGuardActive={focusGuardActive}
+        showThankYou={showCheckoutThankYou}
+        checkoutPayment={checkoutPayment}
+        checkoutOrders={checkoutOrders}
+        onCloseThankYou={() => setShowCheckoutThankYou(false)}
         onProceedSingle={openFormEmbedded}
-  onProceedMultiple={(orders) => { if (orders && orders.length > 0) openMultipleFormsEmbedded(orders) }}
+        onProceedMultiple={(orders) => { if (orders && orders.length > 0) openMultipleFormsEmbedded(orders) }}
+        onSignInAgain={() => setShowAuthModal(true)}
       />
       {/* Header */}
       <header className="bg-white shadow-sm border-b sticky top-0 z-50">
@@ -2870,6 +3002,7 @@ const PaymentInterruptionBanner = () => {
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={goToServices}>Services</Button>
+                    <Button variant="outline" onClick={previewQuotationInline} disabled={cartItems.length === 0 && checkoutOrders.length === 0}>Quotation</Button>
                     {/* Legacy disabled Refresh button removed */}
                   </div>
                 </div>
@@ -2911,6 +3044,15 @@ const PaymentInterruptionBanner = () => {
                                   const paymentMode = (first?.payments as any)?.payment_method || 'N/A'
                                   const orderIdsStr = orders.map((o: any) => o.id).join(', ')
                                   const totalAmount = formatINR(bundle.totalAmount || 0)
+                                  // Extract client info (prefer user profile from first order)
+                                  const userObj: any = first?.user || {}
+                                  // Extract explicit user fields from users table (first_name, last_name, phone, email)
+                                  const firstName = userObj.first_name || ''
+                                  const lastName = userObj.last_name || ''
+                                  const clientName = (firstName + ' ' + lastName).trim() || userObj.email || 'Client'
+                                  // Prefer "phone" then fallback to phone_number; if both missing show em dash
+                                  const clientPhone = userObj.phone || userObj.phone_number || '—'
+                                  const clientEmail = userObj.email || '—'
                                   const rowsHtml = orders.map((o: any, idx: number) => {
                                     const paymentIdRow = (o.payments as any)?.razorpay_payment_id || paymentId || '—'
                                     const category = (o.categories as any)?.name || (orders[0]?.categories as any)?.name || 'N/A'
@@ -2946,8 +3088,11 @@ const PaymentInterruptionBanner = () => {
                                     <div style='display:flex;justify-content:space-between;align-items:flex-start;'>
                                       <div>
                                         <h1>Invoice</h1>
-                                        <div class='sub'>
-                                         Generated: ${new Date().toLocaleString()}
+                                        <div class='sub'>Generated: ${new Date().toLocaleString()}</div>
+                                        <div style='font-size:11px;line-height:1.3;margin-top:4px;'>
+                                          <strong>Name:</strong> ${clientName}<br/>
+                                          <strong>Phone:</strong> ${clientPhone}<br/>
+                                          <strong>Email:</strong> ${clientEmail}
                                         </div>
                                       </div>
                                       <div style='text-align:right;font-size:12px;'>
@@ -3079,65 +3224,15 @@ const PaymentInterruptionBanner = () => {
             )}
 
             {quoteView === 'profile' && (
-              <>
-                <div className="mb-6 flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-semibold text-gray-900">Profile</h1>
-                    <p className="text-gray-600 text-sm">Update your account information</p>
-                  </div>
-                  <Button variant="outline" onClick={() => setQuoteView('services')}>Back to Selected Services</Button>
-                </div>
-                {!embeddedProfile && (
-                  <Card className="bg-white">
-                    <CardContent className="p-4 text-sm text-gray-500">Sign in to view your profile.</CardContent>
-                  </Card>
-                )}
-                {embeddedProfile && (
-                  <Card className="bg-white">
-                    <CardContent className="p-6 space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label className="text-sm">First Name</Label>
-                          <Input value={embeddedProfile.first_name ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, first_name: (e.target as HTMLInputElement).value })} />
-                        </div>
-                        <div>
-                          <Label className="text-sm">Last Name</Label>
-                          <Input value={embeddedProfile.last_name ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, last_name: (e.target as HTMLInputElement).value })} />
-                        </div>
-                        <div>
-                          <Label className="text-sm">Company</Label>
-                          <Input value={embeddedProfile.company ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, company: (e.target as HTMLInputElement).value })} />
-                        </div>
-                        <div>
-                          <Label className="text-sm">Phone</Label>
-                          <Input value={embeddedProfile.phone ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, phone: (e.target as HTMLInputElement).value })} />
-                        </div>
-                        <div className="md:col-span-2">
-                          <Label className="text-sm">Address</Label>
-                          <Input value={embeddedProfile.address ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, address: (e.target as HTMLInputElement).value })} />
-                        </div>
-                        <div>
-                          <Label className="text-sm">City</Label>
-                          <Input value={embeddedProfile.city ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, city: (e.target as HTMLInputElement).value })} />
-                        </div>
-                        <div>
-                          <Label className="text-sm">State</Label>
-                          <Input value={embeddedProfile.state ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, state: (e.target as HTMLInputElement).value })} />
-                        </div>
-                        <div>
-                          <Label className="text-sm">Country</Label>
-                          <Input value={embeddedProfile.country ?? ''} onChange={(e) => setEmbeddedProfile({ ...embeddedProfile, country: (e.target as HTMLInputElement).value })} />
-                        </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <Button onClick={saveEmbeddedProfile} disabled={embeddedProfileSaving} className="bg-blue-600 hover:bg-blue-700">
-                          {embeddedProfileSaving ? 'Saving…' : 'Save Profile'}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </>
+              <ProfilePanel
+                profile={embeddedProfile}
+                isSaving={embeddedProfileSaving}
+                isAuthenticated={isAuthenticated}
+                loading={embeddedProfileLoading}
+                onChange={(field, value) => setEmbeddedProfile((p: any) => ({ ...(p||{}), [field]: value }))}
+                onSave={saveEmbeddedProfile}
+                onBack={() => setQuoteView('services')}
+              />
             )}
           </div>
         </div>
@@ -3572,245 +3667,31 @@ const PaymentInterruptionBanner = () => {
               </Button>
             </div>
             {showOptionsPanel && (
-              <Dialog open={showOptionsPanel} onOpenChange={(open) => { if (!open) closeOptionsPanel() }}>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Options for: {selectedServiceTitle}</DialogTitle>
-                    <DialogDescription>Select the options for this service.</DialogDescription>
-
-                    {selectedServiceTitle === 'Drafting' && (
-                      <>
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Specification Type</Label>
-                          <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v, goodsServices: '' }))}>
-                            <SelectTrigger className="mt-1">
-                              <SelectValue placeholder="Choose specification" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="ps">Provisional Specification (PS) — {formatINR(computeDraftingPrice("ps", "standard"))}</SelectItem>
-                              <SelectItem value="cs">Complete Specification (CS) — {formatINR(computeDraftingPrice("cs", "standard"))}</SelectItem>
-                              <SelectItem value="ps_cs">PS-CS — {formatINR(computeDraftingPrice("ps_cs", "standard"))}</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <>
-                          {optionsForm.searchType && (
-                            <div>
-                              <Label className="text-sm font-medium text-gray-700">Turnaround</Label>
-                              <Select value={optionsForm.goodsServices} onValueChange={(v) => setOptionsForm((p) => ({ ...p, goodsServices: v }))}>
-                                <SelectTrigger className="mt-1">
-                                  <SelectValue placeholder="Choose turnaround" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="standard">Standard (12-15 days) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
-                                  <SelectItem value="expediated">Expediated (8-10 Days) — {formatINR(expediatedDiff)}</SelectItem>
-                                  <SelectItem value="rush">Rush (5-7 days) — {formatINR(rushDiff)}</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-                          {/* Fee Preview for Drafting */}
-                          <div className="rounded-md border p-3 bg-gray-50 mt-4">
-                            <div className="flex items-center justify-between text-sm mb-1">
-                              <span>Professional Fee</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(draftingTotal || preview.total)}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-sm">
-                              <span>Government Fee</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(0)}</span>
-                            </div>
-                            <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
-                              <span>Total</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(draftingTotal || preview.total)}</span>
-                            </div>
-                          </div>
-                        </>
-                      </>
-                    )}
-
-                    {selectedServiceTitle === 'Patent Application Filing' && (
-                      <>
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Applicant Type</Label>
-                              <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v, goodsServices: '' }))}>
-                            <SelectTrigger className="mt-1">
-                              <SelectValue placeholder="Choose applicant type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="individual">SStart-Up/Individuals/MSMEs/Educational Institute{" "}
-                                  {applicantPrices.individual !== undefined ? `— ₹${applicantPrices.individual}` : ""}</SelectItem>
-                              <SelectItem value="others">Large Entity/Others{" "}
-                                  {applicantPrices.others !== undefined ? `— ₹${applicantPrices.others}` : ""}</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <>
-                          {optionsForm.searchType && (
-                            <div>
-                              <Label className="text-sm font-medium text-gray-700">Filing Type</Label>
-                              <Select value={optionsForm.goodsServices} onValueChange={(v) => setOptionsForm((p) => ({ ...p, goodsServices: v }))}>
-                                <SelectTrigger className="mt-1">
-                                  <SelectValue placeholder="Choose filing type" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="provisional_filing">Provisional Filing (4 days) — {formatINR(computeFilingPrice("provisional_filing", optionsForm.searchType as any))}</SelectItem>
-                                  <SelectItem value="complete_specification_filing">Complete Specification Filing (4 days) — {formatINR(computeFilingPrice("complete_specification_filing", optionsForm.searchType as any))}</SelectItem>
-                                  <SelectItem value="ps_cs_filing">PS-CS Filing (4 days) — {formatINR(computeFilingPrice("ps_cs_filing", optionsForm.searchType as any))}</SelectItem>
-                                  <SelectItem value="pct_filing">PCT Filing — {formatINR(computeFilingPrice("pct_filing", optionsForm.searchType as any))}</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-                          {/* Fee Preview for Patent Application Filing */}
-                          <div className="rounded-md border p-3 bg-gray-50 mt-4">
-                            <div className="flex items-center justify-between text-sm mb-1">
-                              <span>Professional Fee</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(filingTotal || preview.total)}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-sm">
-                              <span>Government Fee</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(0)}</span>
-                            </div>
-                            <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
-                              <span>Total</span>
-                              <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(filingTotal || preview.total)}</span>
-                            </div>
-                          </div>
-                        </>
-                      </>
-                    )}
-
-                    {selectedServiceTitle === 'First Examination Response' && (
-                      <>
-                        <div>
-                          <Label className="text-sm font-medium text-gray-700">Response Due</Label>
-                          <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v }))}>
-                            <SelectTrigger className="mt-1">
-                              <SelectValue placeholder="Choose option" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="base_fee">Base Fee (Response due date after 3 months) — {ferPrices.base_fee !== undefined ? formatINR(ferPrices.base_fee) : ""}</SelectItem>
-                              <SelectItem value="response_due_anytime_after_15_days">Response due anytime after 15 days — {ferPrices.response_due_anytime_after_15_days !== undefined ? formatINR(ferPrices.response_due_anytime_after_15_days) : ""}</SelectItem>
-                              <SelectItem value="response_due_within_11_15_days">Response due within 11-15 days — {ferPrices.response_due_within_11_15_days !== undefined ? formatINR(ferPrices.response_due_within_11_15_days) : ""}</SelectItem>
-                              <SelectItem value="response_due_within_4_10_days">Response due within 4-10 days — {ferPrices.response_due_within_4_10_days !== undefined ? formatINR(ferPrices.response_due_within_4_10_days) : ""}</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {/* Fee Preview for First Examination Response */}
-                        <div className="rounded-md border p-3 bg-gray-50 mt-4">
-                          <div className="flex items-center justify-between text-sm mb-1">
-                            <span>Professional Fee</span>
-                            <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
-                          </div>
-                          <div className="flex items-center justify-between text-sm">
-                            <span>Government Fee</span>
-                            <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(0)}</span>
-                          </div>
-                          <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
-                            <span>Total</span>
-                            <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </DialogHeader>
-
-                  <TooltipProvider>
-                    <div className="space-y-6 mb-4" style={{ display: selectedServiceTitle !== 'Patentability Search' ? 'none' : undefined }}>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Label className="text-sm font-medium text-gray-700">Search Type</Label>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="h-4 w-4 text-gray-500 cursor-pointer" />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            Select the scope of search and whether a legal opinion is included.
-                          </TooltipContent>
-                        </Tooltip>
-                      </div>
-                      <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm((p) => ({ ...p, searchType: v, goodsServices: '' }))}>
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Choose search type" />
-                        </SelectTrigger>
- 
-                          <SelectContent>
-                          <SelectItem value="quick">
-                            Quick Knockout Search — {formatINR(basePricePS)}
-                          </SelectItem>
-                          <SelectItem value="full_without_opinion">
-                            Full Patentability Search (Without Opinion) — {formatINR(DiffWithoutPS)}
-                          </SelectItem>
-                          <SelectItem value="full_with_opinion">
-                            Full Patentability Search with Opinion — {formatINR(DiffWithPS)}
-                          </SelectItem>
-                        </SelectContent>
-                         
-                      </Select>
-                    </div>
-
-                    {optionsForm.searchType && (
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Label className="text-sm font-medium text-gray-700">Turnaround</Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-4 w-4 text-gray-500 cursor-pointer" />
-                            </TooltipTrigger>
-                            <TooltipContent>Choose delivery speed. Faster options may add to the fee per rules.</TooltipContent>
-                          </Tooltip>
-                        </div>
-                        <Select value={optionsForm.goodsServices} onValueChange={(v) => setOptionsForm((p) => ({ ...p, goodsServices: v }))}>
-                          <SelectTrigger className="mt-1">
-                            <SelectValue placeholder="Choose turnaround" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="standard">Standard (7-10 days) — {formatINR(computeTurnaroundTotal("standard"))}</SelectItem>
-                            <SelectItem value="expediated">Expediated (3-5 Days) — {formatINR(expediatedDiff)}
-</SelectItem>
-                            <SelectItem value="rush">Rush (1-2 days) — {formatINR(rushDiff)}
-</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    <div className="rounded-md border p-3 bg-gray-50">
-                      <div className="flex items-center justify-between text-sm mb-1">
-                        <span>Professional Fee</span>
-                        <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(preview.total)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span>Government Fee</span>
-                        <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(0)}</span>
-                      </div>
-                      <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
-                        <span>Total</span>
-                        <span>{new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(patentSearchTotal || preview.total)}</span>
-                      </div>
-                    </div>
-                  </div>
-                  </TooltipProvider>
-           
-                  <DialogFooter>
-                    <Button
-                      className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      onClick={addToCartWithOptions}
-                      disabled={
-                        (selectedServiceTitle === "Patentability Search" && (!optionsForm.searchType || !optionsForm.goodsServices)) ||
-                        (selectedServiceTitle === "Drafting" && (!optionsForm.searchType || !optionsForm.goodsServices)) ||
-                        (selectedServiceTitle === "Patent Application Filing" && (!optionsForm.searchType || !optionsForm.goodsServices)) ||
-                        (selectedServiceTitle === "First Examination Response" && (!optionsForm.searchType))
-                      }
-                    >
-                      Add
-                    </Button>
-                    <Button variant="outline" onClick={closeOptionsPanel}>
-                      Cancel
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <OptionsDialog
+                open={showOptionsPanel}
+                onOpenChange={(open) => { if (!open) closeOptionsPanel() }}
+                selectedServiceTitle={selectedServiceTitle}
+                optionsForm={optionsForm}
+                setOptionsForm={setOptionsForm as any}
+                addToCartWithOptions={addToCartWithOptions}
+                closeOptionsPanel={closeOptionsPanel}
+                formatINR={formatINR}
+                computeDraftingPrice={computeDraftingPrice as any}
+                computeTurnaroundTotal={computeTurnaroundTotal as any}
+                computeFilingPrice={computeFilingPrice as any}
+                computePatentSearchPrice={computePatentSearchPrice as any}
+                applicantPrices={applicantPrices}
+                ferPrices={ferPrices as any}
+                previewTotal={preview.total}
+                patentSearchTotal={patentSearchTotal}
+                draftingTotal={draftingTotal}
+                filingTotal={filingTotal}
+                expediatedDiff={expediatedDiff}
+                rushDiff={rushDiff}
+                basePricePS={basePricePS}
+                DiffWithoutPS={DiffWithoutPS}
+                DiffWithPS={DiffWithPS}
+              />
             )}
             <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
           </div>
@@ -3902,15 +3783,38 @@ const PaymentInterruptionBanner = () => {
       {/* Footer */}
       <Footer />
 
-      {/* Unified Checkout Thank You Modal (home view) */}
-      <CheckoutModal
-        isOpen={showCheckoutThankYou}
-        onClose={() => setShowCheckoutThankYou(false)}
-        payment={checkoutPayment}
-        orders={checkoutOrders}
-        onProceedSingle={openFormEmbedded}
-  onProceedMultiple={(orders) => { if (orders && orders.length > 0) openMultipleFormsEmbedded(orders) }}
-      />
+      {/* Inline Quotation Preview Dialog */}
+      <Dialog open={showQuotePreview} onOpenChange={(open) => { if (!open) setShowQuotePreview(false) }}>
+        <DialogContent className="max-w-5xl h-[80vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-2 border-b">
+            <DialogTitle>Quotation Preview</DialogTitle>
+            <DialogDescription className="text-xs">Review, print, or export your quotation without leaving the app.</DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden bg-white">
+            {quotePreviewUrl ? (
+              <iframe
+                id="quotation-preview-iframe"
+                src={quotePreviewUrl}
+                className="w-full h-full"
+                title="Quotation Preview"
+                sandbox="allow-modals allow-same-origin allow-scripts allow-popups allow-forms"
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-gray-500">Building preview…</div>
+            )}
+          </div>
+          <DialogFooter className="px-6 py-4 border-t flex items-center justify-between gap-3">
+            <div className="text-[11px] text-gray-500">Preview is a non-tax estimate. Contact support for official invoice.</div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={openQuotationInNewTab}>Open in New Tab</Button>
+              <Button variant="outline" size="sm" onClick={printInlineQuotation}>Print / Save PDF</Button>
+              <Button size="sm" onClick={() => setShowQuotePreview(false)}>Close</Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+  {/* CheckoutLayer handles thank-you modal inside quote/dashboard context; duplicate removed here. */}
     </div>
   )
 }

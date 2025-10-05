@@ -5,24 +5,16 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, RefreshCw, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, RefreshCw, ShieldCheck, Package } from 'lucide-react'
 // Reuse shared supabase client so we inherit existing auth state & subscriptions
 import { supabase } from '@/lib/supabase'
 
 // Light client-side admin page that calls our admin API route.
-// Access is gated both via UI (admin email list) and server route header check / RLS.
-
-const ADMIN_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
-
-// Optional: explicit secondary admins (comma separated). If not provided, all after the first primary are secondary.
-let SECONDARY_ADMINS_RAW = (process.env.NEXT_PUBLIC_SECONDARY_ADMINS || '')
-  .split(',')
-  .map(e => e.trim().toLowerCase())
-  .filter(Boolean)
-if (SECONDARY_ADMINS_RAW.length === 0) {
-  SECONDARY_ADMINS_RAW = ADMIN_EMAILS.slice(1)
-}
-const SECONDARY_ADMINS = SECONDARY_ADMINS_RAW
+// All env parsing & gating moved to lib/adminConfig for easy extraction later.
+import { getAdminConfig, isAdminEmail, isPrimaryAdmin, isSecondaryAdmin } from '@/lib/adminConfig'
+const ADMIN_CFG = getAdminConfig()
+const ADMIN_EMAILS = ADMIN_CFG.adminEmails
+const SECONDARY_ADMINS = ADMIN_CFG.secondaryAdmins
 
 import type { AdminOrderRow } from '@/types'
 import { debugLog } from '@/lib/logger'
@@ -38,58 +30,134 @@ export default function AdminDashboardPage() {
 
 	// Track whether we've attempted at least one session fetch (for improved messaging)
 	const [sessionFetches, setSessionFetches] = useState(0)
+	const [lastSessionMs, setLastSessionMs] = useState<number | null>(null)
+	const [retrying, setRetrying] = useState(false)
+	// Track if we've performed an explicit refreshSession attempt (Supabase) and a hard recovery attempt
+	const [refreshTried, setRefreshTried] = useState(false)
+	const [hardRecoveryCount, setHardRecoveryCount] = useState(0)
+	// Flag when extended staged retries finished without a session
+	const [exhaustedRetries, setExhaustedRetries] = useState(false)
 	const emailRef = useRef<string | null>(null)
 	emailRef.current = email
 
-	// Subscribe to auth state changes (covers re-entry after complex navigation flows like payment -> forms -> orders -> home -> admin)
-	useEffect(() => {
-		let active = true
-		;(async () => {
+	// Robust session bootstrap with staged retries (helps after print() / popup flows that delay hydration)
+	const runSessionFetch = useCallback(async (label: string) => {
+		try {
 			const started = performance.now()
 			const { data } = await supabase.auth.getSession()
-			if (!active) return
 			setSessionFetches(f => f + 1)
 			const userEmail = data?.session?.user?.email || null
+			if (userEmail) setLastSessionMs(Date.now())
 			setEmail(userEmail)
-			debugLog('[AdminPage] initial-session', { hasSession: !!data?.session, durationMs: Math.round(performance.now() - started), userEmail })
-		})()
-		const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-			if (!active) return
-			setEmail(session?.user?.email || null)
-			debugLog('[AdminPage] auth-change', { event: _event, hasSession: !!session, email: session?.user?.email })
-		})
-		return () => {
-			active = false
-			sub?.subscription?.unsubscribe()
+			debugLog('[AdminPage] session-fetch', { label, hasSession: !!data?.session, userEmail, durationMs: Math.round(performance.now() - started) })
+			return !!data?.session
+		} catch (e: any) {
+			debugLog('[AdminPage] session-fetch-error', { label, message: e?.message })
+			return false
 		}
 	}, [])
 
-	// Fallback: if after 1.5s we still have no email, try one more explicit getSession (handles rare race where Supabase hasn't hydrated local session yet)
-	useEffect(() => {
-		if (emailRef.current) return
-		const t = setTimeout(async () => {
-			if (emailRef.current) return
-			try {
-				const started = performance.now()
-				const { data } = await supabase.auth.getSession()
-				setSessionFetches(f => f + 1)
-				const nextEmail = data?.session?.user?.email || null
-				if (!emailRef.current && nextEmail) {
-					setEmail(nextEmail)
-					debugLog('[AdminPage] fallback-session-success', { durationMs: Math.round(performance.now() - started) })
-				} else {
-					debugLog('[AdminPage] fallback-session-miss')
-				}
-			} catch (e) {
-				debugLog('[AdminPage] fallback-session-error', { message: (e as any)?.message })
+	// Attempt a more forceful session refresh (uses refreshSession API) once if normal fetch fails repeatedly
+	const attemptRefreshSession = useCallback(async () => {
+		if (refreshTried) return false
+		setRefreshTried(true)
+		try {
+			debugLog('[AdminPage] refreshSession attempt')
+			// @ts-ignore - supabase-js v2 has auth.refreshSession
+			const { data, error } = await supabase.auth.refreshSession()
+			if (error) {
+				debugLog('[AdminPage] refreshSession error', { message: error.message })
+				return false
 			}
-		}, 1500)
-		return () => clearTimeout(t)
-	}, [email])
+			const mail = data?.session?.user?.email || null
+			if (mail) {
+				setEmail(mail)
+				setLastSessionMs(Date.now())
+				debugLog('[AdminPage] refreshSession success', { mail })
+				return true
+			}
+			return false
+		} catch (e: any) {
+			debugLog('[AdminPage] refreshSession exception', { message: e?.message })
+			return false
+		}
+	}, [refreshTried])
+
+	useEffect(() => {
+		let cancelled = false
+		;(async () => {
+			if (cancelled) return
+			// Immediate attempt
+			let ok = await runSessionFetch('initial')
+			if (cancelled || ok) return
+			// Short staged retries with progressive backoff
+			const shortDelays = [150, 400, 900]
+			for (const d of shortDelays) {
+				await new Promise(r => setTimeout(r, d))
+				if (cancelled) return
+				ok = await runSessionFetch('staged-' + d)
+				if (ok) break
+			}
+			if (cancelled || ok) return
+			// Extended retries (helps after intense print / popup flows) - spaced ~1s then 2s
+			const extendedDelays = [1100, 2000]
+			for (const d of extendedDelays) {
+				await new Promise(r => setTimeout(r, d))
+				if (cancelled) return
+				ok = await runSessionFetch('extended-' + d)
+				if (ok) break
+			}
+			if (!ok) {
+				// Final attempt: refreshSession once
+				const refreshed = await attemptRefreshSession()
+				if (!refreshed) setExhaustedRetries(true)
+			}
+		})()
+		const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+			if (cancelled) return
+			const mail = session?.user?.email || null
+			if (mail) setLastSessionMs(Date.now())
+			setEmail(mail)
+			debugLog('[AdminPage] auth-change', { event, hasSession: !!session, email: mail })
+		})
+		return () => { cancelled = true; sub?.subscription?.unsubscribe() }
+	}, [runSessionFetch, attemptRefreshSession])
+
+	// Visibility / window focus re-check (helps after user prints PDF in new tab then navigates here quickly)
+	useEffect(() => {
+		const onFocus = () => {
+			if (emailRef.current) return
+			runSessionFetch('focus-recheck')
+		}
+		window.addEventListener('focus', onFocus)
+		return () => window.removeEventListener('focus', onFocus)
+	}, [runSessionFetch])
+
+	// Manual retry (UI button) handler
+	const manualRetry = async () => {
+		if (retrying) return
+		setRetrying(true)
+		const ok = await runSessionFetch('manual-retry')
+		if (!ok) {
+			await attemptRefreshSession()
+		}
+		setRetrying(false)
+	}
+
+	const hardRecovery = async () => {
+		// Last resort: try to refreshSession then force reload if still no email
+		await attemptRefreshSession()
+		setHardRecoveryCount(c => c + 1)
+		setTimeout(() => {
+			if (!emailRef.current) {
+				try { window.location.reload() } catch {}
+			}
+		}, 180)
+	}
 
 	const fetchAll = useCallback(async () => {
 		if (!email) return
-		if (!ADMIN_EMAILS.includes(email.toLowerCase())) return
+		if (!isAdminEmail(email)) return
 		setLoading(true)
 		setError(null)
 		try {
@@ -111,13 +179,8 @@ export default function AdminDashboardPage() {
 	const primaryAdmin = ADMIN_EMAILS[0]
 	const otherAdmins = ADMIN_EMAILS.filter(e => e !== primaryAdmin)
 
-	const isPrimary = useMemo(() => email ? email.toLowerCase() === primaryAdmin : false, [email, primaryAdmin])
-	const isSecondary = useMemo(() => {
-		if (!email) return false
-		const lower = email.toLowerCase()
-		if (lower === primaryAdmin) return false
-		return SECONDARY_ADMINS.includes(lower)
-	}, [email, primaryAdmin])
+	const isPrimary = useMemo(() => isPrimaryAdmin(email), [email])
+	const isSecondary = useMemo(() => isSecondaryAdmin(email), [email])
 
 	useEffect(() => {
 		debugLog('[AdminPage] role-eval', { email, primaryAdmin, SECONDARY_ADMINS, isPrimary, isSecondary, totalOrders: orders.length })
@@ -136,6 +199,10 @@ export default function AdminDashboardPage() {
 		// Non-primary but not recognized secondary (future roles) -> empty for safety
 		return []
 	}, [orders, isPrimary, isSecondary, email])
+
+	// Aggregate metrics (extend easily later)
+	const totalOrders = orders.length
+	const visibleOrders = filteredOrders.length
 
 	const handleAssign = async (orderId: number) => {
 		const assignee = selectedAssignee[orderId]
@@ -161,7 +228,16 @@ export default function AdminDashboardPage() {
 	useEffect(() => { fetchAll() }, [fetchAll])
 
 	// Gate: if not admin show gentle message
-	if (email && !ADMIN_EMAILS.includes(email.toLowerCase())) {
+	// Feature flag: allow full removal / disable
+	if (!ADMIN_CFG.enabled) {
+		return (
+			<div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center text-sm text-gray-600">
+				<span>Admin panel disabled.</span>
+			</div>
+		)
+	}
+
+	if (email && !isAdminEmail(email)) {
 		return (
 			<div className="min-h-screen bg-gray-50 p-6">
 				<div className="max-w-7xl mx-auto">
@@ -201,12 +277,44 @@ export default function AdminDashboardPage() {
 			</header>
 			<main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 				{!email && (
-					<div className="text-sm text-gray-500">
-						{sessionFetches < 2 ? 'Detecting session…' : 'No active session detected. Please refresh or sign in again.'}
+					<div className="text-sm text-gray-600 flex flex-col gap-2">
+						<div className="flex items-center gap-3">
+							<span>
+								{exhaustedRetries
+									? (refreshTried ? 'Session not found after retries.' : 'Attempting session refresh…')
+									: (sessionFetches < 3 ? 'Detecting session…' : 'Still trying to establish session…')}
+							</span>
+							<Button size="sm" variant="outline" disabled={retrying} onClick={manualRetry}>{retrying ? 'Retrying…' : 'Retry'}</Button>
+						</div>
+						{exhaustedRetries && (
+							<div className="flex items-center gap-3 text-xs text-gray-500">
+								<span>Stuck? Use Hard Recovery (may reload page).</span>
+								<Button size="sm" variant="outline" onClick={hardRecovery}>Hard Recovery</Button>
+							</div>
+						)}
+						{lastSessionMs && <div className="text-[11px] text-gray-400">Last session seen: {new Date(lastSessionMs).toLocaleTimeString()}</div>}
+						{hardRecoveryCount > 0 && !email && <div className="text-[11px] text-amber-600">Recovery attempt #{hardRecoveryCount}</div>}
 					</div>
 				)}
-				{email && ADMIN_EMAILS.includes(email.toLowerCase()) && (
+				{email && isAdminEmail(email) && (
 					<>
+						{/* Stats / KPI cards */}
+						<div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+							<div className="rounded-lg border bg-white p-4 flex items-center justify-between shadow-sm">
+								<div>
+									<p className="text-xs font-medium tracking-wide text-gray-500 uppercase">Total Orders</p>
+									<p className="mt-1 text-2xl font-semibold text-gray-900">{totalOrders}</p>
+									{isPrimary ? (
+										<p className="text-[11px] text-gray-500 mt-1">All orders in system</p>
+									) : (
+										<p className="text-[11px] text-gray-500 mt-1">You can see {visibleOrders}</p>
+									)}
+								</div>
+								<div className="h-12 w-12 rounded-md bg-blue-50 flex items-center justify-center">
+									<Package className="h-6 w-6 text-blue-600" />
+								</div>
+							</div>
+						</div>
 						{error && <div className="mb-4 text-sm text-red-600">{error}</div>}
 						<Card className="bg-white">
 							<CardContent className="p-0">
