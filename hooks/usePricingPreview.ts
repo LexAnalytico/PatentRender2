@@ -18,6 +18,23 @@ export function usePricingPreview(params: {
 }) {
   const { pricingRules, selectedServiceTitle, optionsForm, servicePricing, visibilityTick } = params
 
+  // Lightweight memoization for price computations across effects (per hook instance)
+  // Keyed by JSON of selection + hash of rules length.
+  const priceCacheRef = (globalThis as any).__PRICE_CACHE_REF__ || { map: new Map<string, number>() }
+  ;(globalThis as any).__PRICE_CACHE_REF__ = priceCacheRef
+  const cacheKeyFor = (sel: any) => {
+    const rulesLen = Array.isArray(pricingRules) ? pricingRules.length : 0
+    try { return JSON.stringify({ r: rulesLen, s: sel }) } catch { return Math.random().toString(36) }
+  }
+  const cachedCompute = (sel: any): number => {
+    const key = cacheKeyFor(sel)
+    const existing = priceCacheRef.map.get(key)
+    if (typeof existing === 'number') return existing
+    const val = computePriceFromRules(pricingRules as any, sel as any)
+    priceCacheRef.map.set(key, val)
+    return val
+  }
+
   const [preview, setPreview] = useState({ total: 0, professional: 0, government: 0 })
   const [applicantPrices, setApplicantPrices] = useState<{ individual?: number; others?: number }>({})
   const [ferPrices, setFerPrices] = useState<Record<string, number>>({})
@@ -59,7 +76,7 @@ export function usePricingPreview(params: {
       option1: true,
     } as const
     try {
-      const total = computePriceFromRules(pricingRules as any, sel as any)
+      const total = cachedCompute(sel as any)
       const profRule = (pricingRules as any).find((r: any) => r.application_type === applicationType && r.key === 'professional_fee')
       const professional = profRule ? Number(profRule.amount) : 0
       const government = Math.max(0, total - professional)
@@ -84,8 +101,8 @@ export function usePricingPreview(params: {
       option1: true,
     } as any
     try {
-      const ind = computePriceFromRules(pricingRules as any, { ...baseSel, applicationType: 'individual' }) || 0
-      const oth = computePriceFromRules(pricingRules as any, { ...baseSel, applicationType: 'others' }) || 0
+      const ind = cachedCompute({ ...baseSel, applicationType: 'individual' }) || 0
+      const oth = cachedCompute({ ...baseSel, applicationType: 'others' }) || 0
       const fallback = servicePricing['Patent Application Filing'] || 0
       setApplicantPrices({
         individual: ind > 0 ? ind : fallback,

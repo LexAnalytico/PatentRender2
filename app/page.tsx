@@ -3,11 +3,15 @@
 import type React from "react"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { supabase } from '../lib/supabase';
+import { fetchOrdersMerged, invalidateOrdersCache } from '@/lib/orders'
+import { loadRazorpayScript, openRazorpayCheckout } from '@/lib/razorpay'
 import { fetchServicePricingRules, computePriceFromRules } from "@/utils/pricing";
 import { computePatentabilityPrice } from '@/utils/pricing/services/patentabilitySearch'
 import { computeDraftingPrice as draftingPriceHelper } from '@/utils/pricing/services/drafting'
 import { usePricingPreview } from '@/hooks/usePricingPreview'
 import { bannerSlides as staticBannerSlides } from "@/constants/data"
+import { BannerCarousel } from '@/components/sections/BannerCarousel'
+import { buildQuotationHtml as buildQuotationHtmlUtil } from '@/lib/quotation'
 import AuthModal from "@/components/AuthModal"; // Adjust path
 import { Footer } from "@/components/layout/Footer"
 import { UserCircleIcon } from "@heroicons/react/24/outline";
@@ -392,104 +396,28 @@ const openFirstFormEmbedded = () => {
   const [ordersPrefetching, setOrdersPrefetching] = useState(false)
   const ordersPrefetchingRef = useRef(false)
 
-  // Lightweight core fetch used for pre-navigation prefetch (duplicated subset of loadOrders logic)
-  const fetchOrdersCore = useCallback(async (): Promise<any[]> => {
-    try {
-      // Resolve user id with small retries (mirrors logic inside effect)
-      const getUserId = async () => {
-        const { data: sessionRes } = await supabase.auth.getSession()
-        return sessionRes?.session?.user?.id || null
-      }
-      let userId = await getUserId()
-      if (!userId) { await new Promise(r => setTimeout(r, 120)); userId = await getUserId() }
-      if (!userId) { await new Promise(r => setTimeout(r, 180)); userId = await getUserId() }
-      if (!userId) {
-        console.debug('[Orders][prefetch] no user session; abort prefetch')
-        setOrdersLoadError('You are not signed in. Please sign in to view orders.')
-        return []
-      }
-
-      const { data, error } = await supabase
-        .from('orders')
-        .select('id, created_at, service_id, category_id, payment_id, type, amount')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('[Orders][prefetch] base orders fetch failed', error)
-        setOrdersLoadError('Failed to load orders. Please retry.')
-        return []
-      }
-      const ordersRaw = (data as any[]) ?? []
-      if (ordersRaw.length === 0) {
-        console.debug('[Orders][prefetch] zero orders')
-        setOrdersLoadError(null)
-        return []
-      }
-
-      const serviceIds = Array.from(new Set(ordersRaw.map(o => o.service_id).filter(Boolean)))
-      const categoryIds = Array.from(new Set(ordersRaw.map(o => o.category_id).filter(Boolean)))
-      const paymentIds = Array.from(new Set(ordersRaw.map(o => o.payment_id).filter(Boolean)))
-
-      let servicesRes: any = { data: [], error: null }
-      let categoriesRes: any = { data: [], error: null }
-      let paymentsRes: any = { data: [], error: null }
-      try {
-        ;[servicesRes, categoriesRes, paymentsRes] = await Promise.all([
-          serviceIds.length ? supabase.from('services').select('id, name').in('id', serviceIds) : Promise.resolve({ data: [], error: null }),
-          categoryIds.length ? supabase.from('categories').select('id, name').in('id', categoryIds) : Promise.resolve({ data: [], error: null }),
-          paymentIds.length ? supabase.from('payments').select('id, razorpay_order_id, razorpay_payment_id, payment_method, total_amount, payment_status, payment_date, service_id, type').in('id', paymentIds) : Promise.resolve({ data: [], error: null }),
-        ])
-      } catch (joinErr) {
-        console.warn('[Orders][prefetch] ancillary lookups failed', joinErr)
-      }
-
-      const servicesMap = new Map((servicesRes?.data ?? []).map((s: any) => [s.id, s]))
-      const categoriesMap = new Map((categoriesRes?.data ?? []).map((c: any) => [c.id, c]))
-      const paymentsMap = new Map((paymentsRes?.data ?? []).map((p: any) => [p.id, p]))
-      // Fetch current user profile once, attach to each order for downstream invoice rendering
-      const fetchCurrentUserProfile = async (): Promise<{
-        id: string | null
-        email: string | null
-        first_name: string | null
-        last_name: string | null
-        phone: string | null
-      } | null> => {
-        try {
-          const { data: s } = await supabase.auth.getSession()
-            const uid = s?.session?.user?.id || null
-            const email = s?.session?.user?.email || null
-            if (!uid) return null
-            const { data: u, error } = await supabase
-              .from('users')
-              .select('id, email, first_name, last_name, phone')
-              .eq('id', uid)
-              .maybeSingle()
-            if (error) return { id: uid, email, first_name: null, last_name: null, phone: null }
-            return {
-              id: u?.id ?? uid,
-              email: u?.email ?? email,
-              first_name: u?.first_name ?? null,
-              last_name: u?.last_name ?? null,
-              phone: u?.phone ?? null,
-            }
-        } catch { return null }
-      }
-      const userProfile = await fetchCurrentUserProfile()
-      const merged = ordersRaw.map((o: any) => ({
-        ...o,
-        services: servicesMap.get(o.service_id) ?? null,
-        categories: categoriesMap.get(o.category_id) ?? null,
-        payments: paymentsMap.get(o.payment_id) ?? null,
-        user: userProfile || undefined,
-      }))
-      return merged
-    } catch (e) {
-      console.error('[Orders][prefetch] unexpected error', e)
-      setOrdersLoadError('Unexpected error loading orders.')
+  // Prefetch helper now delegates to unified fetchOrdersMerged with short retries for user session
+  const prefetchOrders = useCallback(async (): Promise<any[]> => {
+    const resolveUserId = async () => {
+      const { data: sessionRes } = await supabase.auth.getSession()
+      return sessionRes?.session?.user?.id || null
+    }
+    let userId = await resolveUserId()
+    if (!userId) { await new Promise(r => setTimeout(r, 120)); userId = await resolveUserId() }
+    if (!userId) { await new Promise(r => setTimeout(r, 180)); userId = await resolveUserId() }
+    if (!userId) {
+      console.debug('[Orders][prefetch] no user session; abort prefetch')
+      setOrdersLoadError('You are not signed in. Please sign in to view orders.')
       return []
     }
-  }, [supabase])
+    const { orders, error } = await fetchOrdersMerged(supabase, userId, { includeProfile: true, cacheMs: 5_000 })
+    if (error) {
+      setOrdersLoadError('Failed to load orders. Please retry.')
+      return []
+    }
+    setOrdersLoadError(null)
+    return orders
+  }, [])
 
   // Centralized navigation back to Orders view with prefetch before rendering Orders screen
   const goToOrders = () => {
@@ -511,7 +439,7 @@ const openFirstFormEmbedded = () => {
     ordersPrefetchingRef.current = true
     setEmbeddedOrdersLoading(true)
     // Do NOT clear existing embeddedOrders here; we want to retain if already present
-    fetchOrdersCore()
+    prefetchOrders()
       .then((merged) => {
         if (ordersPrefetchingRef.current) {
           setEmbeddedOrders(merged)
@@ -624,76 +552,40 @@ const openFirstFormEmbedded = () => {
     setOrdersLoadError(null)
     try {
       console.log("[Orders] Loading start")
-
-      // small retry for session readiness (handles the Cmd+Tab back race)
-      const getUserId = async () => {
+      // Resolve user id with small retries
+      const resolveUserId = async () => {
         const { data: sessionRes } = await supabase.auth.getSession()
         const uid = sessionRes?.session?.user?.id || null
         if (uid) lastKnownUserIdRef.current = uid
         return uid
       }
-      let userId = await getUserId()
+      let userId = await resolveUserId()
+      if (!userId) { await new Promise(r => setTimeout(r, 150)); userId = await resolveUserId() }
+      if (!userId) { await new Promise(r => setTimeout(r, 200)); userId = await resolveUserId() }
+      if (!userId && lastKnownUserIdRef.current) userId = lastKnownUserIdRef.current
+      if (!userId && checkoutPayment?.user_id) userId = checkoutPayment.user_id
+      if (!userId && checkoutOrders.length > 0 && checkoutOrders[0]?.user_id) userId = checkoutOrders[0].user_id
       if (!userId) {
-        await new Promise(r => setTimeout(r, 150))
-        userId = await getUserId()
-      }
-      if (!userId) {
-        // one more quick retry specifically helps the Cmd/Ctrl+Tab edge case
-        await new Promise(r => setTimeout(r, 200))
-        userId = await getUserId()
-        if (!userId) console.debug('[Orders][load] third userId fetch empty')
-      }
-      // Fallback to last known id if session race after focus loss
-      if (!userId && lastKnownUserIdRef.current) {
-        userId = lastKnownUserIdRef.current
-        console.debug('[Orders][load] using lastKnownUserIdRef fallback after session miss')
-      }
-      // Additional fallback chain: lastKnownUserIdRef -> checkoutPayment.user_id -> persistedOrders[0].user_id
-      if (!userId && lastKnownUserIdRef.current) {
-        userId = lastKnownUserIdRef.current
-        console.debug('[Orders][load] fallback userId from lastKnownUserIdRef')
-      }
-      if (!userId && checkoutPayment?.user_id) {
-        userId = checkoutPayment.user_id
-        console.debug('[Orders][load] fallback userId from checkoutPayment')
-      }
-      if (!userId && checkoutOrders.length > 0 && checkoutOrders[0]?.user_id) {
-        userId = checkoutOrders[0].user_id
-        console.debug('[Orders][load] fallback userId from checkoutOrders[0]')
-      }
-      if (!userId) {
-        console.log("[Orders] No user session; abort")
         if (active) {
           setEmbeddedOrders([])
           setOrdersLoadError('You are not signed in. Please sign in to view orders.')
           setEmbeddedOrdersLoading(false)
           ordersAbortedNoUserRef.current = true
         }
-        console.debug('[Orders][load] early-return: no user session')
         return
       }
-    
 
-      const { data, error } = await supabase
-        .from("orders")
-        .select("id, created_at, service_id, category_id, payment_id, type, amount")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-
+      const { orders: merged, error } = await fetchOrdersMerged(supabase, userId, { includeProfile: true, cacheMs: 8_000, force: true })
       if (error) {
-        console.error("[Orders] Failed to load orders", error)
         if (active) {
           setEmbeddedOrders([])
           setOrdersLoadError('Failed to load orders. Please retry.')
           setEmbeddedOrdersLoading(false)
         }
-        console.debug('[Orders][load] early-return: query error')
         return
       }
-    
-  const ordersRaw = (data as any[]) ?? []
-  console.debug('[Orders][load] orders fetched', { count: ordersRaw.length })
-      if (ordersRaw.length === 0) {
+      console.debug('[Orders][load] orders fetched', { count: merged.length })
+      if (merged.length === 0) {
         console.log("[Orders] Zero orders returned")
         // If this was initiated by a recent Force Reload, attempt a short burst of up to 3 rapid retries
         if (lastForceReloadAtRef.current && Date.now() - lastForceReloadAtRef.current < 5000) {
@@ -732,69 +624,6 @@ const openFirstFormEmbedded = () => {
         console.debug('[Orders][load] early-return: zero orders')
         return
       }
-
-      const serviceIds = Array.from(new Set(ordersRaw.map((o) => o.service_id).filter(Boolean)))
-      const categoryIds = Array.from(new Set(ordersRaw.map((o) => o.category_id).filter(Boolean)))
-      const paymentIds = Array.from(new Set(ordersRaw.map((o) => o.payment_id).filter(Boolean)))
-
-      let servicesRes: any = { data: [], error: null }
-      let categoriesRes: any = { data: [], error: null }
-      let paymentsRes: any = { data: [], error: null }
-      try {
-        ;[servicesRes, categoriesRes, paymentsRes] = await Promise.all([
-          serviceIds.length
-            ? supabase.from("services").select("id, name").in("id", serviceIds)
-            : Promise.resolve({ data: [], error: null }),
-          categoryIds.length
-            ? supabase.from("categories").select("id, name").in("id", categoryIds)
-            : Promise.resolve({ data: [], error: null }),
-          paymentIds.length
-            ? supabase.from("payments").select("id, razorpay_order_id, razorpay_payment_id, payment_method, total_amount, payment_status, payment_date, service_id, type").in("id", paymentIds)
-            : Promise.resolve({ data: [], error: null }),
-        ])
-      } catch (joinErr) {
-        console.warn('[Orders] Ancillary lookups failed, continuing with base orders only', joinErr)
-      }
-
-      const servicesMap = new Map((servicesRes?.data ?? []).map((s: any) => [s.id, s]))
-      const categoriesMap = new Map((categoriesRes?.data ?? []).map((c: any) => [c.id, c]))
-      const paymentsMap = new Map((paymentsRes?.data ?? []).map((p: any) => [p.id, p]))
-      // Fetch current user profile once per load; could cache in ref if needed
-      const fetchCurrentUserProfile = async (): Promise<{
-        id: string | null
-        email: string | null
-        first_name: string | null
-        last_name: string | null
-        phone: string | null
-      } | null> => {
-        try {
-          const { data: s } = await supabase.auth.getSession()
-          const uid = s?.session?.user?.id || null
-          const email = s?.session?.user?.email || null
-          if (!uid) return null
-          const { data: u, error } = await supabase
-            .from('users')
-            .select('id, email, first_name, last_name, phone')
-            .eq('id', uid)
-            .maybeSingle()
-          if (error) return { id: uid, email, first_name: null, last_name: null, phone: null }
-          return {
-            id: u?.id ?? uid,
-            email: u?.email ?? email,
-            first_name: u?.first_name ?? null,
-            last_name: u?.last_name ?? null,
-            phone: u?.phone ?? null,
-          }
-        } catch { return null }
-      }
-      const userProfile = await fetchCurrentUserProfile()
-      const merged = ordersRaw.map((o: any) => ({
-        ...o,
-        services: servicesMap.get(o.service_id) ?? null,
-        categories: categoriesMap.get(o.category_id) ?? null,
-        payments: paymentsMap.get(o.payment_id) ?? null,
-        user: userProfile || undefined,
-      }))
 
       if (active) {
         setEmbeddedOrders(merged)
@@ -2079,203 +1908,69 @@ useEffect(() => {
 }, [isProcessingPayment, focusGuardActive, interruptPayment])
 
 // (FocusGuardOverlay & PaymentInterruptionBanner moved to CheckoutLayer component)
-  // Removed unconditional Razorpay script injection. We'll lazy-load just-in-time in handlePayment.
-  const loadRazorpayScript = useCallback((): Promise<boolean> => {
-    if (typeof window === 'undefined') return Promise.resolve(false)
-    if ((window as any).Razorpay) return Promise.resolve(true)
-    // Add preconnect hints only once
-    const ensurePreconnect = (href: string) => {
-      if (document.querySelector(`link[rel=preconnect][href='${href}']`)) return
-      const l = document.createElement('link')
-      l.rel = 'preconnect'
-      l.href = href
-      l.crossOrigin = 'anonymous'
-      document.head.appendChild(l)
-    }
-    ensurePreconnect('https://checkout.razorpay.com')
-    ensurePreconnect('https://rzp.io')
-    return new Promise(resolve => {
-      const script = document.createElement('script')
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js'
-      script.async = true
-      script.onload = () => resolve(!!(window as any).Razorpay)
-      script.onerror = () => resolve(false)
-      document.body.appendChild(script)
-    })
-  }, [])
+// Razorpay JIT loader now centralized in lib/razorpay
 
   const handlePayment = async () => {
     try {
-      // JIT load Razorpay script if not yet present
       const ok = await loadRazorpayScript()
-      if (!ok) {
-        alert('Unable to load payment module. Check your network and try again.')
-        return
-      }
+      if (!ok) { alert('Unable to load payment module. Check your network and try again.'); return }
       const paymentStartTs = performance.now()
-      const amount = Math.round(calculateAdjustedTotal() * 100); // paise
-
-      // 1) fetch authenticated user's details so we can attach user_id to the order
-      const userRes = await supabase.auth.getUser();
-      const user = (userRes && (userRes as any).data) ? (userRes as any).data.user : null;
-
-      // 2) create an order on the server so the secret key stays on the server
-      // read pricing key determined when adding to cart
+      const amount = Math.round(calculateAdjustedTotal() * 100)
+      const userRes = await supabase.auth.getUser()
+      const user = (userRes && (userRes as any).data) ? (userRes as any).data.user : null
       const selectedPricingKey = (typeof window !== 'undefined') ? (localStorage.getItem('selected_pricing_key') || null) : null
-  debugLog("[Checkout] Using pricing key", selectedPricingKey)
-     
-      const orderResp = await fetch('/api/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, currency: 'INR', user_id: user?.id || null, service_id: (cartItems[0] as any)?.service_id ?? null, type: selectedPricingKey }),
-      });
-
+      debugLog('[Checkout] Using pricing key', selectedPricingKey)
+      const orderResp = await fetch('/api/create-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount, currency: 'INR', user_id: user?.id || null, service_id: (cartItems[0] as any)?.service_id ?? null, type: selectedPricingKey }) })
       if (!orderResp.ok) {
         let reason = 'Unknown error'
-        try {
-          const maybeJson = await orderResp.json()
-          reason = (maybeJson && (maybeJson.error || maybeJson.message)) ? (maybeJson.error || maybeJson.message) : JSON.stringify(maybeJson)
-        } catch {
-          try { reason = await orderResp.text() } catch {}
-        }
+        try { const maybe = await orderResp.json(); reason = (maybe.error || maybe.message) || JSON.stringify(maybe) } catch { try { reason = await orderResp.text() } catch {} }
         console.error('create-order failed:', reason)
         alert(`Failed to start payment. ${reason || 'Please try again.'}`)
         return
       }
-
-     
-      const order = await orderResp.json();
-      const firstItem = cartItems[0];
-
-      // 3) Build Razorpay options; order.id comes from server (/api/create-order)
-      const options: any = {
+      const order = await orderResp.json()
+      const firstItem = cartItems[0]
+      setIsProcessingPayment(true)
+      await openRazorpayCheckout({
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: order.amount || amount,
         currency: order.currency || 'INR',
         name: 'LegalIP Pro',
         description: firstItem?.name || 'IP Service Payment',
-        order_id: order.id || order.id, // server-provided Razorpay order id
-        // Ensure we can react to the user closing the Razorpay popup (X button / outside click)
-        modal: {
-          ondismiss: () => {
-            debugLog('[Razorpay] Checkout dismissed by user (no payment). Cleaning up.')
-            stopFocusGuard('dismiss');
-            setIsProcessingPayment(false);
-          }
-        },
-  handler: async function (response: any) {
-          // response contains razorpay_payment_id, razorpay_order_id, razorpay_signature
+        orderId: order.id,
+        prefill: { name: user?.user_metadata?.full_name || '', email: user?.email || '', contact: user?.phone || '' },
+        notes: { service: firstItem?.name || 'Quotation Payment' },
+        onDismiss: () => { stopFocusGuard('dismiss'); setIsProcessingPayment(false) },
+        onFailure: () => { alert('Payment was not completed. You can try again.'); stopFocusGuard('payment-failed'); setIsProcessingPayment(false) },
+        onSuccess: async (response) => {
           try {
-              setIsProcessingPayment(true);
-      const verifyStart = performance.now()
-      // Forward the payment result to the server for signature verification
-            const verifyResp = await fetch('/api/verify-payment', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                // include authenticated user id so server can attach payment to profile
-                user_id: user?.id || null,
-        // include service selection so server can persist service_id reliably
-        service_id: (cartItems[0] as any)?.service_id ?? null,
-                // include application form type (if the user selected one)
-                type: selectedPricingKey,
-                // include minimal customer/context data for server processing
-                name: user?.user_metadata?.full_name || user?.email || '',
-                email: user?.email || '',
-                phone: user?.phone || '',
-                message: options.description,
-                complexity: serviceFields.patentField1 || 'standard',
-                urgency: calculatorFields.urgency || 'standard',
-                cart: cartItems,
-              }),
-            });
-
-            const verifyJson = await verifyResp.json();
-            if (!verifyResp.ok || !verifyJson.success) {
-              console.error('verify-payment failed', verifyJson);
-              alert('Payment verification failed. Please contact support.');
-              setIsProcessingPayment(false);  
-              return;
-            }
-            // Payment & verification succeeded: stop focus guard to avoid unintended logout
+            const verifyStart = performance.now()
+            const verifyResp = await fetch('/api/verify-payment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ razorpay_order_id: response.razorpay_order_id, razorpay_payment_id: response.razorpay_payment_id, razorpay_signature: response.razorpay_signature, user_id: user?.id || null, service_id: (cartItems[0] as any)?.service_id ?? null, type: selectedPricingKey, name: user?.user_metadata?.full_name || user?.email || '', email: user?.email || '', phone: user?.phone || '', message: firstItem?.name || 'IP Service Payment', complexity: serviceFields.patentField1 || 'standard', urgency: calculatorFields.urgency || 'standard', cart: cartItems }) })
+            const verifyJson = await verifyResp.json()
+            if (!verifyResp.ok || !verifyJson.success) { console.error('verify-payment failed', verifyJson); alert('Payment verification failed. Please contact support.'); setIsProcessingPayment(false); return }
             stopFocusGuard('payment-success')
-            debugLog('[Payment][timing]', {
-              phase: 'success',
-              razorpay_order_id: response.razorpay_order_id,
-              verifyDurationMs: Math.round(performance.now() - verifyStart),
-              totalFlowMs: Math.round(performance.now() - paymentStartTs)
-            })
-            
-            // Show local Thank You modal so the user can open forms immediately
-            const persisted = verifyJson.persistedPayment ?? null;
-            const createdOrders =
-                Array.isArray(verifyJson.createdOrdersClient) ? verifyJson.createdOrdersClient
-                : (Array.isArray(verifyJson.createdOrders) ? verifyJson.createdOrders : []);
-            const paymentIdentifier = persisted?.razorpay_payment_id ?? persisted?.id ?? null;
-
-              // Ensure the in-app dashboard is shown beneath the modal
-            setShowQuotePage(true);
-            setQuoteView("orders");
-            setIsOpen(false);
-
-              // Save payment and orders to state
-            setCheckoutPayment(persisted);
-            setCheckoutOrders(createdOrders);
-            setShowCheckoutThankYou(true);
-            setOrdersReloadKey(k => k + 1)
-            // Clear cart so Services screen shows empty after successful payment
-            setCartItems([]);
-            setIsProcessingPayment(false);
-            if (!createdOrders || createdOrders.length === 0) {
-                setQuoteView('orders')
-              }
-            // Fallbacks removed: keep user on in-page dashboard and show modal persistently.
+            debugLog('[Payment][timing]', { phase: 'success', razorpay_order_id: response.razorpay_order_id, verifyDurationMs: Math.round(performance.now() - verifyStart), totalFlowMs: Math.round(performance.now() - paymentStartTs) })
+            const persisted = verifyJson.persistedPayment ?? null
+            const createdOrders = Array.isArray(verifyJson.createdOrdersClient) ? verifyJson.createdOrdersClient : (Array.isArray(verifyJson.createdOrders) ? verifyJson.createdOrders : [])
+            setShowQuotePage(true); setQuoteView('orders'); setIsOpen(false)
+            setCheckoutPayment(persisted); setCheckoutOrders(createdOrders); setShowCheckoutThankYou(true); setOrdersReloadKey(k => k + 1); setCartItems([]); setIsProcessingPayment(false)
+            if (!createdOrders || createdOrders.length === 0) setQuoteView('orders')
           } catch (err) {
-            console.error('Error verifying payment:', err);
-            alert('Payment succeeded but verification failed. We will investigate.');
-            setIsProcessingPayment(false);  
+            console.error('Error verifying payment:', err)
+            alert('Payment succeeded but verification failed. We will investigate.')
+            setIsProcessingPayment(false)
             stopFocusGuard('payment-verify-exception')
           }
         },
-        
-        prefill: {
-          name: user?.user_metadata?.full_name || '',
-          email: user?.email || '',
-          contact: user?.phone || '',
-        },
-        notes: {
-          service: firstItem?.name || 'Quotation Payment',
-        },
-        theme: { color: '#1e40af' },
-      };
-
-      // Create Razorpay instance first; starting the guard too early can catch benign iframe focus transitions
-      setIsProcessingPayment(true)
-      const rzp = new (window as any).Razorpay(options);
-      // Capture explicit payment failures (e.g., failed authorization) so we cleanly exit
-      try {
-        rzp.on('payment.failed', (resp: any) => {
-          console.warn('[Razorpay] payment.failed event', resp);
-          alert('Payment was not completed. You can try again.');
-          stopFocusGuard('payment-failed');
-          setIsProcessingPayment(false);
-        });
-      } catch (e) {
-        console.warn('[Razorpay] Unable to attach payment.failed listener', e);
-      }
-      rzp.open();
-      // Defer enabling strict focus guard slightly to avoid flagging the modal initialization as a violation
-      setTimeout(() => startFocusGuard(), 120);
+      })
+      setTimeout(() => startFocusGuard(), 120)
     } catch (err: any) {
-      console.error('handlePayment error:', err);
-      alert('An error occurred while initiating payment.');
+      console.error('handlePayment error:', err)
+      alert('An error occurred while initiating payment.')
       stopFocusGuard('init-error')
       setIsProcessingPayment(false)
     }
-  };
+  }
  
    
   const getServicesByCategory = (category: string) => {
@@ -2286,239 +1981,12 @@ useEffect(() => {
     return cartItems.some((item) => item.category === category)
   }
 
-  const buildQuotationHtml = () => {
-    // Reusable builder for quotation HTML string
-    const currentDate = new Date().toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-
-    const quotationNumber = `LIP-${Date.now().toString().slice(-6)}`
-    // Attempt to enrich with latest payment + orders context if available
-    const payment = checkoutPayment as any
-    const paymentMode = payment?.payment_method || payment?.paymentMode || 'N/A'
-    const paymentId = payment?.razorpay_payment_id || payment?.id || 'N/A'
-    // Prefer orders associated with latest checkout; fallback to cart items
-    const orderIds = (checkoutOrders || []).map(o => o.id).filter(Boolean)
-    const orderIdsLabel = orderIds.length ? orderIds.join(', ') : 'N/A'
-
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>LegalIP Pro - Service Quotation</title>
-        <style>
-          body {
-            font-family: 'Arial', sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-          }
-          .header {
-            text-align: center;
-            border-bottom: 3px solid #2563eb;
-            padding-bottom: 20px;
-            margin-bottom: 30px;
-          }
-          .logo {
-            font-size: 28px;
-            font-weight: bold;
-            color: #2563eb;
-            margin-bottom: 10px;
-          }
-          .company-info {
-            color: #666;
-            font-size: 14px;
-          }
-          .quotation-info {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 30px;
-            background: #f8fafc;
-            padding: 20px;
-            border-radius: 8px;
-          }
-          .quotation-info div {
-            flex: 1;
-          }
-          .quotation-info h3 {
-            margin: 0 0 10px 0;
-            color: #2563eb;
-            font-size: 16px;
-          }
-          .services-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-          }
-          .services-table th,
-          .services-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #e2e8f0;
-          }
-          .services-table th {
-            background-color: #f1f5f9;
-            font-weight: bold;
-            color: #374151;
-          }
-          .category-header {
-            background-color: #e0f2fe !important;
-            font-weight: bold;
-            color: #0369a1;
-          }
-          .price {
-            text-align: right;
-            font-weight: bold;
-          }
-          .total-section {
-            background: #f8fafc;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-          }
-          .total-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-          }
-          .total-final {
-            font-size: 18px;
-            font-weight: bold;
-            color: #2563eb;
-            border-top: 2px solid #2563eb;
-            padding-top: 10px;
-          }
-          .terms {
-            background: #fefce8;
-            padding: 20px;
-            border-radius: 8px;
-            border-left: 4px solid #eab308;
-          }
-          .terms h3 {
-            margin-top: 0;
-            color: #a16207;
-          }
-          .terms ul {
-            margin: 10px 0;
-            padding-left: 20px;
-          }
-          .terms li {
-            margin-bottom: 5px;
-          }
-          .footer {
-            text-align: center;
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #e2e8f0;
-            color: #666;
-            font-size: 12px;
-          }
-          @media print {
-            body { margin: 0; padding: 15px; }
-            .quotation-info { display: block; }
-            .quotation-info div { margin-bottom: 15px; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <div class="logo">⚖️ LegalIP Pro</div>
-          <div class="company-info">
-            Professional Intellectual Property Services<br>
-            123 Legal Street, IP City, LC 12345<br>
-            Phone: (555) 123-4567 | Email: info@legalippro.com
-          </div>
-        </div>
-
-        <div class="quotation-info">
-          <div>
-            <h3>Quotation Details</h3>
-            <strong>Quotation #:</strong> ${quotationNumber}<br>
-            <strong>Date:</strong> ${currentDate}<br>
-            <strong>Order ID(s):</strong> ${orderIdsLabel}<br>
-            <strong>Payment ID:</strong> ${paymentId}<br>
-            <strong>Payment Mode:</strong> ${paymentMode}<br>
-            <strong>Valid Until:</strong> ${new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString(
-              "en-US",
-              {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              },
-            )}
-          </div>
-          <div>
-            <h3>Client Information</h3>
-            <strong>Prepared For:</strong> Prospective Client<br>
-            <strong>Services:</strong> IP Protection Services<br>
-            <strong>Status:</strong> Preliminary Estimate
-          </div>
-        </div>
-
-        <table class="services-table">
-          <thead>
-            <tr>
-              <th>Service Description</th>
-              <th>Category</th>
-              <th class="price">Estimated Cost</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${cartItems
-              .map(
-                (item) => `
-              <tr>
-                <td>${item.name}</td>
-                <td>${item.category}</td>
-                <td class="price">${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(item.price)}</td>
-              </tr>
-            `,
-              )
-              .join("")}
-          </tbody>
-        </table>
-
-        <div class="total-section">
-          <div class="total-row">
-            <span>Subtotal:</span>
-            <span>${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(getTotalPrice())}</span>
-          </div>
-          <div class="total-row">
-            <span>Consultation (Included):</span>
-            <span>${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(0)}</span>
-          </div>
-          <div class="total-row total-final">
-            <span>Total Estimated Cost:</span>
-            <span>${new Intl.NumberFormat('en-IN', { style: 'currency', 'currency': 'INR', maximumFractionDigits: 0 }).format(getTotalPrice())}</span>
-          </div>
-          ${paymentId !== 'N/A' ? `<div class="total-row" style="margin-top:8px;font-size:12px;color:#555;">Reference: Payment ${paymentId} (${paymentMode})</div>` : ''}
-        </div>
-
-        <div class="terms">
-          <h3>Terms & Conditions</h3>
-          <ul>
-            <li><strong>Validity:</strong> This quotation is valid for 30 days from the date of issue.</li>
-            <li><strong>Estimates:</strong> All prices are estimates and may vary based on complexity and specific requirements.</li>
-            <li><strong>Payment:</strong> 50% advance payment required to commence services, balance upon completion.</li>
-            <li><strong>Timeline:</strong> Service timelines will be provided upon engagement and may vary by service type.</li>
-            <li><strong>Consultation:</strong> Free initial consultation included with any service package.</li>
-            <li><strong>Additional Costs:</strong> Government fees, filing fees, and third-party costs are additional.</li>
-          </ul>
-        </div>
-
-        <div class="footer">
-          <p>This quotation was generated on ${currentDate} by LegalIP Pro.<br>
-          For questions or to proceed with services, please contact us at info@legalippro.com or (555) 123-4567.</p>
-        </div>
-      </body>
-      </html>
-    `
-  }
+  const buildQuotationHtml = () => buildQuotationHtmlUtil({
+    cartItems: cartItems.map(i => ({ name: i.name, category: i.category, price: i.price })),
+    total: getTotalPrice(),
+    payment: checkoutPayment,
+    orders: checkoutOrders,
+  })
 
   // Legacy behavior (still used for explicit external open if desired)
   const openQuotationInNewTab = () => {
@@ -3084,132 +2552,7 @@ useEffect(() => {
 
    
 
-      {/* Enhanced Carousel Banner */}
-      <section className="banner-section relative h-[600px] overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900"></div>
-
-        {/* Carousel Container */}
-        <div className="relative h-full">
-          {bannerSlides.map((slide, index) => (
-            <div
-              key={index}
-              className={`absolute inset-0 transition-all duration-1000 ease-in-out ${
-                index === currentSlide
-                  ? "opacity-100 transform translate-x-0"
-                  : index < currentSlide
-                    ? "opacity-0 transform -translate-x-full"
-                    : "opacity-0 transform translate-x-full"
-              }`}
-            >
-              <div className="h-full flex items-center">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-                  <div className="grid lg:grid-cols-2 gap-12 items-center">
-                    {/* Content Side */}
-                    <div className="text-white space-y-6">
-                      <div className="inline-block px-4 py-2 bg-blue-600/20 backdrop-blur-sm rounded-full border border-blue-400/30">
-                        <span className="text-blue-200 text-sm font-medium">Professional IP Services</span>
-                      </div>
-
-                      <h1 className="text-4xl md:text-6xl font-bold leading-tight">{slide.title}</h1>
-
-                      <p className="text-xl md:text-2xl text-blue-100 leading-relaxed max-w-2xl">{slide.description}</p>
-
-                      <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                        <Button
-                          size="lg"
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 text-lg font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all"
-                        >
-                          Get Started Today
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="lg"
-                          className="border-2 border-white/30 text-white hover:bg-white/10 backdrop-blur-sm px-8 py-4 text-lg font-semibold rounded-lg bg-transparent"
-                        >
-                          Learn More
-                        </Button>
-                      </div>
-
-                      {/* Stats */}
-                      <div className="flex items-center gap-8 pt-6">
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-white">2500+</div>
-                          <div className="text-blue-200 text-sm">Patents Filed</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-white">1800+</div>
-                          <div className="text-blue-200 text-sm">Trademarks</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-white">950+</div>
-                          <div className="text-blue-200 text-sm">Happy Clients</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Image Side */}
-                    <div className="relative">
-                      <div className="relative z-10">
-                        <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 shadow-2xl">
-                          <img
-                            src={slide.image || "/placeholder.svg"}
-                            alt={slide.title}
-                            className="w-full h-80 object-cover rounded-xl shadow-lg"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Decorative Elements */}
-                      <div className="absolute -top-4 -right-4 w-24 h-24 bg-blue-500/20 rounded-full blur-xl"></div>
-                      <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-indigo-500/20 rounded-full blur-xl"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Enhanced Navigation Arrows */}
-        <button
-          onClick={prevSlide}
-          className="absolute left-6 top-1/2 transform -translate-y-1/2 bg-white/20 backdrop-blur-md hover:bg-white/30 p-4 rounded-full shadow-lg transition-all duration-300 border border-white/30 group z-20"
-        >
-          <ChevronLeft className="h-6 w-6 text-white group-hover:scale-110 transition-transform" />
-        </button>
-        <button
-          onClick={nextSlide}
-          className="absolute right-6 top-1/2 transform -translate-y-1/2 bg-white/20 backdrop-blur-md hover:bg-white/30 p-4 rounded-full shadow-lg transition-all duration-300 border border-white/30 group z-20"
-        >
-          <ChevronRight className="h-6 w-6 text-white group-hover:scale-110 transition-transform" />
-        </button>
-
-        {/* Enhanced Dot Indicators */}
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex space-x-3 z-20">
-          {bannerSlides.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentSlide(index)}
-              className={`transition-all duration-300 rounded-full ${
-                index === currentSlide ? "w-12 h-3 bg-white shadow-lg" : "w-3 h-3 bg-white/50 hover:bg-white/70"
-              }`}
-            />
-          ))}
-        </div>
-
-        {/* Progress Bar */}
-        <div className="absolute bottom-0 left-0 w-full h-1 bg-white/20">
-          <div
-            className="h-full bg-white transition-all duration-5000 ease-linear"
-            style={{ width: `${((currentSlide + 1) / bannerSlides.length) * 100}%` }}
-          />
-        </div>
-
-        {/* Floating Elements */}
-        <div className="absolute top-20 left-10 w-2 h-2 bg-white/30 rounded-full animate-pulse"></div>
-        <div className="absolute top-40 right-20 w-3 h-3 bg-blue-400/40 rounded-full animate-pulse delay-1000"></div>
-        <div className="absolute bottom-32 left-20 w-1 h-1 bg-white/40 rounded-full animate-pulse delay-2000"></div>
-      </section>
+      <BannerCarousel />
 
       {/* Main Content Area: Services on Left, Cart on Right */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row gap-8">

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { supabase } from '@/lib/supabase';
 import { createClient } from '@supabase/supabase-js';
+import { formatISTInvoice, formatISTDebug } from '@/lib/datetime';
 
 export async function POST(req: Request) {
   try {
@@ -238,35 +239,41 @@ export async function POST(req: Request) {
   // Debug logs to help trace missing data
   console.debug('notify-payment debug', { payment_id, quoteData, paymentRow, userData });
 
-    // Build payment details HTML from the full paymentRow if available
-    let paymentDetailsHtml = '';
-    if (paymentRow) {
-      paymentDetailsHtml = '<ul>';
-      for (const [k, v] of Object.entries(paymentRow)) {
-        // Format dates and nulls
-        const val = v == null ? 'N/A' : (k.toLowerCase().includes('date') ? new Date(String(v)).toLocaleString() : String(v));
-        paymentDetailsHtml += `<li><strong>${k}:</strong> ${val}</li>`;
-      }
-      paymentDetailsHtml += '</ul>';
-    } else {
-      paymentDetailsHtml = '<p>No payment row found for the provided id. If you expect the row to exist, ensure the server has permission to read the payments table (set SUPABASE_SERVICE_ROLE_KEY in your server env).</p>';
+    // Centralized formatting: use shared invoice style (matches UI invoice: 10/5/2025, 4:49:08 PM)
+    const fmtInvoice = (v: any) => formatISTInvoice(v);
+  // Build payment details HTML from the full paymentRow if available (after formatIST definition)
+  let paymentDetailsHtml = '';
+  if (paymentRow) {
+    paymentDetailsHtml = '<ul>';
+    for (const [k, v] of Object.entries(paymentRow)) {
+      const lower = k.toLowerCase();
+      const isDateLike = /(date|_at|time)/.test(lower);
+      const val = v == null ? 'N/A' : (isDateLike ? fmtInvoice(v) : String(v));
+      paymentDetailsHtml += `<li><strong>${k}:</strong> ${val}</li>`;
     }
+    paymentDetailsHtml += '</ul>';
+  } else {
+    paymentDetailsHtml = '<p>No payment row found for the provided id. If you expect the row to exist, ensure the server has permission to read the payments table (set SUPABASE_SERVICE_ROLE_KEY in your server env).</p>';
+  }
 
   const dbUser = (userData ?? {}) as any;
-    const dbQuote = (quoteData ?? {}) as any;
-    const clientFirstName = dbUser.first_name ?? name ?? '';
-    const clientLastName = dbUser.last_name ?? '';
-    const clientFullName = `${clientFirstName}${clientLastName ? ' ' + clientLastName : ''}`.trim() || 'Client';
-    const clientEmail = dbUser.email ?? email;
-    const clientPhone = dbUser.phone ?? phone ?? 'N/A';
-    const clientState = dbUser.state ?? 'N/A';
+  const dbQuote = (quoteData ?? {}) as any;
+  const clientFirstName = dbUser.first_name ?? name ?? '';
+  const clientLastName = dbUser.last_name ?? '';
+  const clientFullName = `${clientFirstName}${clientLastName ? ' ' + clientLastName : ''}`.trim() || 'Client';
+  const clientEmail = dbUser.email ?? email;
+  const clientPhone = dbUser.phone ?? phone ?? 'N/A';
+  const clientState = dbUser.state ?? 'N/A';
   // Prefer quote.total, otherwise fallback to payments.total_amount
   const quoteTotal = dbQuote.total != null ? dbQuote.total : (paymentTotal != null ? paymentTotal : 'N/A');
-  const quoteCreatedAt = dbQuote.created_at
-  ? new Date(dbQuote.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })
-  : (paymentDate
-      ? new Date(paymentDate).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" })
-      : "N/A");
+  const rawQuoteCreatedAt = dbQuote.created_at || paymentDate || null;
+  const quoteCreatedAt = fmtInvoice(rawQuoteCreatedAt);
+  let debugTimeBlock = '';
+  if (process.env.EMAIL_DEBUG_TIMES === '1') {
+    debugTimeBlock = `<li><strong>_debug_raw:</strong> ${rawQuoteCreatedAt || 'N/A'}</li>` +
+      `<li><strong>_debug_ist_invoice:</strong> ${quoteCreatedAt}</li>` +
+      `<li><strong>_debug_ist_24h:</strong> ${formatISTDebug(rawQuoteCreatedAt)}</li>`;
+  }
   const serviceLabel = typeof serviceName === 'string' ? serviceName : 'N/A';
   const categoryLabel = typeof categoryName === 'string' ? categoryName : 'N/A';
 
@@ -285,17 +292,22 @@ export async function POST(req: Request) {
       },
     });
 
+  // Generated timestamp (invoice-style IST)
+  const generatedAt = fmtInvoice(Date.now())
+
   // Format HTML exactly as requested
   const html = `
       <p>Dear ${clientFullName},</p>
 
       <p>Thank you for submitting your order with IPprotectionIndia. We have successfully received your request.</p>
 
-      <p>Below is a brief summary of the payment and quote received:</p>
+  <p>Below is a brief summary of the payment and quote received:</p>
+  <div class='sub' style="font-size:12px;color:#555;margin:6px 0 12px">Generated: ${generatedAt} (IST)</div>
       <ul>
         <li><strong>Payment ID (razorpay / provided):</strong> ${razorpay_payment_id || payment_id || 'N/A'}</li>
-        <li><strong>Quote Total:</strong> ${quoteTotal}</li>
-        <li><strong>Quote Created At:</strong> ${quoteCreatedAt}</li>
+    <li><strong>Quote Total:</strong> ${quoteTotal}</li>
+  <li><strong>Quote Created At:</strong> ${quoteCreatedAt}</li>
+  ${debugTimeBlock}
       </ul>
 
   <h4>Payment details</h4>
@@ -303,7 +315,7 @@ export async function POST(req: Request) {
     <li><strong>Category:</strong> ${categoryLabel}</li>
     <li><strong>Service:</strong> ${serviceLabel}</li>
     <li><strong>Payment Cost:</strong> ${typeof quoteTotal === 'number' ? quoteTotal.toLocaleString('en-IN') : quoteTotal}</li>
-    <li><strong>Date:</strong> ${quoteCreatedAt}</li>
+  <li><strong>Date:</strong> ${quoteCreatedAt}</li>
     <li><strong>Status:</strong> ${paymentRow?.payment_status ?? 'N/A'}</li>
   </ul>
 

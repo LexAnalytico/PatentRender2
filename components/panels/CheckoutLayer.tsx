@@ -21,16 +21,8 @@ export interface CheckoutLayerProps {
 }
 
 // Simple focus guard overlay (visual only)
-const FocusGuardOverlay: React.FC<{ active: boolean }> = ({ active }) => {
-  if (!active) return null
-  return (
-    <div className="fixed inset-0 z-[60] pointer-events-none flex items-start justify-center p-4">
-      <div className="mt-8 px-4 py-2 rounded bg-amber-500/90 text-white text-sm shadow">
-        <strong>Payment in progress.</strong> Keep this tab focused. Leaving the tab may interrupt payment.
-      </div>
-    </div>
-  )
-}
+// Focus guard overlay removed per request (previous messaging considered noisy).
+const FocusGuardOverlay: React.FC<{ active: boolean }> = () => null
 
 const PaymentInterruptionBanner: React.FC<{ interrupted: boolean; onSignInAgain?: () => void; children?: React.ReactNode }> = ({ interrupted, onSignInAgain, children }) => {
   if (!interrupted) return null
