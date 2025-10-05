@@ -4,6 +4,9 @@ import type React from "react"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { supabase } from '../lib/supabase';
 import { fetchServicePricingRules, computePriceFromRules } from "@/utils/pricing";
+import { computePatentabilityPrice } from '@/utils/pricing/services/patentabilitySearch'
+import { computeDraftingPrice as draftingPriceHelper } from '@/utils/pricing/services/drafting'
+import { usePricingPreview } from '@/hooks/usePricingPreview'
 import { bannerSlides as staticBannerSlides } from "@/constants/data"
 import AuthModal from "@/components/AuthModal"; // Adjust path
 import { Footer } from "@/components/layout/Footer"
@@ -1315,19 +1318,21 @@ const patentServices = [
     resetOptionsForm()
   }
 
-  // Live fee preview state and pricing rules
+  // Live fee preview state and pricing rules (rules fetched here; derived pricing via usePricingPreview hook)
   const [pricingRules, setPricingRules] = useState<any[] | null>(null)
   const [preview, setPreview] = useState({ total: 0, professional: 0, government: 0 })
-  const [applicantPrices, setApplicantPrices] = useState<{ individual?: number; others?: number }>({})
-  const [ferPrices, setFerPrices] = useState<{
-    base_fee?: number
-    response_due_anytime_after_15_days?: number
-    response_due_within_11_15_days?: number
-    response_due_within_4_10_days?: number
-  }>({})
+  // Hook-managed derived pricing values
+  const [visibilityTick, setVisibilityTick] = useState(0) // declared earlier previously; keep ordering consistent
+  const pricingDerived = usePricingPreview({
+    pricingRules,
+    selectedServiceTitle,
+    optionsForm,
+    servicePricing,
+    visibilityTick,
+  })
+  const { applicantPrices, ferPrices, patentSearchTotal, draftingTotal, filingTotal, ferTotal } = pricingDerived
   // Safari: when tab is backgrounded some derived prices show 0 until next interaction.
   // Track visibility changes to force recalculation.
-  const [visibilityTick, setVisibilityTick] = useState(0)
   useEffect(() => {
     if (typeof document === 'undefined') return
     const onVis = () => { if (!document.hidden) setVisibilityTick(t => t + 1) }
@@ -1428,137 +1433,6 @@ const patentServices = [
     loadRules()
   }, [showOptionsPanel, selectedServiceTitle, visibilityTick])
   
-  // Recompute fee preview when selections change
-  useEffect(() => {
-    if (!pricingRules || !selectedServiceTitle) {
-      setPreview({ total: 0, professional: 0, government: 0 })
-      return
-    }
-    let applicationType =
-      optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
-        ? "individual"
-        : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
-        ? "startup_msme"
-        : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
-        ? "others"
-        : "individual"
-
-    if (selectedServiceTitle === "Patent Application Filing" && (optionsForm.searchType === "individual" || optionsForm.searchType === "others")) {
-      applicationType = optionsForm.searchType as any
-    }
-
-    const sel = {
-      applicationType,
-      niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
-      goodsServices: {
-        dropdown: optionsForm.goodsServices || undefined,
-        customText: optionsForm.goodsServicesCustom || undefined,
-      },
-      searchType: optionsForm.searchType || undefined,
-      priorUse: {
-        used: optionsForm.useType === "yes",
-        firstUseDate: optionsForm.firstUseDate || undefined,
-        proofFiles: optionsForm.proofFileNames,
-      },
-      option1: true,
-    } as const
-
-    const total = computePriceFromRules(pricingRules as any, sel as any)
-    const profRule = (pricingRules as any).find(
-      (r: any) => r.application_type === applicationType && r.key === "professional_fee"
-    )
-    const professional = profRule ? Number(profRule.amount) : 0
-    const government = Math.max(0, total - professional)
-
-    // Debug: log recompute context
-  debugLog("[Preview] Recompute", {
-      service: selectedServiceTitle,
-      applicationType,
-      searchType: optionsForm.searchType,
-      filingType: optionsForm.goodsServices,
-      niceClasses: optionsForm.niceClasses,
-      priorUse: optionsForm.useType,
-      totals: { total, professional, government },
-    })
-
-    setPreview({ total, professional, government })
-  }, [pricingRules, optionsForm, selectedServiceTitle, visibilityTick])
-
-  // Compute and show prices next to Applicant Type options for Patent Application Filing
-  useEffect(() => {
-    if (!pricingRules || selectedServiceTitle !== "Patent Application Filing") {
-      setApplicantPrices({})
-      return
-    }
-
-    const filingType = optionsForm.goodsServices && optionsForm.goodsServices !== "0" ? optionsForm.goodsServices : "provisional_filing"
-    const baseSel = {
-      niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
-      goodsServices: { dropdown: filingType },
-      searchType: undefined,
-      priorUse: { used: optionsForm.useType === "yes" },
-      option1: true,
-    } as any
-
-    const prices: { [k: string]: number } = {}
-    try {
-      prices.individual = computePriceFromRules(pricingRules as any, { ...baseSel, applicationType: "individual" })
-      prices.others = computePriceFromRules(pricingRules as any, { ...baseSel, applicationType: "others" })
-    } catch (e) {
-      console.error("Failed computing applicant type prices:", e)
-    }
-    const fallback = servicePricing["Patent Application Filing"] || 0
-    if (!prices.individual || prices.individual <= 0) prices.individual = fallback
-    if (!prices.others || prices.others <= 0) prices.others = fallback
-    setApplicantPrices(prices)
-  }, [pricingRules, selectedServiceTitle, optionsForm.goodsServices, optionsForm.niceClasses, optionsForm.useType, visibilityTick])
-
-  // Compute and show prices for First Examination Response options
-  useEffect(() => {
-    if (!pricingRules || selectedServiceTitle !== "First Examination Response") {
-      setFerPrices({})
-      return
-    }
-
-    const applicationType =
-      optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
-        ? "individual"
-        : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
-        ? "startup_msme"
-        : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
-        ? "others"
-        : "individual"
-
-    const baseSel = {
-      applicationType,
-      niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
-      searchType: undefined,
-      priorUse: { used: optionsForm.useType === "yes" },
-      option1: true,
-    } as any
-
-    const values = [
-      "base_fee",
-      "response_due_anytime_after_15_days",
-      "response_due_within_11_15_days",
-      "response_due_within_4_10_days",
-    ] as const
-
-    const prices: Record<string, number> = {}
-    try {
-      for (const v of values) {
-        prices[v] = computePriceFromRules(pricingRules as any, { ...baseSel, searchType: v })
-      }
-    } catch (e) {
-      console.error("Failed computing FER prices:", e)
-    }
-    // Fallback to base service price if computed is zero
-    const fallbackFER = servicePricing["First Examination Response"] || 0
-    for (const k of Object.keys(prices)) {
-      if (!prices[k] || prices[k] <= 0) prices[k] = fallbackFER
-    }
-    setFerPrices(prices)
-  }, [pricingRules, selectedServiceTitle, optionsForm.applicantTypes, optionsForm.niceClasses, optionsForm.useType, visibilityTick])
 
   // Helpers for turnaround pricing display in modal
 const formatINR = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n)
@@ -1589,159 +1463,7 @@ const computeTurnaroundTotal = (turn: "standard" | "expediated" | "rush") => {
   const rushDiff = computeTurnaroundTotal("rush") //- basePrice  
 
  
-  // Compute price for a given Patentability Search type and turnaround, independent of current selection
-  const computePatentSearchPrice = (
-    type: "quick" | "full_without_opinion" | "full_with_opinion",
-    turn: "standard" | "expediated" | "rush" = "standard"
-  ) => {
-    if (!pricingRules) return 0
-
-    const applicationType =
-      optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
-        ? "individual"
-        : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
-        ? "startup_msme"
-        : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
-        ? "others"
-        : "individual"
-
-    const sel = {
-      applicationType,
-      niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
-      goodsServices: { dropdown: turn },
-      searchType: type,
-      priorUse: { used: optionsForm.useType === "yes" },
-      option1: true,
-    } as any
-
-    return computePriceFromRules(pricingRules as any, sel)
-  }
-
-const basePricePS = computePatentSearchPrice("quick")
-const DiffWithoutPS = computePatentSearchPrice("full_without_opinion") //- basePricePS
-const DiffWithPS = computePatentSearchPrice("full_with_opinion") //- basePricePS  
- 
-  // Compute price for a given Drafting type and turnaround, independent of current selection
-  const computeDraftingPrice = (
-    type: "ps" | "cs" | "ps_cs",
-    turn: "standard" | "expediated" | "rush" = "standard"
-    ) => {
-    if (!pricingRules) return 0
-           
-    const applicationType =
-      optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
-        ? "individual"
-        : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
-        ? "startup_msme"
-        : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
-        ? "others"
-        : "individual"
-
-    const sel = {
-      applicationType,
-      niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
-      goodsServices: { dropdown: turn },
-      searchType: type,
-      priorUse: { used: optionsForm.useType === "yes" },
-      option1: true,
-    } as any
-
-    return computePriceFromRules(pricingRules as any, sel)
-  }
-  const basePriceD = computeDraftingPrice("ps", "standard")
-  const DiffWithoutD = computeDraftingPrice("cs", "expediated") //- basePriceD
-  const DiffWithD = computeDraftingPrice("ps_cs", "rush") //- basePriceD      
- 
-    // Compute price for a given Search turnaround, independent of current selection
-  const computeSearchPrice = (
-  type: "quick" | "without_opinion" | "with_opinion",
-  turn: "standard" | "expediated" | "rush" = "standard"
-) => {
-  if (!pricingRules) return 0
-
-  const applicationType =
-    optionsForm.applicantTypes.includes("Individual / Sole Proprietor")
-      ? "individual"
-      : optionsForm.applicantTypes.includes("Startup / Small Enterprise")
-      ? "startup_msme"
-      : optionsForm.applicantTypes.includes("Others (Company, Partnership, LLP, Trust, etc.)")
-      ? "others"
-      : "individual"
-
-  const sel = {
-    applicationType,
-    niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
-    goodsServices: { dropdown: turn },   // turnaround speed
-    searchType: type,                    // search type passed in
-    priorUse: { used: optionsForm.useType === "yes" },
-    option1: true,
-  } as any
-
-  return computePriceFromRules(pricingRules as any, sel)
-}
-     
-  const computeFilingPrice = (
-  filingType: "provisional_filing" | "complete_specification_filing" | "ps_cs_filing" | "pct_filing",
-  appType: "individual" | "others"
-) => {
-  if (!pricingRules) return 0
-
-  const sel = {
-    applicationType: appType,
-    niceClasses: optionsForm.niceClasses.map((v) => Number(v)).filter((n) => !Number.isNaN(n)),
-    goodsServices: { dropdown: filingType },
-    searchType: optionsForm.searchType || undefined,
-    priorUse: { used: optionsForm.useType === "yes" },
-    option1: true,
-  } as any
-
-  return computePriceFromRules(pricingRules as any, sel)
-}    
-   
-const selectedSearchType = optionsForm.searchType as
-  | "quick"
-  | "without_opinion"
-  | "with_opinion"
-
-const basePriceTurn = computeSearchPrice(selectedSearchType, "standard")
-const diffExpediated = computeSearchPrice(selectedSearchType, "expediated") //- basePriceTurn
-const diffRush = computeSearchPrice(selectedSearchType, "rush") //- basePriceTurn
-
-// Patentability Search specific total (search type + selected or default turnaround)
-const selectedTurn = (optionsForm.goodsServices as "standard" | "expediated" | "rush") || "standard"
-const patentSearchTotal =
-  selectedServiceTitle === "Patentability Search"
-    ? (selectedSearchType ? computeSearchPrice(selectedSearchType as any, optionsForm.goodsServices ? selectedTurn : "standard") : 0)
-    : 0
-
-// Drafting total (specification type + selected/ default turnaround)
-const selectedDraftTurn = (optionsForm.goodsServices as "standard" | "expediated" | "rush") || "standard"
-const draftingTotal =
-  selectedServiceTitle === 'Drafting'
-    ? (optionsForm.searchType
-        ? computeDraftingPrice(optionsForm.searchType as any, optionsForm.goodsServices ? selectedDraftTurn : 'standard')
-        : 0)
-    : 0
-
-// Patent Application Filing total (filing type + applicant type)
-// Previous logic required BOTH applicant type (stored in searchType) and filing type (goodsServices) before showing any total,
-// which left the fee preview empty right after picking an applicant type. We now assume a default provisional filing
-// when the user has chosen applicant type but not yet a filing type so the total populates immediately.
-const effectiveFilingType = (
-  optionsForm.goodsServices && optionsForm.goodsServices !== ''
-    ? optionsForm.goodsServices
-    : 'provisional_filing'
-) as 'provisional_filing' | 'complete_specification_filing' | 'ps_cs_filing' | 'pct_filing'
-
-const filingTotal =
-  selectedServiceTitle === 'Patent Application Filing'
-    ? (optionsForm.searchType
-        ? computeFilingPrice(
-            effectiveFilingType,
-            (optionsForm.searchType === 'individual' ? 'individual' : 'others') as 'individual' | 'others'
-          )
-        : 0)
-    : 0
+  // (Removed legacy per-service pricing helpers now provided via usePricingPreview hook)
 
 
   const handleOptionsFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3676,10 +3398,25 @@ useEffect(() => {
                 addToCartWithOptions={addToCartWithOptions}
                 closeOptionsPanel={closeOptionsPanel}
                 formatINR={formatINR}
-                computeDraftingPrice={computeDraftingPrice as any}
+                computeDraftingPrice={(type: any, turn: any = 'standard') => {
+                  if (!pricingRules || selectedServiceTitle !== 'Drafting') return 0
+                  const applicationType = optionsForm.applicantTypes.includes('Individual / Sole Proprietor')
+                    ? 'individual'
+                    : optionsForm.applicantTypes.includes('Startup / Small Enterprise')
+                    ? 'startup_msme'
+                    : optionsForm.applicantTypes.includes('Others (Company, Partnership, LLP, Trust, etc.)')
+                    ? 'others'
+                    : 'individual'
+                  return draftingPriceHelper({
+                    pricingRules,
+                    applicationType: applicationType as any,
+                    niceClasses: optionsForm.niceClasses.map((v)=>Number(v)).filter((n)=>!Number.isNaN(n)),
+                    priorUse: optionsForm.useType === 'yes',
+                    draftingType: type,
+                    turnaround: turn,
+                  })
+                }}
                 computeTurnaroundTotal={computeTurnaroundTotal as any}
-                computeFilingPrice={computeFilingPrice as any}
-                computePatentSearchPrice={computePatentSearchPrice as any}
                 applicantPrices={applicantPrices}
                 ferPrices={ferPrices as any}
                 previewTotal={preview.total}
@@ -3688,9 +3425,54 @@ useEffect(() => {
                 filingTotal={filingTotal}
                 expediatedDiff={expediatedDiff}
                 rushDiff={rushDiff}
-                basePricePS={basePricePS}
-                DiffWithoutPS={DiffWithoutPS}
-                DiffWithPS={DiffWithPS}
+                patentSearchPrices={(() => {
+                  if (!pricingRules || selectedServiceTitle !== 'Patentability Search') return undefined
+                  const applicationType = optionsForm.applicantTypes.includes('Individual / Sole Proprietor')
+                    ? 'individual'
+                    : optionsForm.applicantTypes.includes('Startup / Small Enterprise')
+                    ? 'startup_msme'
+                    : optionsForm.applicantTypes.includes('Others (Company, Partnership, LLP, Trust, etc.)')
+                    ? 'others'
+                    : 'individual'
+                  const baseArgs = {
+                    pricingRules,
+                    applicationType: applicationType as any,
+                    niceClasses: optionsForm.niceClasses.map((v)=>Number(v)).filter((n)=>!Number.isNaN(n)),
+                    priorUse: optionsForm.useType === 'yes',
+                  }
+                  return {
+                    quick: computePatentabilityPrice({ ...baseArgs, searchType: 'quick', turnaround: 'standard' }),
+                    full_without_opinion: computePatentabilityPrice({ ...baseArgs, searchType: 'full_without_opinion', turnaround: 'standard' }),
+                    full_with_opinion: computePatentabilityPrice({ ...baseArgs, searchType: 'full_with_opinion', turnaround: 'standard' }),
+                  }
+                })()}
+                filingTypePrices={(() => {
+                  if (!pricingRules || selectedServiceTitle !== 'Patent Application Filing') return undefined
+                  if (!(optionsForm.searchType === 'individual' || optionsForm.searchType === 'others')) return undefined
+                  const base = {
+                    pricingRules,
+                    niceClasses: optionsForm.niceClasses.map(v=>Number(v)).filter(n=>!Number.isNaN(n)),
+                    priorUse: optionsForm.useType === 'yes',
+                    searchType: optionsForm.searchType,
+                  }
+                  const appType = optionsForm.searchType === 'individual' ? 'individual' : 'others'
+                  const calc = (filingKey: any) => computePriceFromRules(pricingRules as any, {
+                    applicationType: appType,
+                    niceClasses: base.niceClasses,
+                    goodsServices: { dropdown: filingKey },
+                    searchType: base.searchType,
+                    priorUse: { used: base.priorUse },
+                    option1: true,
+                  } as any) || 0
+                  return {
+                    provisional_filing: calc('provisional_filing'),
+                    complete_specification_filing: calc('complete_specification_filing'),
+                    ps_cs_filing: calc('ps_cs_filing'),
+                    pct_filing: calc('pct_filing'),
+                  }
+                })()}
+                ferTotal={ferTotal}
+                
               />
             )}
             <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>

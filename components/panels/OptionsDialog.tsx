@@ -28,21 +28,24 @@ interface OptionsDialogProps {
   closeOptionsPanel: () => void
   // Pricing / preview values & helpers
   formatINR: (n: number) => string
-  computeDraftingPrice: (type: any, turn?: any) => number
+  computeDraftingPrice?: (type: any, turn?: any) => number
   computeTurnaroundTotal: (turn: any) => number
-  computeFilingPrice: (filingType: any, appType: any) => number
-  computePatentSearchPrice: (type: any, turn?: any) => number
+  computeFilingPrice?: (filingType: any, appType: any) => number
+  computePatentSearchPrice?: (type: any, turn?: any) => number
   applicantPrices: { individual?: number; others?: number }
   ferPrices: Record<string, number | undefined>
   previewTotal: number
   patentSearchTotal: number
   draftingTotal: number
   filingTotal: number
+  ferTotal?: number
   expediatedDiff: number
   rushDiff: number
-  basePricePS: number
-  DiffWithoutPS: number
-  DiffWithPS: number
+  patentSearchPrices?: { quick?: number; full_without_opinion?: number; full_with_opinion?: number }
+  filingTypePrices?: { provisional_filing?: number; complete_specification_filing?: number; ps_cs_filing?: number; pct_filing?: number }
+  basePricePS?: number
+  DiffWithoutPS?: number
+  DiffWithPS?: number
 }
 
 const OptionsDialog: React.FC<OptionsDialogProps> = ({
@@ -69,6 +72,9 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
   basePricePS,
   DiffWithoutPS,
   DiffWithPS,
+  patentSearchPrices,
+  filingTypePrices,
+  ferTotal,
 }) => {
   const disabledAdd = (
     (selectedServiceTitle === 'Patentability Search' && (!optionsForm.searchType || !optionsForm.goodsServices)) ||
@@ -93,9 +99,9 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
                     <SelectValue placeholder="Choose specification" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ps">Provisional Specification (PS) — {formatINR(computeDraftingPrice('ps', 'standard'))}</SelectItem>
-                    <SelectItem value="cs">Complete Specification (CS) — {formatINR(computeDraftingPrice('cs', 'standard'))}</SelectItem>
-                    <SelectItem value="ps_cs">PS-CS — {formatINR(computeDraftingPrice('ps_cs', 'standard'))}</SelectItem>
+                    <SelectItem value="ps">Provisional Specification (PS){computeDraftingPrice ? ` — ${formatINR(computeDraftingPrice('ps','standard'))}` : ''}</SelectItem>
+                    <SelectItem value="cs">Complete Specification (CS){computeDraftingPrice ? ` — ${formatINR(computeDraftingPrice('cs','standard'))}` : ''}</SelectItem>
+                    <SelectItem value="ps_cs">PS-CS{computeDraftingPrice ? ` — ${formatINR(computeDraftingPrice('ps_cs','standard'))}` : ''}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -153,10 +159,10 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
                       <SelectValue placeholder="Choose filing type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="provisional_filing">Provisional Filing (4 days) — {formatINR(computeFilingPrice('provisional_filing', optionsForm.searchType as any))}</SelectItem>
-                      <SelectItem value="complete_specification_filing">Complete Specification Filing (4 days) — {formatINR(computeFilingPrice('complete_specification_filing', optionsForm.searchType as any))}</SelectItem>
-                      <SelectItem value="ps_cs_filing">PS-CS Filing (4 days) — {formatINR(computeFilingPrice('ps_cs_filing', optionsForm.searchType as any))}</SelectItem>
-                      <SelectItem value="pct_filing">PCT Filing — {formatINR(computeFilingPrice('pct_filing', optionsForm.searchType as any))}</SelectItem>
+                      <SelectItem value="provisional_filing">Provisional Filing (4 days){filingTypePrices?.provisional_filing ? ` — ${formatINR(filingTypePrices.provisional_filing)}` : ''}</SelectItem>
+                      <SelectItem value="complete_specification_filing">Complete Specification Filing (4 days){filingTypePrices?.complete_specification_filing ? ` — ${formatINR(filingTypePrices.complete_specification_filing)}` : ''}</SelectItem>
+                      <SelectItem value="ps_cs_filing">PS-CS Filing (4 days){filingTypePrices?.ps_cs_filing ? ` — ${formatINR(filingTypePrices.ps_cs_filing)}` : ''}</SelectItem>
+                      <SelectItem value="pct_filing">PCT Filing{filingTypePrices?.pct_filing ? ` — ${formatINR(filingTypePrices.pct_filing)}` : ''}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -190,9 +196,9 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
                 </Select>
               </div>
               <div className="rounded-md border p-3 bg-gray-50 mt-4">
-                <div className="flex items-center justify-between text-sm mb-1"><span>Professional Fee</span><span>{formatINR(previewTotal)}</span></div>
+                <div className="flex items-center justify-between text-sm mb-1"><span>Professional Fee</span><span>{formatINR((ferTotal && ferTotal > 0) ? ferTotal : previewTotal)}</span></div>
                 <div className="flex items-center justify-between text-sm"><span>Government Fee</span><span>{formatINR(0)}</span></div>
-                <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2"><span>Total</span><span>{formatINR(previewTotal)}</span></div>
+                <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2"><span>Total</span><span>{formatINR((ferTotal && ferTotal > 0) ? ferTotal : previewTotal)}</span></div>
               </div>
             </>
           )}
@@ -215,9 +221,9 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
                 <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm(p => ({ ...p, searchType: v, goodsServices: '' }))}>
                   <SelectTrigger className="mt-1"><SelectValue placeholder="Choose search type" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="quick">Quick Knockout Search — {formatINR(basePricePS)}</SelectItem>
-                    <SelectItem value="full_without_opinion">Full Patentability Search (Without Opinion) — {formatINR(DiffWithoutPS)}</SelectItem>
-                    <SelectItem value="full_with_opinion">Full Patentability Search with Opinion — {formatINR(DiffWithPS)}</SelectItem>
+                    <SelectItem value="quick">Quick Knockout Search {patentSearchPrices?.quick ? `— ${formatINR(patentSearchPrices.quick)}` : ''}</SelectItem>
+                    <SelectItem value="full_without_opinion">Full Patentability Search (Without Opinion) {patentSearchPrices?.full_without_opinion ? `— ${formatINR(patentSearchPrices.full_without_opinion)}` : ''}</SelectItem>
+                    <SelectItem value="full_with_opinion">Full Patentability Search with Opinion {patentSearchPrices?.full_with_opinion ? `— ${formatINR(patentSearchPrices.full_with_opinion)}` : ''}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
