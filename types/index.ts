@@ -89,8 +89,21 @@ export interface AdminOrderRow {
   user_id: string | null
   assigned_to?: string | null
   responsible?: string | null
+  workflow_status?: string | null
+  require_info_message?: string | null
+  require_info_reply?: string | null
   services?: { id: number; name: string } | null
   categories?: { id: number; name: string } | null
   payments?: { id: number; razorpay_payment_id?: string | null; total_amount?: number | null; payment_status?: string | null; payment_date?: string | null; type?: string | null } | null
   user?: { id: string; email: string; first_name?: string | null; last_name?: string | null; company?: string | null } | null
+}
+
+// Order chat messages
+export interface OrderMessage {
+  id: string
+  order_id: number
+  sender_role: 'admin' | 'user'
+  sender_email: string | null
+  message: string
+  created_at: string
 }

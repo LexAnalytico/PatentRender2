@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { OrderChatPopup } from '@/components/OrderChatPopup'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -22,6 +23,7 @@ import { debugLog } from '@/lib/logger'
 export default function AdminDashboardPage() {
 	const router = useRouter()
 	const [orders, setOrders] = useState<AdminOrderRow[]>([])
+	const [chatOrderId, setChatOrderId] = useState<number | null>(null)
 	const [assigningIds, setAssigningIds] = useState<Set<number>>(new Set())
 	const [selectedAssignee, setSelectedAssignee] = useState<Record<number, string>>({})
 	const [loading, setLoading] = useState(false)
@@ -328,7 +330,8 @@ export default function AdminDashboardPage() {
 												<th className="p-2">Category</th>
 												<th className="p-2">Amount</th>
 												<th className="p-2">Payment</th>
-												<th className="p-2">Status</th>
+												<th className="p-2">Payment Status</th>
+												<th className="p-2">Workflow</th>
 												<th className="p-2">Created</th>
 												<th className="p-2">Responsible</th>
 												{isPrimary && <th className="p-2">Forward</th>}
@@ -352,6 +355,48 @@ export default function AdminDashboardPage() {
 														<td className="p-2 font-medium">{o.amount != null ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(o.amount)) : '—'}</td>
 														<td className="p-2 text-xs">{o.payments?.razorpay_payment_id || '—'}</td>
 														<td className="p-2 text-xs">{o.payments?.payment_status || '—'}</td>
+														<td className="p-2 text-xs">
+															{isPrimary ? (
+																<div className="space-y-1">
+																	<div className="flex items-center gap-1">
+																		<select
+																			className="border rounded px-1 py-0.5 text-xs bg-white"
+																			value={(o.workflow_status ? o.workflow_status.replace(/ /g,'_') : 'in_progress')}
+																			onChange={async e => {
+																				const raw = e.target.value
+																				const norm = raw.toLowerCase()
+																				setOrders(prev => prev.map(r => r.id === o.id ? { ...r, workflow_status: norm } : r))
+																				try {
+																					await fetch('/api/admin/orders', {
+																						method: 'PATCH',
+																						headers: { 'Content-Type': 'application/json', 'x-user-email': email || '' },
+																						body: JSON.stringify({ orderIds: [o.id], workflow_status: norm })
+																					})
+																				} catch (err) { console.error('workflow update failed', err) }
+																			}}
+																		>
+																			<option value="in_progress">In Progress</option>
+																			<option value="require_info">Require Info</option>
+																			<option value="completed">Completed</option>
+																		</select>
+																		{(o.workflow_status === 'require_info') && (
+																			<button
+																				title="Open chat"
+																				className="text-blue-600 hover:text-blue-800"
+																				onClick={() => {
+																					setChatOrderId(o.id)
+																				}}
+																			>💬</button>
+																		)}
+																	</div>
+																	{/* Chat replaces inline short message UI */}
+																</div>
+															) : (
+																<span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+																	{(o.workflow_status === 'in_progress' && 'In Progress') || (o.workflow_status === 'require_info' && 'Require Info') || (o.workflow_status === 'completed' && 'Completed') || 'In Progress'}
+																</span>
+															)}
+														</td>
 														<td className="p-2 text-xs whitespace-nowrap">{o.created_at ? new Date(o.created_at).toLocaleString() : '—'}</td>
 														<td className="p-2 text-xs">{o.responsible || o.assigned_to || '—'}</td>
 														{isPrimary && (
@@ -382,6 +427,14 @@ export default function AdminDashboardPage() {
 					</>
 				)}
 			</main>
+{chatOrderId != null && (
+	<OrderChatPopup
+		orderId={chatOrderId}
+		open={chatOrderId != null}
+		onClose={() => setChatOrderId(null)}
+		userEmail={email}
+	/>
+)}
 		</div>
 	)
 }

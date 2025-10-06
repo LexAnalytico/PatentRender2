@@ -2,6 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { OrderChatPopup } from '@/components/OrderChatPopup'
 import { supabase } from '../lib/supabase';
 import { fetchOrdersMerged, invalidateOrdersCache } from '@/lib/orders'
 import { loadRazorpayScript, openRazorpayCheckout } from '@/lib/razorpay'
@@ -80,6 +81,8 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 
 
 export default function LegalIPWebsite() {
+  // Global chat popup state (applies to orders table status -> Require Info)
+  const [chatOrderId, setChatOrderId] = useState<number | null>(null)
 
  function OrdersScreen() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -113,27 +116,6 @@ export default function LegalIPWebsite() {
     setPrefillAvailable(info.available)
     setPrefillApplyFn(() => (info.available ? info.apply : null))
   }, [])
-
-  const FormHeaderWithPrefill = ({ goToOrders, backToServices }: { goToOrders: () => void; backToServices: () => void }) => (
-    <div className="mb-6 flex items-center justify-between">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Forms</h1>
-        <p className="text-gray-600 text-sm">Fill and save your application details</p>
-      </div>
-      <div className="flex gap-2">
-        <Button variant="outline" onClick={goToOrders}>Back to Orders</Button>
-        <Button variant="outline" onClick={backToServices}>Back to Selected Services</Button>
-        <Button
-          variant="outline"
-          onClick={() => { if (prefillAvailable && prefillApplyFn) prefillApplyFn(); }}
-          disabled={!prefillAvailable}
-          className={`${!prefillAvailable ? 'opacity-40 cursor-not-allowed' : ''}`}
-        >
-          Prefill Saved Data
-        </Button>
-      </div>
-    </div>
-  )
   const openFormEmbedded = (o: any) => {
     try {
       console.debug('[openFormEmbedded] incoming order', o)
@@ -354,6 +336,164 @@ const openFirstFormEmbedded = () => {
     bundles.sort((a,b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
     return bundles
   }, [embeddedOrders])
+
+  // --- Status Logic Helpers ---
+  // Heuristic: determine if core (required) form fields are filled, excluding upload or free-text comment style fields
+  const formsCoreComplete = (o: any, debug = false): boolean => {
+    try {
+      const verbose = debug || process.env.NEXT_PUBLIC_DEBUG === '1'
+      // Accept a few shapes: o.formResponses (array of key/value), o.form_values (object), o.forms (array)
+      const uploadsFieldNames = new Set(['upload','uploads','attachments','files','file_upload'])
+      const commentFieldNames = new Set(['comments','comment','notes','additional_instructions','instructions','message'])
+
+      // Direct boolean shortcut (backend may already compute)
+      if (o.form_core_complete === true) { if (verbose) console.debug('[formsCoreComplete] shortcut form_core_complete=true for order', o.id); return true }
+
+      // If backend marks all forms filled but we still want to ignore uploads/comments, treat that as complete
+      if (o.forms_filled === true && o.form_complete === true) { if (verbose) console.debug('[formsCoreComplete] shortcut forms_filled && form_complete for order', o.id); return true }
+
+      // Object style: form_values (key -> value)
+      if (o.form_values && typeof o.form_values === 'object') {
+        const entries = Object.entries(o.form_values as Record<string, any>)
+        if (entries.length === 0) { if (verbose) console.debug('[formsCoreComplete] form_values empty', { id: o.id }); return false }
+        const missing: string[] = []
+        for (const [k,v] of entries) {
+          const key = k.toLowerCase()
+            .replace(/\s+/g,'_')
+          if (uploadsFieldNames.has(key) || commentFieldNames.has(key)) continue
+          if (v === null || v === undefined) return false
+          if (typeof v === 'string' && v.trim() === '') return false
+          if (Array.isArray(v) && v.length === 0) return false
+        }
+        if (verbose) console.debug('[formsCoreComplete] form_values pass', { id: o.id })
+        return true
+      }
+
+      // Array style: formResponses = [{ field, value }]
+      if (Array.isArray(o.formResponses)) {
+        if (o.formResponses.length === 0) { if (verbose) console.debug('[formsCoreComplete] formResponses empty', { id: o.id }); return false }
+        const missing: string[] = []
+        for (const r of o.formResponses) {
+          const keyRaw = (r.field || r.name || r.key || '').toString().toLowerCase().replace(/\s+/g,'_')
+          if (uploadsFieldNames.has(keyRaw) || commentFieldNames.has(keyRaw)) continue
+          const val = r.value ?? r.val ?? r.answer
+          if (val === null || val === undefined || (typeof val === 'string' && val.trim() === '') || (Array.isArray(val) && val.length === 0)) {
+            missing.push(keyRaw)
+          }
+        }
+        if (missing.length === 0) {
+          if (verbose) console.debug('[formsCoreComplete] formResponses pass', { id: o.id })
+          return true
+        } else {
+          if (verbose) console.debug('[formsCoreComplete] formResponses missing required core fields', { id: o.id, missing })
+          return false
+        }
+      }
+
+      // Fallback: treat dedicated flags
+      // Relaxed logic: treat as complete if ANY strong signal present when no structures
+      const filledFlags = [o.form_core_complete, o.forms_filled, o.form_complete].some(v => v === true)
+      // Counter-style detection (various naming patterns): if filled >= 1 and (filled == total OR total > 0 and remaining <= 0)
+      const possibleCounters = [
+        { filled: o.filled_fields, total: o.total_fields },
+        { filled: o.form_filled_count, total: o.form_field_count },
+        { filled: o.completed_fields, total: o.required_fields },
+      ]
+      let countersIndicateComplete = false
+      for (const c of possibleCounters) {
+        const f = Number(c.filled)
+        const t = Number(c.total)
+        if (!Number.isNaN(f) && !Number.isNaN(t) && t > 0 && f >= t) { countersIndicateComplete = true; break }
+        if (!Number.isNaN(f) && f > 0 && (Number.isNaN(t) || t === 0)) { countersIndicateComplete = true; break }
+      }
+      if (filledFlags || countersIndicateComplete) {
+        if (verbose) console.debug('[formsCoreComplete] fallback heuristic complete', { id: o.id, filledFlags, countersIndicateComplete })
+        return true
+      }
+      // Dynamic counter heuristic: scan keys for positive integers that imply user provided some answers
+      // Patterns: *filled*, *answered*, *provided*, *completed*, *entered*
+      let dynamicComplete = false
+      if (!dynamicComplete) {
+        try {
+          const positiveKeys: string[] = []
+          for (const [k,v] of Object.entries(o || {})) {
+            if (typeof v !== 'number') continue
+            if (v <= 0) continue
+            const lk = k.toLowerCase()
+            if (/(filled|answered|provided|completed|entered)/.test(lk)) {
+              positiveKeys.push(`${k}=${v}`)
+            }
+          }
+          if (positiveKeys.length > 0) {
+            dynamicComplete = true
+            if (verbose) console.debug('[formsCoreComplete] dynamic counter completion', { id: o.id, positiveKeys })
+            return true
+          }
+        } catch {}
+      }
+      if (verbose) {
+        const keys = Object.keys(o || {})
+        console.debug('[formsCoreComplete] no structure matched -> incomplete', { id: o.id, keys })
+      }
+      return false
+    } catch {
+      if (process.env.NEXT_PUBLIC_DEBUG === '1') console.debug('[formsCoreComplete] exception treat as incomplete', { id: o?.id })
+      return false
+    }
+  }
+  // Derive status for a single order record. Adjust predicates as real fields become available.
+  const deriveOrderStatus = (o: any): string => {
+    // Full 6-step ladder:
+    // 1. Payment Pending
+    // 2. Details Required
+    // 3. Details Submitted
+    // 4. In Progress (workflow_status = in_progress)
+    // 5. Require Info (workflow_status = require_info) -> higher urgency than In Progress
+    // 6. Completed (workflow_status = completed)
+    // Assigned (responsible) is implicit; we surface workflow stages explicitly now.
+    try {
+      const paymentSucceeded = !!(
+        (o.payments && ((o.payments as any).payment_status === 'paid' || (o.payments as any).status === 'captured')) ||
+        o.payment_status === 'paid'
+      )
+      if (!paymentSucceeded) return 'Payment Pending'
+      const coreDone = formsCoreComplete(o)
+      if (!coreDone) return 'Details Required'
+      // After core completion, check workflow_status for advanced steps
+      const wf = (o.workflow_status || '').toLowerCase()
+      if (wf === 'completed') return 'Completed'
+      if (wf === 'require_info') return 'Require Info'
+      if (wf === 'in_progress') return 'In Progress'
+      // Fallback: no workflow set yet; show Details Submitted
+      return 'Details Submitted'
+    } catch {
+      return 'Payment Pending'
+    }
+  }
+
+  // Aggregate status across all orders in a bundle (parent row)
+  const aggregateBundleStatus = (orders: any[]): string => {
+    if (!orders || orders.length === 0) return '—'
+    const statuses = orders.map(deriveOrderStatus)
+    // Precedence: Payment Pending > Details Required > Require Info > In Progress > Completed > Details Submitted
+    if (statuses.some(s => s === 'Payment Pending')) return 'Payment Pending'
+    if (statuses.some(s => s === 'Details Required')) return 'Details Required'
+    if (statuses.some(s => s === 'Require Info')) return 'Require Info'
+    if (statuses.some(s => s === 'In Progress')) return 'In Progress'
+    // Completed only if ALL are Completed (otherwise mixture falls back to Details Submitted)
+    if (statuses.every(s => s === 'Completed')) return 'Completed'
+    // If some completed but others just submitted, keep at Details Submitted to indicate bundle not wholly done
+    return 'Details Submitted'
+  }
+  // Track which multi-service bundles are expanded
+  const [expandedBundles, setExpandedBundles] = useState<Set<string>>(new Set())
+  const toggleBundle = useCallback((key: string) => {
+    setExpandedBundles(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }, [])
   const [ordersLoadError, setOrdersLoadError] = useState<string | null>(null)
   // Embedded Forms selection state
   const [selectedFormOrderId, setSelectedFormOrderId] = useState<number | null>(null)
@@ -2074,8 +2214,9 @@ useEffect(() => {
      
  
   /// Quote Page Component
- if (showQuotePage) {
-   return (
+if (showQuotePage) {
+  return (
+    <>
     <div className="min-h-screen bg-gray-50">
       {/* Consolidated payment overlays */}
       <CheckoutLayer
@@ -2218,27 +2359,61 @@ useEffect(() => {
             {quoteView !== 'services' && (
               <div className="mb-8 sticky top-16 z-40 bg-white pt-4 pb-3 border-b border-slate-200">
                 <h2 className="text-4xl font-bold tracking-tight text-slate-800 leading-tight select-none">
-                  Dashboard
+                  {quoteView === 'orders'
+                    ? 'Orders'
+                    : quoteView === 'profile'
+                      ? 'Profile'
+                      : quoteView === 'forms'
+                        ? 'Forms'
+                        : 'Dashboard'}
                 </h2>
                 <div className="mt-2 h-[3px] w-24 bg-gradient-to-r from-blue-600 to-blue-400 rounded" />
+                {quoteView === 'orders' && (
+                  <p className="mt-3 text-sm text-gray-600">Your recent service purchases</p>
+                )}
               </div>
             )}
 
             {quoteView === 'orders' && (
-              <>
-                <div className="mb-6 flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-semibold text-gray-900">Orders</h1>
-                    <p className="text-gray-600 text-sm">Your recent service purchases</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={goToServices}>Services</Button>
-                    {/* Quotation button removed per request */}
-                    {/* Legacy disabled Refresh button removed */}
-                  </div>
-                </div>
-                <Card className="bg-white">
-                  <CardContent className="p-4">
+              <Card className="bg-white">
+                <CardContent className="p-4">
+                    {process.env.NEXT_PUBLIC_DEBUG === '1' && embeddedOrders && embeddedOrders.length > 0 && (
+                      <div className="mb-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            try {
+                              console.group('[Orders][Status Debug]')
+                              embeddedOrders.forEach((o: any) => {
+                                try {
+                                  // Force verbose evaluation per order
+                                  const core = formsCoreComplete(o, true)
+                                  const status = deriveOrderStatus(o)
+                                  console.log('Order', o.id, {
+                                    status,
+                                    coreComplete: core,
+                                    payment_status: o.payment_status,
+                                    payments: o.payments,
+                                    nestedPaymentStatus: o.payments?.payment_status,
+                                    nestedStatus: o.payments?.status,
+                                    form_values: o.form_values,
+                                    formResponsesLen: Array.isArray(o.formResponses) ? o.formResponses.length : null,
+                                  })
+                                } catch (inner) {
+                                  console.warn('Order debug failed', o?.id, inner)
+                                }
+                              })
+                              console.groupEnd()
+                            } catch (e) {
+                              console.error('Status debug failed', e)
+                            }
+                          }}
+                          className="text-xs px-2 py-1 border border-slate-300 rounded bg-slate-50 hover:bg-slate-100 text-slate-600"
+                        >
+                          Log Status Debug
+                        </button>
+                      </div>
+                    )}
                     {embeddedOrdersLoading && <div className="p-4 text-sm text-gray-500">Loading orders…</div>}
                     {!embeddedOrdersLoading && ordersLoadError && (
                       <div className="p-4 text-sm text-red-600 flex flex-col gap-2">
@@ -2251,23 +2426,26 @@ useEffect(() => {
                     )}
                     {!embeddedOrdersLoading && !ordersLoadError && embeddedOrders && embeddedOrders.length > 0 && (
                       <div className="overflow-x-auto">
-                        <table className="w-full table-auto border-collapse">
-                          <thead>
-                            <tr className="text-left text-sm text-gray-500">
-                               <th className="p-2">Order ID</th>
-                              <th className="p-2">Category</th>
-                              <th className="p-2">Service</th>
-                              <th className="p-2">Amount</th>
-                              <th className="p-2">Payment Mode</th>
-                              <th className="p-2">Date</th>
-                              <th className="p-2">Forms</th>
-                              <th className="p-2">Download Invoice</th>
+                        <table className="w-full table-auto border border-slate-300 rounded-md overflow-hidden">
+                          <thead className="border-b border-slate-300">
+                            <tr className="text-left text-base text-slate-700 bg-blue-50/70 divide-x divide-slate-300">
+                              <th className="px-3 py-2 font-semibold tracking-wide">Order ID</th>
+                              <th className="px-3 py-2 font-semibold tracking-wide">Category</th>
+                              <th className="px-3 py-2 font-semibold tracking-wide">Service</th>
+                              <th className="px-3 py-2 font-semibold tracking-wide">Amount</th>
+                              <th className="px-3 py-2 font-semibold tracking-wide whitespace-nowrap">Payment Mode</th>
+                              <th className="px-3 py-2 font-semibold tracking-wide">Status</th>
+                              <th className="px-3 py-2 font-semibold tracking-wide">Date</th>
+                              <th className="px-3 py-2 font-semibold tracking-wide">Forms</th>
+                              <th className="px-3 py-2 font-semibold tracking-wide whitespace-nowrap">Download Invoice</th>
                             </tr>
                           </thead>
-                          <tbody>
+                          <tbody className="divide-y divide-slate-300">
                             {groupedOrders.map(bundle => {
                               const hasMultiple = bundle.orders.length > 1
                               const first = bundle.orders[0]
+                              const bundleKey = bundle.paymentKey
+                              const expanded = expandedBundles.has(bundleKey)
                               const handleDownloadBundle = async () => {
                                 try {
                                   const orders = bundle.orders || []
@@ -2351,23 +2529,63 @@ useEffect(() => {
                               return (
                                 <>
                                   
-                                  <tr key={bundle.paymentKey} className="border-t bg-slate-50">
-                                    {/* Razorpay Order ID */}
-                                    <td className="p-2 font-medium">
-                                      {(first?.payments as any)?.razorpay_payment_id || '—'}
+                                  <tr key={bundle.paymentKey} className="bg-slate-50 divide-x divide-slate-300">
+                                    {/* Order ID (internal) */}
+                                    <td className="p-2">
+                                      {first?.id != null ? first.id : '—'}
                                     </td>
-                                    {/* Category */}
-                                    <td className="p-2 font-medium">
-                                      {hasMultiple ? 'Multiple Services' : ((first.categories as any)?.name ?? 'N/A')}
+                                    {/* Category (with expand/collapse control for multi-service bundles) */}
+                                    <td className="p-2">
+                                      {hasMultiple ? (
+                                        <span className="inline-flex items-center">
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleBundle(bundleKey)}
+                                            aria-expanded={expanded}
+                                            className="mr-2 inline-flex items-center justify-center h-6 w-6 rounded border border-slate-300 bg-white text-slate-600 text-xs hover:bg-slate-50"
+                                            title={expanded ? 'Collapse services' : 'Expand services'}
+                                          >
+                                            <span className="leading-none text-[13px]">
+                                              {expanded ? '▾' : '▸'}
+                                            </span>
+                                          </button>
+                                          <span>Multiple Services</span>
+                                        </span>
+                                      ) : (
+                                        (first.categories as any)?.name ?? 'N/A'
+                                      )}
                                     </td>
-                                    {/* Service */}
-                                    <td className="p-2 font-medium">
-                                      {hasMultiple ? `${bundle.orders.length} Services` : ((first.services as any)?.name ?? 'N/A')}
+                                    {/* Service (hide count for multi-service bundles) */}
+                                    <td className="p-2">
+                                      {hasMultiple ? '—' : ((first.services as any)?.name ?? 'N/A')}
                                     </td>
                                     {/* Amount (bundle total) */}
-                                    <td className="p-2 font-semibold">{formatINR(bundle.totalAmount)}</td>
+                                    <td className="p-2">{formatINR(bundle.totalAmount)}</td>
                                     {/* Payment Mode */}
-                                    <td className="p-2 font-medium">{(first?.payments as any)?.payment_method || '—'}</td>
+                                    <td className="p-2">{(first?.payments as any)?.payment_method || '—'}</td>
+                                    {/* Status (aggregate for bundle) with chat trigger on Require Info */}
+                                    <td className="p-2">
+                                      <div className="flex items-center gap-2">
+                                        <span>{aggregateBundleStatus(bundle.orders)}</span>
+                                        {bundle.orders.some((o: any) => (o.workflow_status||'').toLowerCase() === 'require_info') && (
+                                          <button
+                                            type="button"
+                                            className="text-blue-600 hover:text-blue-800 text-sm"
+                                            title="Open chat"
+                                            onClick={() => {
+                                              console.debug('[ChatTrigger] bundle icon clicked', { paymentKey: bundle.paymentKey, orders: bundle.orders.map((o:any)=>({id:o.id,wf:o.workflow_status})) })
+                                              // pick first order with require_info
+                                              const target = bundle.orders.find((o: any) => (o.workflow_status||'').toLowerCase() === 'require_info')
+                                              if (target) {
+                                                try { console.debug('[ChatTrigger] opening chat for order', target.id); setChatOrderId(target.id) } catch {}
+                                              } else {
+                                                console.warn('[ChatTrigger] no require_info order found though icon visible')
+                                              }
+                                            }}
+                                          >💬</button>
+                                        )}
+                                      </div>
+                                    </td>
                                     {/* Date */}
                                     <td className="p-2">{bundle.date ? new Date(bundle.date).toLocaleString() : 'N/A'}</td>
                                     {/* Forms */}
@@ -2392,35 +2610,49 @@ useEffect(() => {
                                   </tr>
 
                              
-                                  {hasMultiple && bundle.orders.map((child: any) => (
-                                    <tr key={child.id} className="border-t">
-                                      {/* Razorpay Order ID (repeat or show em dash) */}
-                                      <td className="p-2 text-sm text-gray-600">
-                                        {(child?.payments as any)?.razorpay_payment_id || '—'}
+                                    {hasMultiple && expanded && bundle.orders.map((child: any, idx: number) => (
+                                    <tr key={child.id} className={"divide-x divide-slate-300 " + (idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}>
+                                      {/* Order ID (child internal) */}
+                                      <td className="p-2 text-gray-600">
+                                        {child?.id != null ? child.id : '—'}
                                       </td>
                                       {/* Category */}
-                                      <td className="p-2 pl-8 text-sm text-gray-600">
+                                      <td className="p-2 pl-8 text-gray-600">
                                         {(child.categories as any)?.name ?? 'N/A'}
                                       </td>
                                       {/* Service */}
-                                      <td className="p-2 text-sm text-gray-700">
+                                      <td className="p-2 text-gray-700">
                                         {(child.services as any)?.name ?? 'N/A'}
                                       </td>
                                       {/* Amount (per order) */}
-                                      <td className="p-2 text-sm">
+                                      <td className="p-2">
                                         {child.amount != null ? formatINR(Number(child.amount)) : '—'}
                                       </td>
                                       {/* Payment Mode (child) */}
-                                      <td className="p-2 text-sm text-gray-600">
+                                      <td className="p-2 text-gray-600">
                                         {(child?.payments as any)?.payment_method || '—'}
                                       </td>
+                                      {/* Status (child order) with chat trigger */}
+                                      <td className="p-2 text-gray-600">
+                                        <div className="flex items-center gap-2">
+                                          <span>{deriveOrderStatus(child)}</span>
+                                          {(child.workflow_status||'').toLowerCase() === 'require_info' && (
+                                            <button
+                                              type="button"
+                                              className="text-blue-600 hover:text-blue-800 text-xs"
+                                              title="Open chat"
+                                              onClick={() => { console.debug('[ChatTrigger] child row icon clicked', child.id); setChatOrderId(child.id) }}
+                                            >💬</button>
+                                          )}
+                                        </div>
+                                      </td>
                                       {/* Date */}
-                                      <td className="p-2 text-sm">
+                                      <td className="p-2">
                                         {child.created_at ? new Date(child.created_at).toLocaleString() : 'N/A'}
                                       </td>
                                       {/* Forms/Invoice placeholders for child rows */}
-                                      <td className="p-2 text-xs text-gray-400 italic">—</td>
-                                      <td className="p-2 text-xs text-gray-300 italic">—</td>
+                                      <td className="p-2 text-gray-400 italic">—</td>
+                                      <td className="p-2 text-gray-300 italic">—</td>
                                     </tr>
                                   ))}
 
@@ -2433,7 +2665,6 @@ useEffect(() => {
                     )}
                   </CardContent>
                 </Card>
-              </>
             )}
             {quoteView === 'forms' && (
               <FormsPanel
@@ -2469,6 +2700,15 @@ useEffect(() => {
         </div>
       </div>
     </div>
+    {chatOrderId != null && (
+      <OrderChatPopup
+        orderId={chatOrderId}
+        open={chatOrderId != null}
+        onClose={() => setChatOrderId(null)}
+        userEmail={user?.email || null}
+      />
+    )}
+    </>
   );
  }
 
