@@ -1029,10 +1029,20 @@ const patentServices = [
   }, [])
 
   const scrollToSection = (sectionId: string) => {
-    const element = document.getElementById(sectionId)
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" })
+    // If user is inside the dashboard (quote view), close it first then scroll after repaint
+    if (showQuotePage) {
+      setShowQuotePage(false)
+      setQuoteView('services')
+      setSelectedFormOrderId(null)
+      setSelectedFormType(null)
+      setTimeout(() => {
+        const el = document.getElementById(sectionId)
+        if (el) el.scrollIntoView({ behavior: 'smooth' })
+      }, 80)
+      return
     }
+    const el = document.getElementById(sectionId)
+    if (el) el.scrollIntoView({ behavior: 'smooth' })
   }
 
   const nextSlide = () => {
@@ -1042,6 +1052,27 @@ const patentServices = [
   const prevSlide = () => {
     setCurrentSlide((prev) => (prev - 1 + bannerSlides.length) % bannerSlides.length)
   }
+
+  // Helper to programmatically return to landing page and reset dashboard state
+  const goHome = useCallback(() => {
+    setShowQuotePage(false)
+    setInitialQuoteView('services')
+    setQuoteView('services')
+    setSelectedFormOrderId(null)
+    setSelectedFormType(null)
+    setIsOpen(false)
+    requestAnimationFrame(() => { try { window.scrollTo({ top: 0, behavior: 'smooth' }) } catch {} })
+  }, [])
+
+  // Ensure direct loads to '/' always start in landing mode (never stuck in dashboard after hard refresh)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.location.pathname === '/') {
+      setShowQuotePage(false)
+      setInitialQuoteView('services')
+      setQuoteView('services')
+    }
+  }, [])
   
   const addToCart = (serviceName: string, category: string) => {
     const price = servicePricing[serviceName as keyof typeof servicePricing] || 0
@@ -1731,15 +1762,25 @@ const handleAuth = async (e: React.FormEvent) => {
     alert("Please enter your email above before resetting password.");
     return;
   }
+  try {
+    // Derive site origin via env (preferred) or window (fallback)
+    let siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : '')).trim();
+    // Remove any trailing slash to avoid double '//' when concatenating path
+    siteUrl = siteUrl.replace(/\/$/, '');
+    const redirectTo = `${siteUrl}/reset-password`;
+    if (process.env.NEXT_PUBLIC_DEBUG === '1') {
+      console.debug('[ForgotPassword] using redirectTo', redirectTo);
+    }
 
-  const { error } = await supabase.auth.resetPasswordForEmail(authForm.email, {
-    redirectTo: " https://patent-render2.vercel.app/reset-password ",
-  });
-
-  if (error) {
-    alert("Error: " + error.message);
-  } else {
-    alert("Password reset email sent! Check your inbox.");
+    const { error } = await supabase.auth.resetPasswordForEmail(authForm.email, { redirectTo });
+    if (error) {
+      alert("Error: " + error.message);
+    } else {
+      alert("Password reset email sent! Check your inbox.");
+    }
+  } catch (e: any) {
+    console.error('[ForgotPassword] unexpected failure', e);
+    alert('Unexpected error initiating password reset.');
   }
 };
  

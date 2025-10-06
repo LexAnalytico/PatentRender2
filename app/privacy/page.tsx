@@ -1,12 +1,34 @@
 "use client"
 
-import { Header } from "@/components/layout/Header"
+import { useState, useMemo } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { UserCircleIcon } from '@heroicons/react/24/outline'
 import { Footer } from "@/components/layout/Footer"
-import { Shield, Eye, Lock, Trash2, Download, Mail, Phone, Calendar, AlertCircle } from 'lucide-react'
+import { Shield, Eye, Lock, Trash2, Download, Mail, Phone, Calendar, AlertCircle, Scale } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { useAuthProfile } from '@/app/useAuthProfile'
 
 export default function PrivacyPolicyPage() {
+  // Auth / admin state (mirrors main landing page logic for consistent header)
+  const {
+    isAuthenticated,
+    displayName,
+    handleGoogleLogin,
+    handleLogout,
+  } = useAuthProfile()
+  const router = useRouter()
+  const [isOpen, setIsOpen] = useState(false)
+  const toggleMenu = () => setIsOpen(o => !o)
+  const adminEmails = useMemo(() => (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean), [])
+  const userEmail = (typeof window !== 'undefined' ? (window as any).supabaseUserEmail : null) || '' // non-blocking placeholder (hook already covers greeting)
+  const isAdmin = !!(userEmail && adminEmails.includes(userEmail.toLowerCase()))
+  const primaryAdminEmail = adminEmails[0]
+  const isPrimaryAdmin = !!(userEmail && userEmail.toLowerCase() === primaryAdminEmail)
   const lastUpdated = "January 15, 2024"
 
   const scrollToSection = (sectionId: string) => {
@@ -18,8 +40,69 @@ export default function PrivacyPolicyPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Header />
+      {/* Simplified header replicated from landing page for consistent navigation */}
+      <header className="bg-white shadow-md p-4 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Scale className="h-8 w-8 text-blue-600" />
+            <span className="text-2xl font-bold text-gray-900">LegalIP Pro</span>
+          </div>
+          <nav className="hidden md:flex items-center space-x-6">
+            <a href="/knowledge-hub" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium">Knowledge Hub</a>
+            <button
+              onClick={() => { if (isAdmin) router.push('/admin') }}
+              disabled={!isAdmin}
+              className={`px-3 py-2 text-sm font-medium rounded-md transition-colors border ${
+                isAdmin
+                  ? 'text-gray-700 hover:text-blue-600 border-transparent hover:border-blue-200'
+                  : 'text-gray-400 cursor-not-allowed border-gray-200 bg-gray-50'
+              }`}
+              title={isAdmin ? (isPrimaryAdmin ? 'Primary Admin: full access' : 'Secondary Admin: limited view') : 'Admins only'}
+              aria-disabled={!isAdmin}
+            >
+              {isPrimaryAdmin ? 'Admin Dashboard' : isAdmin ? 'My Admin View' : 'Admin Dashboard'}
+            </button>
+            {isAuthenticated && displayName && (
+              <span className="text-gray-700 text-sm max-w-[180px] truncate" title={displayName}>
+                Welcome, {displayName}
+              </span>
+            )}
+            <div className="relative">
+              <button onClick={toggleMenu} className="focus:outline-none">
+                <UserCircleIcon className="h-8 w-8 text-gray-700 hover:text-blue-600" />
+              </button>
+              {isOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white shadow-lg rounded-lg py-2 border border-gray-200 z-50">
+                  {isAuthenticated ? (
+                    <>
+                      <button
+                        className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+                        onClick={() => { setIsOpen(false); router.push('/profile') }}
+                      >Profile</button>
+                      <button
+                        className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+                        onClick={() => { setIsOpen(false); handleLogout() }}
+                      >Sign Out</button>
+                    </>
+                  ) : (
+                    <button
+                      className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+                      onClick={() => { setIsOpen(false); handleGoogleLogin() }}
+                    >Sign In with Google</button>
+                  )}
+                </div>
+              )}
+            </div>
+          </nav>
+        </div>
+      </header>
       
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+        <Link href="/" className="text-sm text-blue-600 hover:text-blue-700 underline inline-flex items-center">
+          <span className="mr-1">←</span> Back to Home
+        </Link>
+      </div>
+
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
