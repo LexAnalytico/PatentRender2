@@ -837,7 +837,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                 </Select>
               </div>
               {isOrderLocked && (
-                <span className="text-xs font-medium text-orange-700 bg-orange-50 border border-orange-200 px-2 py-1 rounded">Locked by order</span>
+                <span className="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 px-2 py-1 rounded">Locked by order</span>
               )}
             </div>
             {!selectedType && (
@@ -851,7 +851,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                 <div className={styleTokens.sectionHeaderRow}>
                   <span className={styleTokens.sectionAccent} />
                   <h3 className={styleTokens.sectionTitle}>Basic Information</h3>
-                  <span className="ml-auto text-xs text-gray-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded">{relevantFields.length} fields</span>
+                  <span className="ml-auto text-xs text-gray-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">{relevantFields.length} fields</span>
                 </div>
                 <div className={styleTokens.sectionDivider} />
               </div>
@@ -907,7 +907,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                               {limitMeta.kind === 'chars' && typeof limitMeta.max === 'number' && `${value.length}/${limitMeta.max} ch`}
                               {limitMeta.kind === 'words' && typeof limitMeta.max === 'number' && `${(value.trim()?value.trim().split(/\s+/).length:0)}/${limitMeta.max} w`}
                               {remaining != null && remaining <= 25 && remaining >= 0 && (
-                                <span className="ml-1 text-orange-600">{remaining} left</span>
+                                <span className="ml-1 text-blue-600">{remaining} left</span>
                               )}
                               {remaining != null && remaining < 0 && (
                                 <span className="ml-1 text-red-600">over by {Math.abs(remaining)}</span>
@@ -941,7 +941,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                   size="sm"
                                   disabled={!selectedType || !orderIdEffective}
                                   onClick={() => fileInputRef.current?.click()}
-                                  className="h-8 px-4 bg-orange-600 hover:bg-orange-700 text-white"
+                                  className="h-8 px-4 bg-blue-600 hover:bg-blue-700 text-white"
                                 >Upload</Button>
                                 <Button
                                   type="button"
@@ -949,7 +949,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                   variant="outline"
                                   disabled={!selectedType || !orderIdEffective || loadingAttachments}
                                   onClick={manualReloadAttachments}
-                                  className="h-8 px-3 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
+                                  className="h-8 px-3 text-xs border-blue-200 text-blue-700 hover:bg-blue-50"
                                 >{loadingAttachments ? 'Reloading…' : 'Reload'}</Button>
                                 <span className="text-[11px] text-gray-500">Allowed: PDF, PNG, JPG, SVG up to {(MAX_FILE_BYTES/1024/1024).toFixed(0)}MB</span>
                                 {attachmentContext.userId && (
@@ -982,12 +982,12 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                       <div className="flex justify-between items-start gap-4">
                                         <div className="min-w-0 flex-1">
                                           <div className="text-xs font-semibold text-gray-800 truncate" title={a.name}>{a.name}</div>
-                                          <div className={`text-[11px] mt-0.5 ${a.status === 'done' ? 'text-green-600' : a.status === 'error' ? 'text-red-600' : a.status === 'removing' ? 'text-orange-600' : 'text-gray-500'}`}>{statusLabel}</div>
+                                          <div className={`text-[11px] mt-0.5 ${a.status === 'done' ? 'text-green-600' : a.status === 'error' ? 'text-red-600' : a.status === 'removing' ? 'text-blue-600' : 'text-gray-500'}`}>{statusLabel}</div>
                                           <div className="text-[11px] text-gray-500 mt-0.5">{(a.size/1024).toFixed(1)} KB • {a.type || 'file'}</div>
                                           {a.errorMsg && <div className="text-[10px] text-red-600 mt-1">{a.errorMsg}</div>}
                                           {(a.status === 'uploading' || a.status === 'removing') && (
                                             <div className={styleTokens.progressBarWrap}>
-                                              <div className={`h-full ${a.status === 'removing' ? 'bg-orange-400' : 'bg-orange-500'} animate-pulse`} style={{ width: '70%' }} />
+                                              <div className={`h-full ${a.status === 'removing' ? 'bg-blue-400' : 'bg-blue-500'} animate-pulse`} style={{ width: '70%' }} />
                                             </div>
                                           )}
                                         </div>
@@ -997,7 +997,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                             variant="outline"
                                             onClick={() => handleRemoveAttachment(a.tempId)}
                                             disabled={a.status === 'uploading' || a.status === 'removing'}
-                                            className="h-6 px-2 text-[11px] text-orange-700 border-orange-200 hover:bg-orange-50"
+                                            className="h-6 px-2 text-[11px] text-blue-700 border-blue-200 hover:bg-blue-50"
                                           >Remove</Button>
                                         </div>
                                       </div>
@@ -1020,7 +1020,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                       return { ...prev, [field.field_title]: list }
                                     })
                                   }}
-                                  className="h-8 px-3 text-xs bg-orange-600 hover:bg-orange-700 text-white"
+                                  className="h-8 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
                                 >+ Author</Button>
                                 <p className="text-[10px] text-gray-500 self-center">Add each inventor/applicant separately; they will be saved together.</p>
                               </div>
@@ -1057,7 +1057,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                           return { ...prev, [field.field_title]: list }
                                         })
                                       }}
-                                      className="h-8 px-2 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
+                                      className="h-8 px-2 text-xs border-blue-200 text-blue-700 hover:bg-blue-50"
                                     >Remove</Button>
                                   </div>
                                 ))}

@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { buildInvoiceWithFormsHtml } from '@/lib/quotation'
 import { OrderChatPopup } from '@/components/OrderChatPopup'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -29,6 +30,8 @@ export default function AdminDashboardPage() {
 	const [loading, setLoading] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [email, setEmail] = useState<string | null>(null)
+	// Unread chat tracking: map of orderId -> { count, last_created_at }
+	const [unreadMap, setUnreadMap] = useState<Record<number, { count: number; last_created_at: string | null }>>({})
 
 	// Track whether we've attempted at least one session fetch (for improved messaging)
 	const [sessionFetches, setSessionFetches] = useState(0)
@@ -177,6 +180,35 @@ export default function AdminDashboardPage() {
 			setLoading(false)
 		}
 	}, [email])
+
+	// Fetch chat summaries to compute unread counts (approximate: if last message after last view timestamp -> count=1; else 0)
+	useEffect(() => {
+		(async () => {
+			if (!email) return
+			if (!isAdminEmail(email)) return
+			if (!orders.length) return
+			try {
+				const orderIds = orders.map(o => o.id).join(',')
+				const res = await fetch(`/api/order-messages/summary?orderIds=${orderIds}`, { headers: { 'x-user-email': email } })
+				if (!res.ok) return
+				const json = await res.json()
+				if (!json.summaries) return
+				const next: Record<number, { count: number; last_created_at: string | null }> = {}
+				for (const s of json.summaries as any[]) {
+					const lastView = (typeof window !== 'undefined') ? localStorage.getItem(`order_chat_last_view_${s.order_id}`) : null
+					let count = 0
+					if (!lastView) {
+						// Never viewed: show total messages (capped to 9 for badge clarity)
+						count = Math.min(s.message_count || 0, 9)
+					} else if (s.last_created_at && new Date(s.last_created_at) > new Date(lastView)) {
+						count = 1 // At least one new since last view (we only know there's new activity)
+					}
+					next[s.order_id] = { count, last_created_at: s.last_created_at || null }
+				}
+				setUnreadMap(next)
+			} catch {}
+		})()
+	}, [orders, email])
 
 	const primaryAdmin = ADMIN_EMAILS[0]
 	const otherAdmins = ADMIN_EMAILS.filter(e => e !== primaryAdmin)
@@ -333,6 +365,7 @@ export default function AdminDashboardPage() {
 												<th className="p-2">Payment Status</th>
 												<th className="p-2">Workflow</th>
 												<th className="p-2">Created</th>
+												<th className="p-2">Docs</th>
 												<th className="p-2">Responsible</th>
 												{isPrimary && <th className="p-2">Forward</th>}
 											</tr>
@@ -381,12 +414,12 @@ export default function AdminDashboardPage() {
 																		</select>
 																		{(o.workflow_status === 'require_info') && (
 																			<button
-																				title="Open chat"
-																				className="text-blue-600 hover:text-blue-800"
-																				onClick={() => {
-																					setChatOrderId(o.id)
-																				}}
-																			>💬</button>
+																																	title="Open chat"
+																																	className="text-blue-600 hover:text-blue-800 relative"
+																																	onClick={() => {
+																																		setChatOrderId(o.id)
+																																	}}
+																																>💬{unreadMap[o.id] && unreadMap[o.id].count > 0 && (<span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] leading-none px-1 rounded">{unreadMap[o.id].count}</span>)}</button>
 																		)}
 																	</div>
 																	{/* Chat replaces inline short message UI */}
@@ -398,6 +431,45 @@ export default function AdminDashboardPage() {
 															)}
 														</td>
 														<td className="p-2 text-xs whitespace-nowrap">{o.created_at ? new Date(o.created_at).toLocaleString() : '—'}</td>
+														<td className="p-2 text-xs whitespace-nowrap">
+															<div className="flex items-center gap-1">
+																<Button
+																	variant="outline"
+																	size="sm"
+																	onClick={() => {
+																		try {
+																			const html = `<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Invoice Order #${o.id}</title></head><body><h1 style='font:16px Arial'>Invoice (Single Order)</h1><p>Order ID: ${o.id}</p><p>Service: ${o.services?.name || '—'}</p><p>Category: ${o.categories?.name || '—'}</p><p>Amount: ${o.amount != null ? new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(Number(o.amount)) : '—'}</p><button onclick='window.print()' style='margin-top:16px;'>Print</button></body></html>`
+																			const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); }
+																		} catch (e) { console.error('Single invoice open failed', e) }
+																	}}
+																	title="View printable invoice"
+																>PDF</Button>
+																<Button
+																	variant="outline"
+																	size="sm"
+																	className="ml-1"
+																	onClick={async () => {
+																		try {
+																			// Attempt to fetch form responses for this order (if not already present)
+																			let enriched: any = o
+																			if (!Array.isArray((o as any).formResponses)) {
+																				try {
+																					const res = await fetch(`/api/admin/forms?orderId=${o.id}`, { headers: { 'x-user-email': email || '' }, cache: 'no-store' })
+																					if (res.ok) {
+																						const j = await res.json(); if (Array.isArray(j.formResponses)) {
+																							enriched = { ...(o as any), formResponses: j.formResponses }
+																						}
+																					}
+																				} catch {}
+																			}
+																			const html = buildInvoiceWithFormsHtml({ bundle: { orders: [enriched], totalAmount: Number(o.amount || 0), paymentKey: (o.payments as any)?.razorpay_payment_id || `order-${o.id}` } })
+																			const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); }
+																		} catch (e) { console.error('Invoice+Forms open failed', e) }
+																	}}
+																	title="View printable invoice with form data"
+																>PDF+Forms</Button>
+															</div>
+														</td>
 														<td className="p-2 text-xs">{o.responsible || o.assigned_to || '—'}</td>
 														{isPrimary && (
 															<td className="p-2 text-xs">
@@ -433,6 +505,7 @@ export default function AdminDashboardPage() {
 		open={chatOrderId != null}
 		onClose={() => setChatOrderId(null)}
 		userEmail={email}
+		onViewedLatest={(oid) => setUnreadMap(m => ({ ...m, [oid]: { count: 0, last_created_at: m[oid]?.last_created_at || null } }))}
 	/>
 )}
 		</div>

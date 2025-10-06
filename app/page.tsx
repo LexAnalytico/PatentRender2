@@ -12,7 +12,7 @@ import { computeDraftingPrice as draftingPriceHelper } from '@/utils/pricing/ser
 import { usePricingPreview } from '@/hooks/usePricingPreview'
 import { bannerSlides as staticBannerSlides } from "@/constants/data"
 import { BannerCarousel } from '@/components/sections/BannerCarousel'
-import { buildQuotationHtml as buildQuotationHtmlUtil } from '@/lib/quotation'
+import { buildQuotationHtml as buildQuotationHtmlUtil, buildInvoiceWithFormsHtml } from '@/lib/quotation'
 import AuthModal from "@/components/AuthModal"; // Adjust path
 import { Footer } from "@/components/layout/Footer"
 import { UserCircleIcon } from "@heroicons/react/24/outline";
@@ -2526,6 +2526,16 @@ if (showQuotePage) {
                                   alert('Failed to generate invoice PDF.')
                                 }
                               }
+                              const handleDownloadBundleWithForms = async () => {
+                                try {
+                                  const html = buildInvoiceWithFormsHtml({ bundle, company: { name: 'LegalIP Pro' } })
+                                  const w = window.open('', '_blank')
+                                  if (w) { w.document.write(html); w.document.close(); }
+                                } catch (e) {
+                                  console.error('Invoice+Forms generation failed', e)
+                                  alert('Failed to generate Invoice + Forms document.')
+                                }
+                              }
                               return (
                                 <>
                                   
@@ -2605,6 +2615,9 @@ if (showQuotePage) {
                                     <td className="p-2">
                                       <Button size="sm" variant="outline" onClick={handleDownloadBundle} title="Download invoice PDF">
                                         PDF
+                                      </Button>
+                                      <Button size="sm" variant="outline" onClick={handleDownloadBundleWithForms} title="Download invoice plus associated form responses" className="ml-2">
+                                        PDF + Forms
                                       </Button>
                                     </td>
                                   </tr>

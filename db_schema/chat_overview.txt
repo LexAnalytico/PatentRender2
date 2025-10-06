@@ -1,0 +1,213 @@
+Here’s a concise, end‑to‑end overview of the new order chat feature: how messages flow, which files are involved, and ASCII block diagrams you can drop into your chat_overview doc.
+
+High-Level Purpose
+Enable a threaded, multi‑message conversation between an admin (or secondary admins) and the customer per order, replacing the legacy single require_info_message / reply fields and supporting unread indicators.
+
+Core Data Model (order_messages)
+(Exact table DDL may vary; inferred fields)
+
+id (uuid or serial)
+order_id (fk → orders.id)
+sender_role ('admin' | 'user')
+sender_email (nullable; helpful for audit)
+message (text)
+created_at (timestamptz default now())
+Local client read state:
+
+localStorage key: order_chat_last_view_<orderId> → ISO timestamp of last viewed message (per browser).
+Main Surfaces / Responsibilities
+Concern	Implementation
+Fetch & display thread	OrderChatPopup.tsx (GET /api/order-messages)
+Send message (optimistic)	OrderChatPopup POST /api/order-messages
+Auth (admin vs user)	x-user-email header + admin list in adminConfig.ts
+Aggregate unread/meta	/api/order-messages/summary + admin unreadMap in page.tsx
+Launch chat (Admin)	💬 button in Require Info workflow row (page.tsx)
+Launch chat (User)	Chat triggers in Orders section (page.tsx)
+Unread badge logic	Admin: compare summary.last_created_at vs localStorage last_view
+Logging (gated)	logger.ts (debugLog)
+Types	index.ts (e.g., OrderMessage)
+Future migration	One-time script / SQL to seed legacy single messages into order_messages
+Request / Response Contracts
+GET /api/order-messages?orderId=123
+Headers: x-user-email: <email> (required for admin; provided for user for consistency) Returns:
+
+{ messages: Array<{ id, order_id, sender_role, sender_email, message, created_at }> }
+
+POST /api/order-messages
+Body: { orderId: number, message: string } Headers: same as above. Returns: { message: { ...savedRow } } or { error }
+
+GET /api/order-messages/summary?orderIds=1,2,3
+Returns:
+
+{
+  summaries: [
+    { order_id, message_count, last_created_at }
+  ]
+}
+
+Non-admin callers are auto-filtered to only their own orders.
+
+End-to-End Flows
+1. Viewing a Chat (User or Admin)
+User clicks 💬 (Admin “Require Info” row) OR user dashboard Orders view.
+chatOrderId state set → OrderChatPopup mounts.
+Popup fires GET /api/order-messages?orderId=....
+Server:
+Validates x-user-email.
+Confirms admin OR order ownership.
+Returns messages sorted by created_at.
+Client:
+Renders list.
+Stores most recent created_at into localStorage(order_chat_last_view_<id>).
+Calls optional onViewedLatest (admin page resets badge).
+2. Sending a Message
+User/admin types → clicks Send.
+Popup creates optimistic temp message (id = temp-...).
+POST /api/order-messages.
+Server infers sender_role from admin check; inserts row.
+Server returns canonical row.
+Client replaces temp by real row; updates localStorage last_view.
+3. Computing Unread Badges (Admin)
+After orders load, admin page requests /api/order-messages/summary?orderIds=....
+For each summary:
+Look up localStorage(order_chat_last_view_<id>).
+If none → badge = min(total messages, 9).
+If last_created_at > last_view → badge = 1 (signals new activity).
+Else badge = 0.
+Opening popup & fetching resets unread (last_view updated to latest created_at).
+4. (Planned / Recommended) Legacy Migration
+Process (not yet implemented):
+
+SELECT orders WHERE require_info_message IS NOT NULL AND no existing order_messages rows.
+INSERT a synthesized row:
+sender_role = 'admin'
+message = require_info_message
+created_at = COALESCE(orders.require_info_created_at, NOW())
+Optionally repeat for any require_info_reply as a 'user' message.
+Null out legacy columns or mark migrated.
+
++-----------+        click 💬         +---------------------+
+| User/Admin| ----------------------> | React State (orderId)|
++-----------+                         +----------+----------+
+                                                 |
+                                                 v
+                                      +-------------------------+
+                                      | OrderChatPopup Mounts   |
+                                      +------------+------------+
+                                                   |
+                                      GET /api/order-messages?orderId=123
+                                                   |
+                                                   v
+                           +----------------------------------------------+
+                           | API /api/order-messages (GET)                |
+                           | - Validate x-user-email                      |
+                           | - Check admin OR order ownership             |
+                           | - Select order_messages by order_id          |
+                           +------------------+---------------------------+
+                                              |
+                               JSON { messages:[...] }
+                                              |
+                                              v
+                                      +-------------------------+
+                                      | OrderChatPopup          |
+                                      | - setMessages           |
+                                      | - localStorage lastView |
+                                      | - scroll to bottom      |
+                                      +-------------------------+
+
+                    B. Sending a Message
+
+                    User/Admin types -> presses Send
+        |
+        v
++-------------------------------+
+| OrderChatPopup                |
+| - optimistic temp message     |
++---------------+---------------+
+                |
+   POST /api/order-messages
+                |
+                v
+      +---------------------------+
+      | API (POST)                |
+      | - Validate email/role     |
+      | - Insert row              |
+      | - Return saved message    |
+      +-------------+-------------+
+                    |
+          JSON { message }
+                    |
+                    v
++----------------------------------+
+| OrderChatPopup                  |
+| - replace temp w/ real message  |
+| - update localStorage lastView  |
+| - optional onViewedLatest()     |
++----------------------------------+
+
+C. Unread Badge Calculation (Admin)
+
+After orders loaded
+        |
+        v
+GET /api/order-messages/summary?orderIds=...
+        |
+        v
++------------------------------------------+
+| API summary endpoint                     |
+| - Filter allowed order_ids (non-admin)   |
+| - Aggregate count + max(created_at)      |
++------------------+-----------------------+
+                   |
+     JSON { summaries:[...] }
+                   |
+                   v
++--------------------------------------------+
+| Admin Page                                 |
+| - For each order:                         |
+|   lastView = localStorage[...]            |
+|   if !lastView -> badge = min(count,9)    |
+|   else if last_created_at > lastView -> 1 |
+|   else 0                                  |
+| - Set unreadMap                           |
++--------------------------------------------+
+
+D. State & Storage Relationships
+localStorage
+  └─ order_chat_last_view_<orderId> : ISO timestamp
+
+React State (per page)
+  admin/page.tsx:
+    - orders[]
+    - unreadMap { orderId -> { count, last_created_at } }
+    - chatOrderId
+
+  app/page.tsx (user dashboard):
+    - chatOrderId
+    - embeddedOrders[]
+
+Impacted / Key Files
+File	Role
+route.ts	Core CRUD (GET & POST)
+route.ts	Aggregate counts + last timestamp
+OrderChatPopup.tsx	UI, optimistic send, last view marking
+page.tsx	Admin launcher, unread badge logic
+page.tsx	User dashboard launcher
+adminConfig.ts	Admin email list & helpers
+index.ts	OrderMessage type (and related)
+logger.ts	debugLog gating (some chat-related diagnostics)
+DB schema (order_messages)	Persistent storage for chat thread
+Edge Cases & Notes
+Authorization: Non-admin cannot fetch others’ orders (summary endpoint re-filters).
+Race Conditions: Optimistic temp message removed if POST fails.
+LocalStorage Scope: Unread per browser/device; not yet centralized.
+Badge Heuristic: Uses 1 to signal “new” rather than exact delta; can be improved with per-message diffing or last_read table.
+Migration Pending: Legacy require_info_message still needs backfill step.
+Realtime Not Yet Implemented: Would require Supabase channel subscription or polling.
+Suggested Enhancements (Future)
+Realtime subscription (order_messages:order_id=eq.<id>).
+Central persistent order_message_reads(order_id, user_id, last_read_at).
+Better unread count (messages created_at > last_read_at).
+Admin bulk view: A consolidated “All chats with unread > 0” list.
+Attachment support (e.g., referencing existing uploads table if any).
+

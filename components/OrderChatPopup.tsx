@@ -7,9 +7,10 @@ interface OrderChatPopupProps {
   open: boolean
   onClose: () => void
   userEmail?: string | null
+  onViewedLatest?: (orderId: number, lastMessageAt: string | null) => void
 }
 
-export const OrderChatPopup: React.FC<OrderChatPopupProps> = ({ orderId, open, onClose, userEmail }) => {
+export const OrderChatPopup: React.FC<OrderChatPopupProps> = ({ orderId, open, onClose, userEmail, onViewedLatest }) => {
   const [messages, setMessages] = useState<OrderMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -28,6 +29,13 @@ export const OrderChatPopup: React.FC<OrderChatPopupProps> = ({ orderId, open, o
         const json = await res.json()
         if (!abort && json.messages) {
           setMessages(json.messages)
+          try {
+            const last = json.messages.length ? json.messages[json.messages.length - 1].created_at : null
+            if (last) {
+              localStorage.setItem(`order_chat_last_view_${orderId}`, last)
+              onViewedLatest && onViewedLatest(orderId, last)
+            }
+          } catch {}
         }
       } catch (e) {
         console.error('fetch messages failed', e)
@@ -64,6 +72,10 @@ export const OrderChatPopup: React.FC<OrderChatPopupProps> = ({ orderId, open, o
       const json = await res.json()
       if (json.message) {
         setMessages(m => m.map(msg => msg.id === optimistic.id ? json.message : msg))
+        try {
+          localStorage.setItem(`order_chat_last_view_${orderId}`, json.message.created_at)
+          onViewedLatest && onViewedLatest(orderId, json.message.created_at)
+        } catch {}
       } else if (json.error) {
         // revert optimistic
         setMessages(m => m.filter(msg => msg.id !== optimistic.id))
