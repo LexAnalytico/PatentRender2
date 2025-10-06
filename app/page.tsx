@@ -2192,7 +2192,7 @@ useEffect(() => {
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={goToServices}>Services</Button>
-                    <Button variant="outline" onClick={previewQuotationInline} disabled={cartItems.length === 0 && checkoutOrders.length === 0}>Quotation</Button>
+                    {/* Quotation button removed per request */}
                     {/* Legacy disabled Refresh button removed */}
                   </div>
                 </div>
