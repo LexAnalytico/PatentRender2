@@ -1733,7 +1733,7 @@ const handleAuth = async (e: React.FormEvent) => {
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(authForm.email, {
-    redirectTo: "http://localhost:3000/reset-password",
+    redirectTo: " https://patent-render2.vercel.app/reset-password ",
   });
 
   if (error) {
