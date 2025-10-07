@@ -1021,17 +1021,17 @@ const patentServices = [
     },
     {
       title: "Drafting",
-      description: "Professional patent application preparation and filing",
+      description: "Patent drafting involves creating a detailed and legally sound document that fully describes your invention to secure the broadest possible protection. It includes crafting precise claims, technical specifications, and drawings that meet global patent office standards. Our experts ensure clarity, accuracy, and strategic positioning to strengthen your IP rights and support future commercialization. We draft with precision to safeguard innovation and enhance enforceability.",
       icon: <Shield className="h-8 w-8 text-blue-600" />,
     },
     {
       title: "Patent Application Filing",
-      description: "Strategic management of your patent portfolio",
+      description: "Patent application filing is the formal submission of your drafted patent to the respective patent office for examination and protection. It requires compliance with procedural, legal, and technical standards specific to each jurisdiction. Our team manages complete filing logistics, documentation, and formality checks while ensuring deadlines and requirements are met, streamlining your path to patent grant and global protection.",
       icon: <Award className="h-8 w-8 text-blue-600" />,
     },
     {
       title: "First Examination Response",
-      description: "desctiption tbd",
+      description: "A first examination response addresses the patent examiner's objections or rejections raised during examination. It involves detailed technical and legal reasoning to clarify, amend, or defend claims. Our professionals prepare strong, well-reasoned responses that align with patent laws and protect your invention's scope. We aim to resolve objections effectively and move your application toward successful grant.",
       icon: <Award className="h-8 w-8 text-blue-600" />,
     },  
   ]
