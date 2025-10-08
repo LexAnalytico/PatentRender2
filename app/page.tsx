@@ -303,6 +303,9 @@ const openFirstFormEmbedded = () => {
   // Quotation preview modal state (inline PDF/HTML view)
   const [showQuotePreview, setShowQuotePreview] = useState(false)
   const [quotePreviewUrl, setQuotePreviewUrl] = useState<string | null>(null)
+  // Inline Invoice (Invoice + Forms) preview state (replaces external window to avoid focus issues)
+  const [invoicePreviewUrl, setInvoicePreviewUrl] = useState<string | null>(null)
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false)
   const [embeddedMultiForms, setEmbeddedMultiForms] = useState<{id:number,type:string}[] | null>(null)
   // Cross-form snapshot to enable prefill across multiple forms (Option A implementation)
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<{ type: string; orderId: number | null; values: Record<string,string> } | null>(null)
@@ -906,6 +909,62 @@ if (quoteView === "orders") {
       }
     })()
   }, [quoteView, supabase])
+
+  // Auto-refresh profile when window regains focus after external tab (e.g., invoice) if profile was empty or still loading too long
+  useEffect(() => {
+    if (quoteView !== 'profile') return
+    const handleFocusProfile = () => {
+      if (quoteView === 'profile') {
+        // If no profile loaded or previous load flagged error/empty, attempt refresh
+        if (!embeddedProfile && !embeddedProfileLoading) {
+          debugLog('[Profile][focus-refresh] triggering refresh (missing profile)')
+          refreshEmbeddedProfile()
+        }
+      }
+    }
+    window.addEventListener('focus', handleFocusProfile)
+    return () => window.removeEventListener('focus', handleFocusProfile)
+  }, [quoteView, embeddedProfile, embeddedProfileLoading, refreshEmbeddedProfile])
+
+  // Single delayed retry if profile stays null for 1.2s after entering profile view
+  useEffect(() => {
+    if (quoteView !== 'profile') return
+    if (embeddedProfile || embeddedProfileLoading) return
+    const t = setTimeout(() => {
+      if (quoteView === 'profile' && !embeddedProfile && !embeddedProfileLoading) {
+        debugLog('[Profile][delayed-retry] attempting one retry load')
+        refreshEmbeddedProfile()
+      }
+    }, 1200)
+    return () => clearTimeout(t)
+  }, [quoteView, embeddedProfile, embeddedProfileLoading, refreshEmbeddedProfile])
+
+  // Universal focus/visibility refresher for Orders & Profile reliability
+  useEffect(() => {
+    if (!showQuotePage) return
+    const handleVisOrFocus = () => {
+      // Orders: if current view is orders and list is empty (no error & not loading) schedule a reload bump
+      if (quoteView === 'orders') {
+        const noData = !embeddedOrders || embeddedOrders.length === 0
+        if (noData && !embeddedOrdersLoading && !ordersLoadError) {
+          debugLog('[UniversalRefresh][orders] bump reload key (empty on focus)')
+          setOrdersReloadKey(k => k + 1)
+        }
+      } else if (quoteView === 'profile') {
+        // Profile: if missing (not loading) trigger refresh
+        if (!embeddedProfile && !embeddedProfileLoading) {
+          debugLog('[UniversalRefresh][profile] refresh embedded profile (missing)')
+          refreshEmbeddedProfile()
+        }
+      }
+    }
+    window.addEventListener('focus', handleVisOrFocus)
+    document.addEventListener('visibilitychange', handleVisOrFocus)
+    return () => {
+      window.removeEventListener('focus', handleVisOrFocus)
+      document.removeEventListener('visibilitychange', handleVisOrFocus)
+    }
+  }, [showQuotePage, quoteView, embeddedOrders, embeddedOrdersLoading, ordersLoadError, embeddedProfile, embeddedProfileLoading, refreshEmbeddedProfile])
 
   const saveEmbeddedProfile = async () => {
     if (!embeddedProfile) return
@@ -1943,6 +2002,13 @@ const MAX_FOCUS_GUARD_DURATION_MS = 5 * 60 * 1000 // safety auto-stop after 5 mi
 const BLUR_GRACE_MS = 1800 // was 600ms – allow brief focus shifts (e.g. Razorpay internal iframe focus)
 const VISIBILITY_GRACE_MS = 1200 // was 400ms – tolerate transient visibility changes
 
+// --- External Window / Invoice Open Suppression ---
+// When generating invoices we open a new tab (window.open) which triggers a blur/visibility change.
+// That was being interpreted as a potential focus violation causing downstream UI glitches when returning.
+// We temporarily suppress focus guard reactions for a short window after opening.
+const suppressFocusGuardRef = useRef(false)
+const lastExternalOpenRef = useRef<number | null>(null)
+
 // Classify which violations are truly high‑risk (we sign the user out) vs low‑risk (warn first)
 const isHighRiskViolation = (reason: string) => {
   return reason === 'before-unload' || reason.startsWith('meta-')
@@ -2001,6 +2067,13 @@ const interruptPayment = useCallback(async (reason: string) => {
 
 const handleFocusViolation = useCallback(async (reason: string) => {
   if (!focusGuardActive) return
+  // If we recently opened an external invoice window, ignore benign blur/visibility events
+  if (suppressFocusGuardRef.current) {
+    if (['window-blur','visibility-hidden','meta-ctrl-key'].includes(reason)) {
+      debugLog('[FocusGuard] suppression active, ignoring', { reason })
+      return
+    }
+  }
   // Update violation state
   setFocusViolationReason(reason)
   setFocusViolationCount(c => c + 1)
@@ -2211,6 +2284,11 @@ useEffect(() => {
   useEffect(() => {
     return () => { if (quotePreviewUrl) { try { URL.revokeObjectURL(quotePreviewUrl) } catch {} } }
   }, [quotePreviewUrl])
+
+  // Revoke invoice preview URL on unmount or when replaced
+  useEffect(() => {
+    return () => { if (invoicePreviewUrl) { try { URL.revokeObjectURL(invoicePreviewUrl) } catch {} } }
+  }, [invoicePreviewUrl])
      
  
   /// Quote Page Component
@@ -2529,8 +2607,14 @@ if (showQuotePage) {
                               const handleDownloadBundleWithForms = async () => {
                                 try {
                                   const html = buildInvoiceWithFormsHtml({ bundle, company: { name: 'LegalIP Pro' } })
-                                  const w = window.open('', '_blank')
-                                  if (w) { w.document.write(html); w.document.close(); }
+                                  // Build blob & create object URL for inline iframe preview
+                                  const blob = new Blob([html], { type: 'text/html' })
+                                  const url = URL.createObjectURL(blob)
+                                  if (invoicePreviewUrl) {
+                                    try { URL.revokeObjectURL(invoicePreviewUrl) } catch {}
+                                  }
+                                  setInvoicePreviewUrl(url)
+                                  setShowInvoicePreview(true)
                                 } catch (e) {
                                   console.error('Invoice+Forms generation failed', e)
                                   alert('Failed to generate Invoice + Forms document.')
@@ -2613,10 +2697,7 @@ if (showQuotePage) {
                                     </td>
                                     {/* Invoice */}
                                     <td className="p-2">
-                                      <Button size="sm" variant="outline" onClick={handleDownloadBundle} title="Download invoice PDF">
-                                        PDF
-                                      </Button>
-                                      <Button size="sm" variant="outline" onClick={handleDownloadBundleWithForms} title="Download invoice plus associated form responses" className="ml-2">
+                                      <Button size="sm" variant="outline" onClick={handleDownloadBundleWithForms} title="Download invoice plus associated form responses">
                                         PDF + Forms
                                       </Button>
                                     </td>
@@ -2720,6 +2801,42 @@ if (showQuotePage) {
         onClose={() => setChatOrderId(null)}
         userEmail={user?.email || null}
       />
+    )}
+    {showInvoicePreview && invoicePreviewUrl && (
+      <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex flex-col">
+        <div className="flex items-center justify-between px-4 py-2 bg-white border-b shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-700">Invoice + Forms Preview</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                try {
+                  const iframe = document.getElementById('invoice-preview-iframe') as HTMLIFrameElement | null
+                  iframe?.contentWindow?.print()
+                } catch {}
+              }}
+              className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >Print / Save PDF</button>
+            <button
+              onClick={() => {
+                setShowInvoicePreview(false)
+                // Post-close: gentle orders refresh if user is on orders and list empty/stale
+                if (quoteView === 'orders' && (!embeddedOrders || embeddedOrders.length === 0) && !embeddedOrdersLoading) {
+                  setOrdersReloadKey(k => k + 1)
+                }
+              }}
+              className="text-xs px-3 py-1 bg-slate-200 rounded hover:bg-slate-300"
+            >Close</button>
+          </div>
+        </div>
+        <div className="flex-1 bg-slate-100 overflow-hidden p-2">
+          <iframe
+            id="invoice-preview-iframe"
+            src={invoicePreviewUrl}
+            title="Invoice Preview"
+            className="w-full h-full bg-white border shadow-inner rounded"
+          />
+        </div>
+      </div>
     )}
     </>
   );

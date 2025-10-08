@@ -17,6 +17,34 @@ import pricingToForm from '../data/service-pricing-to-form.json'
 import formCharLimits from '../data/form-char-limits.json'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
+// Attachment category prefixes (lightweight logical segregation)
+const ATTACH_PREFIX_DISCLOSURE = '[DISCLOSURE]'
+const ATTACH_PREFIX_DRAWING = '[DRAWING]'
+const ATTACH_PREFIX_SPEC = '[SPEC]'
+const ATTACH_PREFIX_CLAIMS = '[CLAIMS]'
+const ATTACH_PREFIX_ABSTRACT = '[ABSTRACT]'
+
+type AttachmentCategory = 'disclosure' | 'drawing' | 'spec' | 'claims' | 'abstract'
+
+function inferAttachmentCategoryFromField(title: string): AttachmentCategory | null {
+  const t = title.trim().toLowerCase()
+  if (/^drawings\s*\/\s*figures$/.test(t)) return 'drawing'
+  if (/^specification\s+document$/.test(t)) return 'spec'
+  if (/^claims$/.test(t)) return 'claims'
+  if (/^abstract$/.test(t)) return 'abstract'
+  if (/(^|\b)disclosure(\b|$)/.test(t) || /invention\s+disclosure/.test(t)) return 'disclosure'
+  return null
+}
+function prefixForCategory(cat: AttachmentCategory): string {
+  switch (cat) {
+    case 'disclosure': return ATTACH_PREFIX_DISCLOSURE
+    case 'drawing': return ATTACH_PREFIX_DRAWING
+    case 'spec': return ATTACH_PREFIX_SPEC
+    case 'claims': return ATTACH_PREFIX_CLAIMS
+    case 'abstract': return ATTACH_PREFIX_ABSTRACT
+  }
+}
+function stripAttachmentPrefix(name: string): string { return name.replace(/^\[(DISCLOSURE|DRAWING|SPEC|CLAIMS|ABSTRACT)\]\s*/i, '') }
 
 
 const getPricingToForm = (k?: string | null) => {
@@ -78,6 +106,9 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
 
   const [selectedType, setSelectedType] = useState<string>("")
   const [formValues, setFormValues] = useState<Record<string, string>>({})
+  // Read-only mode: default true; user must click Edit to modify
+  const [readOnly, setReadOnly] = useState(true)
+  const lastSavedRef = useRef<Record<string,string>>({})
   // popup replaced by external button; keep candidate internally
   const [prefillOpen, setPrefillOpen] = useState(false) // deprecated (kept to avoid refactor ripple)
   const [prefillCandidate, setPrefillCandidate] = useState<Record<string, string> | null>(null)
@@ -85,6 +116,31 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   const [saveStartedAt, setSaveStartedAt] = useState<number | null>(null)
   const [saveStall, setSaveStall] = useState(false)
   const [saveSuccessTs, setSaveSuccessTs] = useState<number | null>(null)
+  const [savedBannerState, setSavedBannerState] = useState<'hidden' | 'visible' | 'fading'>('hidden')
+  const RECENT_SAVE_MS = 4000
+  // User-adjustable form text styling
+  const [formFontSize, setFormFontSize] = useState<number>(12)
+  const [formFontBold, setFormFontBold] = useState<boolean>(false)
+
+  // Load persisted preferences
+  useEffect(() => {
+    try {
+      const fs = localStorage.getItem('form_font_size')
+      const fb = localStorage.getItem('form_font_bold')
+      if (fs) {
+        const n = Number(fs)
+        if (!Number.isNaN(n) && n >= 8 && n <= 20) setFormFontSize(n)
+      }
+      if (fb === '1') setFormFontBold(true)
+    } catch {}
+  }, [])
+  // Persist changes
+  useEffect(() => {
+    try { localStorage.setItem('form_font_size', String(formFontSize)) } catch {}
+  }, [formFontSize])
+  useEffect(() => {
+    try { localStorage.setItem('form_font_bold', formFontBold ? '1' : '0') } catch {}
+  }, [formFontBold])
   const [lastSaveDebug, setLastSaveDebug] = useState<null | { started: number; ended?: number; error?: string; payload?: any }>(null)
   const [lastLoadMeta, setLastLoadMeta] = useState<null | { phase: string; orderId: number | null; type: string; foundExact: boolean; fallbackUsed: boolean; ts: number }>(null)
   const [manualReloadTick, setManualReloadTick] = useState(0)
@@ -106,7 +162,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   const [attachmentsError, setAttachmentsError] = useState<string | null>(null)
   const [attachmentsDebugInfo, setAttachmentsDebugInfo] = useState<string | null>(null)
   const [attachmentContext, setAttachmentContext] = useState<{ userId?: string | null }>({})
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  // Removed single shared file input; we'll create ephemeral inputs per category to ensure correct prefix tagging
   // Multi-author (Applicant Name) handling: store as newline-separated string in formValues
   const [multiAuthors, setMultiAuthors] = useState<Record<string, string[]>>({})
   const initializedAuthorsRef = useRef<Set<string>>(new Set())
@@ -258,12 +314,15 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   }
 
   const handleInputChange = (fieldTitle: string, value: string) => {
+    if (readOnly) return
     const limited = enforceLimit(fieldTitle, value)
     setFormValues((prev) => ({
       ...prev,
       [fieldTitle]: limited,
     }))
   }
+  const beginEdit = () => { setReadOnly(false) }
+  const revertToLastSaved = () => { setFormValues(lastSavedRef.current || {}); setReadOnly(true) }
 
   const handleSave = () => {
     if (!selectedType) {
@@ -278,7 +337,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     const relevantFields = getRelevantFields(selectedType)
     const filledFields = relevantFields.filter((field) => formValues[field.field_title]?.trim())
 
-    let timeoutId: any
+  let timeoutId: any
+  let finished = false
     ;(async () => {
       try {
         setSaving(true)
@@ -293,7 +353,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
             setLastSaveDebug(prev => prev ? { ...prev, error: prev.error || `Stalled after ${elapsed}ms (possible network/RLS hang)` } : prev)
           }
         }, 15000)
-        let finished = false
+  // finished flag now declared in outer scope for finally block
         const { data: sessionRes } = await supabase.auth.getSession()
         const userId = sessionRes?.session?.user?.id || null
         if (!userId) throw new Error('Not signed in')
@@ -319,6 +379,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         })
         try { onSaveLocal?.({ type: selectedType, orderId, values: formValues }) } catch {}
         setSaveSuccessTs(Date.now())
+  setSavedBannerState('visible')
         setLastSaveDebug(prev => prev ? { ...prev, ended: Date.now(), payload: { ...prev.payload, saved: true, filled: filledFields.length, total: relevantFields.length } } : prev)
       } catch (e: any) {
         console.error('Save error', e)
@@ -331,16 +392,18 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         setSaveStall(false)
         if (saveStartedAt) setSaveStartedAt(null)
         try { clearTimeout(timeoutId) } catch {}
+        if (finished) {
+          lastSavedRef.current = { ...formValues }
+          setReadOnly(true)
+        }
       }
     })()
   }
 
   const handleCancel = () => {
-    setFormValues({})
-    toast.toast?.({
-      title: "Form Cleared",
-      description: "All form data has been cleared.",
-    })
+    // If we're already in read-only mode, treat Cancel as a no-op (could later add toast)
+    if (readOnly) return
+    revertToLastSaved()
   }
 
   // Load form values when type or effective order changes
@@ -394,6 +457,40 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
             if (active) setLastLoadMeta({ phase: 'load', orderId, type: selectedType, foundExact: false, fallbackUsed: true, ts: Date.now() })
           } else {
             if (active) { if (!hadValuesRef.current) setFormValues({}); setLastLoadMeta({ phase: 'load', orderId, type: selectedType, foundExact: false, fallbackUsed: false, ts: Date.now() }) }
+
+        // Snapshot initializer: when in readOnly and we get non-empty values for first time
+        useEffect(() => {
+          if (readOnly) {
+            // Only update if snapshot empty (avoid overwriting after edits start)
+            if (lastSavedRef.current && Object.keys(lastSavedRef.current).length === 0 && Object.keys(formValues).length > 0) {
+              lastSavedRef.current = { ...formValues }
+            }
+          }
+        }, [formValues, readOnly])
+
+        // Manage transient "Data saved" banner fade lifecycle
+        useEffect(() => {
+          if (!saveSuccessTs || !readOnly) return
+          const age = Date.now() - saveSuccessTs
+          if (age > RECENT_SAVE_MS) { setSavedBannerState('hidden'); return }
+          setSavedBannerState('visible')
+          const fadeTimer = setTimeout(() => setSavedBannerState('fading'), 1600)
+          const hideTimer = setTimeout(() => setSavedBannerState('hidden'), 2400)
+          return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer) }
+        }, [saveSuccessTs, readOnly])
+
+        // Hide banner immediately when entering edit mode
+        useEffect(() => {
+          if (!readOnly) setSavedBannerState('hidden')
+        }, [readOnly])
+
+        // On mount, hide stale banner if previous session left a timestamp
+        useEffect(() => {
+          if (saveSuccessTs && Date.now() - saveSuccessTs > RECENT_SAVE_MS) {
+            setSavedBannerState('hidden')
+          }
+          // eslint-disable-next-line react-hooks/exhaustive-deps
+        }, [])
           }
         } else {
           if (active) { if (!hadValuesRef.current) setFormValues({}); setLastLoadMeta({ phase: 'load', orderId, type: selectedType, foundExact: false, fallbackUsed: false, ts: Date.now() }) }
@@ -549,7 +646,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     }
   }
 
-  const handleFilesSelected = async (files: FileList | null) => {
+  const handleFilesSelected = async (files: FileList | null, category: AttachmentCategory | null) => {
     if (!files || files.length === 0) return
     const { data: sessionRes } = await supabase.auth.getSession()
     const userId = sessionRes?.session?.user?.id || null
@@ -560,9 +657,11 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     const debugPush = (e: any) => { try { (window as any).__ATTACH_DEBUG__.events.push({ ts: Date.now(), ...e }) } catch {} }
     for (const file of fileArray) {
       const tempId = crypto.randomUUID()
+  const appliedPrefix = category ? prefixForCategory(category) + ' ' : ''
+      const storedName = appliedPrefix + file.name
       const attachObj = {
         tempId,
-        name: file.name,
+        name: storedName,
         size: file.size,
         type: file.type || '',
         status: 'uploading' as const,
@@ -572,7 +671,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
       // validations
       if (file.size > MAX_FILE_BYTES) {
         setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'error', errorMsg: 'File too large' } : a))
-        debugPush({ phase: 'validate', file: file.name, reason: 'too_large', size: file.size })
+        debugPush({ phase: 'validate', file: storedName, reason: 'too_large', size: file.size })
         continue
       }
       // MIME fallback by extension if missing/empty
@@ -586,14 +685,14 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
       }
       if (ALLOWED_MIME.length && !ALLOWED_MIME.includes(effectiveType)) {
         setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'error', errorMsg: 'Unsupported type' } : a))
-        debugPush({ phase: 'validate', file: file.name, reason: 'unsupported_type', provided: file.type, effectiveType })
+        debugPush({ phase: 'validate', file: storedName, reason: 'unsupported_type', provided: file.type, effectiveType })
         continue
       }
       try {
         // Upload to storage
-        debugPush({ phase: 'upload:start', file: file.name, size: file.size, type: effectiveType })
+        debugPush({ phase: 'upload:start', file: storedName, size: file.size, type: effectiveType })
         const { path } = await uploadFigure(userId, orderIdEffective, file)
-        debugPush({ phase: 'upload:success', file: file.name, path })
+        debugPush({ phase: 'upload:success', file: storedName, path })
         // Insert metadata row
         // Best-effort SHA-256 (may not be supported in older browsers)
         let sha256: string | null = null
@@ -608,7 +707,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
             user_id: userId,
             order_id: orderIdEffective,
             form_type: selectedType,
-            filename: file.name,
+            filename: storedName,
             storage_path: path,
             mime_type: effectiveType,
             size_bytes: file.size,
@@ -619,13 +718,13 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           .select('id')
           .maybeSingle()
         if (insErr) throw insErr
-        debugPush({ phase: 'insert:success', file: file.name, id: ins?.id })
+        debugPush({ phase: 'insert:success', file: storedName, id: ins?.id })
         setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, id: ins?.id, status: 'done', progress: 100, storage_path: path } : a))
-        try { toast.toast?.({ title: 'Attachment uploaded', description: file.name }) } catch {}
+        try { toast.toast?.({ title: 'Attachment uploaded', description: stripAttachmentPrefix(storedName) }) } catch {}
       } catch (e: any) {
         setAttachments(prev => prev.map(a => a.tempId === tempId ? { ...a, status: 'error', errorMsg: e?.message || 'Upload failed' } : a))
-        debugPush({ phase: 'error', file: file.name, message: e?.message || String(e) })
-        try { toast.toast?.({ title: 'Upload failed', description: e?.message || 'Unknown error', variant: 'destructive' }) } catch {}
+        debugPush({ phase: 'error', file: storedName, message: e?.message || String(e) })
+        try { toast.toast?.({ title: 'Upload failed', description: stripAttachmentPrefix(storedName) + ': ' + (e?.message || 'Unknown error'), variant: 'destructive' }) } catch {}
       }
     }
     debugPush({ phase: 'batch:complete' })
@@ -861,6 +960,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                     const lower = field.field_title.toLowerCase()
                     const isLong = /(description|comment|instruction|statement|summary|problem|solution|features|abstract|claims|specification)/.test(lower)
                     const isDrawingsField = /^drawings\s*\/\s*figures$/i.test(field.field_title.trim())
+                    const category = inferAttachmentCategoryFromField(field.field_title)
                     const isApplicantField = /^(inventor\s*\/\s*)?applicant.*name\(s\)|^(inventor|applicant).*name(s)?$/.test(field.field_title.trim().toLowerCase())
                     const forceFullWidth = [
                       'technical field',
@@ -918,29 +1018,31 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                         <div>
                           { (isDrawingsField || (limitMeta && limitMeta.kind === 'upload')) ? (
                             <div className="space-y-3">
-                              <input
-                                ref={fileInputRef}
-                                type="file"
-                                hidden
-                                multiple
-                                accept={ALLOWED_MIME.join(',')}
-                                disabled={!selectedType || !orderIdEffective}
-                                onChange={(e) => {
-                                  const fl = e.target.files
-                                  if (!fl || fl.length === 0) return
-                                  const clone = Array.from(fl)
-                                  const dt = new DataTransfer()
-                                  clone.forEach(f => dt.items.add(f))
-                                  handleFilesSelected(dt.files)
-                                  e.target.value = ''
-                                }}
-                              />
+                              {/* Ephemeral file input created on demand (per category) */}
                               <div className="flex flex-wrap items-center gap-2">
                                 <Button
                                   type="button"
                                   size="sm"
                                   disabled={!selectedType || !orderIdEffective}
-                                  onClick={() => fileInputRef.current?.click()}
+                                  onClick={() => {
+                                    if (!selectedType || !orderIdEffective) return
+                                    const input = document.createElement('input')
+                                    input.type = 'file'
+                                    input.multiple = true
+                                    input.accept = ALLOWED_MIME.join(',')
+                                    input.style.display = 'none'
+                                    input.onchange = (e: any) => {
+                                      try {
+                                        const fl: FileList | null = e.target.files
+                                        if (!fl || fl.length === 0) return
+                                        handleFilesSelected(fl, category)
+                                      } finally {
+                                        try { document.body.removeChild(input) } catch {}
+                                      }
+                                    }
+                                    document.body.appendChild(input)
+                                    input.click()
+                                  }}
                                   className="h-8 px-4 bg-blue-600 hover:bg-blue-700 text-white"
                                 >Upload</Button>
                                 <Button
@@ -967,7 +1069,24 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                 {attachments.length === 0 && !loadingAttachments && !attachmentsError && (
                                   <div className="text-xs text-gray-500">No drawings uploaded yet.</div>
                                 )}
-                                {attachments.map(a => {
+                                {attachments
+                                  .filter(a => {
+                                    // If no category for this field, show all (fallback text field case)
+                                    if (!category) return true
+                                    const name = a.name || ''
+                                    const hasPrefix = /^\[(DISCLOSURE|DRAWING|SPEC|CLAIMS|ABSTRACT)\]/i.test(name)
+                                    if (!hasPrefix) {
+                                      // Legacy files: appear only in drawings section to avoid duplication
+                                      return category === 'drawing'
+                                    }
+                                    if (category === 'disclosure') return name.startsWith(ATTACH_PREFIX_DISCLOSURE)
+                                    if (category === 'drawing') return name.startsWith(ATTACH_PREFIX_DRAWING)
+                                    if (category === 'spec') return name.startsWith(ATTACH_PREFIX_SPEC)
+                                    if (category === 'claims') return name.startsWith(ATTACH_PREFIX_CLAIMS)
+                                    if (category === 'abstract') return name.startsWith(ATTACH_PREFIX_ABSTRACT)
+                                    return false
+                                  })
+                                  .map(a => {
                                   const statusLabel = a.status === 'uploading'
                                     ? 'Uploading…'
                                     : a.status === 'removing'
@@ -981,7 +1100,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                     <div key={a.tempId} className={styleTokens.attachmentItem}>
                                       <div className="flex justify-between items-start gap-4">
                                         <div className="min-w-0 flex-1">
-                                          <div className="text-xs font-semibold text-gray-800 truncate" title={a.name}>{a.name}</div>
+                                          <div className="text-xs font-semibold text-gray-800 truncate" title={a.name}>{stripAttachmentPrefix(a.name)}</div>
                                           <div className={`text-[11px] mt-0.5 ${a.status === 'done' ? 'text-green-600' : a.status === 'error' ? 'text-red-600' : a.status === 'removing' ? 'text-blue-600' : 'text-gray-500'}`}>{statusLabel}</div>
                                           <div className="text-[11px] text-gray-500 mt-0.5">{(a.size/1024).toFixed(1)} KB • {a.type || 'file'}</div>
                                           {a.errorMsg && <div className="text-[10px] text-red-600 mt-1">{a.errorMsg}</div>}
@@ -1042,6 +1161,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                         })
                                       }}
                                       className={styleTokens.input}
+                                      style={{ fontSize: formFontSize, fontWeight: formFontBold ? 600 : 400 }}
                                     />
                                     <Button
                                       type="button"
@@ -1070,7 +1190,10 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                 placeholder={`Enter ${lower}`}
                                 value={formValues[field.field_title] || ""}
                                 onChange={(e) => handleInputChange(field.field_title, e.target.value)}
+                                readOnly={readOnly}
+                                disabled={readOnly}
                                 className={`${styleTokens.textarea} whitespace-pre-wrap break-words`}
+                                style={{ fontSize: formFontSize, fontWeight: formFontBold ? 600 : 400 }}
                               />
                             ) : (
                               <Input
@@ -1079,7 +1202,10 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                 placeholder={`Enter ${lower}`}
                                 value={formValues[field.field_title] || ""}
                                 onChange={(e) => handleInputChange(field.field_title, e.target.value)}
+                                readOnly={readOnly}
+                                disabled={readOnly}
                                 className={`${styleTokens.input} break-words`}
+                                style={{ fontSize: formFontSize, fontWeight: formFontBold ? 600 : 400 }}
                               />
                             )
                           )}
@@ -1090,13 +1216,50 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                 </div>
               </div>
               <div className={styleTokens.actionsBar}>
-                <div className="flex flex-wrap gap-4 items-center w-full justify-end">
+                <div className="flex flex-wrap gap-4 items-center w-full justify-between">
+                  {/* Font controls */}
+                  <div
+                    className="flex items-center gap-2 text-xs text-gray-600 select-none rounded-lg border border-slate-200 bg-white/80 dark:bg-slate-800/60 px-3 py-1.5 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/60"
+                    aria-label="Form text style controls"
+                  >
+                    <span className="font-medium text-gray-700">Text</span>
+                    <button
+                      type="button"
+                      onClick={() => setFormFontSize(s => Math.max(8, s - 1))}
+                      className="px-2 py-1 rounded border bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                      disabled={formFontSize <= 8}
+                      title="Decrease font size"
+                    >A-</button>
+                    <button
+                      type="button"
+                      onClick={() => setFormFontSize(s => Math.min(20, s + 1))}
+                      className="px-2 py-1 rounded border bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                      disabled={formFontSize >= 20}
+                      title="Increase font size"
+                    >A+</button>
+                    <button
+                      type="button"
+                      onClick={() => setFormFontBold(b => !b)}
+                      className={`px-2 py-1 rounded border bg-white hover:bg-gray-50 transition-colors ${formFontBold ? 'font-semibold bg-blue-50 border-blue-300 text-blue-700' : ''}`}
+                      title="Toggle bold"
+                    >B</button>
+                    <span className="text-gray-400">{formFontSize}px</span>
+                  </div>
+                  {/* Action buttons */}
+                  <div className="flex flex-wrap gap-4 items-center">
+                  <Button
+                    onClick={beginEdit}
+                    className={styleTokens.primaryBtn}
+                    disabled={!readOnly || saving}
+                  >
+                    Edit
+                  </Button>
                   <Button
                     onClick={handleSave}
-                    disabled={saving}
-                    className={styleTokens.primaryBtn + (saving ? ' opacity-70 cursor-not-allowed' : '')}
+                    disabled={readOnly || saving}
+                    className={styleTokens.primaryBtn + ((!readOnly && saving) ? ' opacity-70 cursor-not-allowed' : '')}
                   >
-                    {saving ? 'Submitting…' : (isOrderLocked ? 'Submit Application' : 'Save Form')}
+                    {(!readOnly && saving) ? 'Saving…' : 'Save'}
                   </Button>
                   <Button
                     onClick={handleCancel}
@@ -1106,13 +1269,13 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                   >
                     Cancel
                   </Button>
-                  
-                  {saveSuccessTs && (
-                    <div className="flex items-center gap-2 text-sm font-medium text-green-600">
-                      <span className="inline-block w-2 h-2 bg-green-600 rounded-full animate-pulse" />
-                      Data saved
-                    </div>
-                  )}
+                    {readOnly && saveSuccessTs && (Date.now() - saveSuccessTs) < RECENT_SAVE_MS && savedBannerState !== 'hidden' && (
+                      <div className={`flex items-center gap-2 text-sm font-medium text-green-600 transition-opacity duration-600 ${savedBannerState === 'fading' ? 'opacity-0' : 'opacity-100'}`}>
+                        <span className="inline-block w-2 h-2 bg-green-600 rounded-full animate-pulse" />
+                        Data saved
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

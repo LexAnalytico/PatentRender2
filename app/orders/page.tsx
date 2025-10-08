@@ -121,37 +121,53 @@ function OrdersPageInner() {
 
   return (
     <div className="relative p-6 max-w-5xl mx-auto space-y-6">
+      {/* Static header (does not scroll horizontally) */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Orders</h1>
           <p className="text-gray-600 text-sm">Review your order status and proceed to forms</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-shrink-0">
           <Button variant="outline" onClick={() => router.push('/')}>Home</Button>
           <Button variant="outline" onClick={() => poll()} disabled={stopped && !ready}>Refresh</Button>
         </div>
       </div>
 
-      <div className="border rounded-md p-4 bg-white shadow-sm">
-        <h2 className="font-semibold mb-2 text-sm tracking-wide text-gray-700">Status</h2>
-        <div className="text-xs space-y-1 font-mono">
-          <div><span className="font-semibold">Stage:</span> {stage}</div>
-          <div><span className="font-semibold">Ready:</span> {String(ready)}</div>
-          <div><span className="font-semibold">Polls:</span> {pollCount}{stopped ? ' (stopped)' : ''}</div>
-          {status?.meta && (
-            <div><span className="font-semibold">Paid:</span> {String(status.meta.paid)} | Orders: {status.meta.orderCount}</div>
-          )}
+      {/* Horizontal scroll limited exactly to the content width (no side padding) */}
+      <div className="overflow-x-auto overscroll-x-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+        <div className="w-fit min-w-full">
+          <div className="border rounded-md p-4 bg-white shadow-sm mb-6 w-fit min-w-full">
+            <h2 className="font-semibold mb-2 text-sm tracking-wide text-gray-700">Status</h2>
+            <div className="text-xs space-y-1 font-mono">
+              <div><span className="font-semibold">Stage:</span> {stage}</div>
+              <div><span className="font-semibold">Ready:</span> {String(ready)}</div>
+              <div><span className="font-semibold">Polls:</span> {pollCount}{stopped ? ' (stopped)' : ''}</div>
+              {status?.meta && (
+                <div><span className="font-semibold">Paid:</span> {String(status.meta.paid)} | Orders: {status.meta.orderCount}</div>
+              )}
+            </div>
+            {status?.orders && status.orders.length > 0 && (
+              <div className="mt-4 overflow-x-auto">
+                <table className="text-sm border border-slate-300 min-w-[860px]">
+                  <thead className="bg-slate-50 border-b border-slate-300">
+                    <tr className="text-left">
+                      <th className="px-3 py-2 font-semibold whitespace-nowrap sticky left-0 bg-slate-50 border-r border-slate-300 shadow-[2px_0_0_0_rgba(0,0,0,0.06)]">Order #</th>
+                      <th className="px-3 py-2 font-semibold whitespace-nowrap">Type</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {status.orders.map(o => (
+                      <tr key={o.id} className="bg-white">
+                        <td className="px-3 py-2 font-medium sticky left-0 bg-white border-r border-slate-200 shadow-[2px_0_0_0_rgba(0,0,0,0.04)]">{o.id}</td>
+                        <td className="px-3 py-2 text-xs text-gray-600">{o.type || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
-        {status?.orders && status.orders.length > 0 && (
-          <ul className="mt-4 space-y-2 text-sm">
-            {status.orders.map(o => (
-              <li key={o.id} className="border rounded p-2 flex flex-col gap-1">
-                <div>Order #{o.id}</div>
-                {o.type && <div className="text-xs text-gray-500">Type: {o.type}</div>}
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
 
       {overlayVisible && (

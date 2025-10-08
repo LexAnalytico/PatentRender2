@@ -8,7 +8,7 @@ export const ALLOWED_MIME = [
   'image/svg+xml'
 ]
 
-export const MAX_FILE_BYTES = 10 * 1024 * 1024 // 10MB
+export const MAX_FILE_BYTES = 15 * 1024 * 1024 // 15MB
 
 // Sanitize filename (basic)
 export function sanitizeFilename(name: string) {
