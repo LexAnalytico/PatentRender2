@@ -76,6 +76,10 @@ const applicationTypes = [
   
 ]
 
+// Fast lookup map for user-friendly labels
+const applicationTypeLabelMap: Record<string,string> = applicationTypes.reduce((acc, t) => { acc[t.key] = t.label; return acc }, {} as Record<string,string>)
+const getApplicationTypeLabel = (k: string | null | undefined) => (k ? applicationTypeLabelMap[k] || k : '')
+
 interface FormClientProps {
   orderIdProp?: number | null;
   typeProp?: string | null;
@@ -105,6 +109,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   }
 
   const [selectedType, setSelectedType] = useState<string>("")
+  const selectedTypeLabel = getApplicationTypeLabel(selectedType)
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   // Read-only mode: default true; user must click Edit to modify
   const [readOnly, setReadOnly] = useState(true)
@@ -890,7 +895,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           {orderIdProp && (
             <div className="mt-2 text-[11px] text-gray-500 flex flex-wrap gap-x-4 gap-y-1">
               <span>orderIdProp={orderIdProp}</span>
-              <span>resolvedType={selectedType || '(empty)'}</span>
+              <span>resolvedTypeKey={selectedType || '(empty)'}</span>
+              <span>resolvedTypeLabel={selectedTypeLabel || '(empty)'}</span>
               <span>urlType={(searchParams?.get('type')||'').toString() || '(none)'}</span>
               <span>urlPricingKey={(searchParams?.get('pricing_key')||'').toString() || '(none)'}</span>
             </div>

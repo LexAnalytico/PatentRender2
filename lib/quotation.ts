@@ -84,8 +84,9 @@ export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms }: 
     const service = (o.services as any)?.name || 'N/A'
     const amount = o.amount != null ? fmt(Number(o.amount)) : '—'
     const date = o.created_at ? new Date(o.created_at).toLocaleDateString() : '—'
-    return `<tr><td>${o.id}</td><td>${category}</td><td>${service}</td><td style="text-align:right;">${amount}</td><td>${date}</td></tr>`
-  }).join('') || `<tr><td colspan="5" style="text-align:center;color:#999;">No orders</td></tr>`
+    const appType = o.type || '—'
+    return `<tr><td>${o.id}</td><td>${category}</td><td>${service}</td><td>${appType}</td><td style="text-align:right;">${amount}</td><td>${date}</td></tr>`
+  }).join('') || `<tr><td colspan="6" style="text-align:center;color:#999;">No orders</td></tr>`
 
   const renderFormBlock = (o: any): string => {
     const oid = o.id
@@ -100,10 +101,10 @@ export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms }: 
       pairs = o.forms.map((f: any) => ({ field: f.field || f.name || 'Field', value: f.value ?? '' }))
     }
     if (!pairs.length) {
-      return `<div class="form-section"><h4>Order #${oid} – No form data available</h4></div>`
+      return `<div class="form-section"><h4>Order #${oid} – Form Responses</h4><div style="font-size:11px;margin:4px 0 8px;color:#555;">Application Type: ${(o.type||'—')}</div><em>No form data available</em></div>`
     }
     const rows = pairs.map(p => `<tr><td>${escapeHtml(p.field)}</td><td>${formatValue(p.value)}</td></tr>`).join('')
-    return `<div class="form-section"><h4>Order #${oid} – Form Responses</h4><table class="form-table"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    return `<div class="form-section"><h4>Order #${oid} – Form Responses</h4><div style="font-size:11px;margin:4px 0 8px;color:#555;">Application Type: ${(o.type||'—')}</div><table class="form-table"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table></div>`
   }
 
   const escapeHtml = (s: any): string => {
@@ -123,6 +124,7 @@ export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms }: 
 
   const formsHtml = orders.map(renderFormBlock).join('<div class="page-break"></div>')
 
+  // Removed bundle-level Application Type summary; now shown per order section
   return `<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${co.name} Invoice & Forms</title><style>
     body { font-family: Arial, sans-serif; margin:24px; color:#111827; }
     h1 { font-size:22px; margin:0 0 4px; }
@@ -143,14 +145,14 @@ export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms }: 
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
         <h1>Invoice & Form Summary</h1>
-        <div class="meta">Generated: ${generatedAt}<br/>Payment / Bundle Key: ${paymentId}<br/>Orders: ${orders.map(o=>o.id).join(', ') || '—'}</div>
+  <div class="meta">Generated: ${generatedAt}<br/>Payment / Bundle Key: ${paymentId}<br/>Orders: ${orders.map(o=>o.id).join(', ') || '—'}</div>
       </div>
       <div style="text-align:right;font-size:12px;">
         <strong>${co.name}</strong><br/>${co.address}<br/>${co.phone} | ${co.email}
       </div>
     </div>
     <table style="margin-top:16px;">
-      <thead><tr><th>Order ID</th><th>Category</th><th>Service</th><th style="text-align:right;">Amount (INR)</th><th>Date</th></tr></thead>
+      <thead><tr><th>Order ID</th><th>Category</th><th>Service</th><th>App Type</th><th style="text-align:right;">Amount (INR)</th><th>Date</th></tr></thead>
       <tbody>${lineRows}</tbody>
     </table>
     <div class="totals">Total Bundle Amount: <strong>${totalAmount}</strong></div>

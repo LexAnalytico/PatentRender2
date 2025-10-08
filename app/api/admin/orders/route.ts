@@ -91,13 +91,19 @@ export async function PATCH(req: NextRequest) {
       updates.assigned_to = body.assigned_to.toLowerCase()
       updates.responsible = body.assigned_to.toLowerCase()
     }
-    if (body.workflow_status) {
-      const allowed = new Set(['in_progress','require_info','completed'])
-      const norm = body.workflow_status.toLowerCase().replace(/\s+/g,'_')
-      if (!allowed.has(norm)) {
-        return NextResponse.json({ error: 'Invalid workflow_status' }, { status: 400 })
+    if (Object.prototype.hasOwnProperty.call(body, 'workflow_status')) {
+      // Allow clearing to null when blank provided
+      const raw = body.workflow_status == null ? '' : String(body.workflow_status).trim()
+      if (raw === '') {
+        updates.workflow_status = null
+      } else {
+        const allowed = new Set(['in_progress','require_info','completed'])
+        const norm = raw.toLowerCase().replace(/\s+/g,'_')
+        if (!allowed.has(norm)) {
+          return NextResponse.json({ error: 'Invalid workflow_status' }, { status: 400 })
+        }
+        updates.workflow_status = norm
       }
-      updates.workflow_status = norm
     }
     if (Object.prototype.hasOwnProperty.call(body, 'require_info_message')) {
       const msg = (body.require_info_message || '').trim()

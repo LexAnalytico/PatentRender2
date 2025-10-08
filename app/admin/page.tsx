@@ -394,20 +394,21 @@ export default function AdminDashboardPage() {
 																	<div className="flex items-center gap-1">
 																		<select
 																			className="border rounded px-1 py-0.5 text-xs bg-white"
-																			value={(o.workflow_status ? o.workflow_status.replace(/ /g,'_') : 'in_progress')}
+																			value={(o.workflow_status ? o.workflow_status.replace(/ /g,'_') : '')}
 																			onChange={async e => {
 																				const raw = e.target.value
-																				const norm = raw.toLowerCase()
-																				setOrders(prev => prev.map(r => r.id === o.id ? { ...r, workflow_status: norm } : r))
+																				const norm = raw === '' ? '' : raw.toLowerCase()
+																				setOrders(prev => prev.map(r => r.id === o.id ? { ...r, workflow_status: norm || null } : r))
 																				try {
 																					await fetch('/api/admin/orders', {
 																						method: 'PATCH',
 																						headers: { 'Content-Type': 'application/json', 'x-user-email': email || '' },
-																						body: JSON.stringify({ orderIds: [o.id], workflow_status: norm })
+																						body: JSON.stringify({ orderIds: [o.id], workflow_status: norm === '' ? null : norm })
 																					})
 																				} catch (err) { console.error('workflow update failed', err) }
 																			}}
 																		>
+																			<option value="">(blank)</option>
 																			<option value="in_progress">In Progress</option>
 																			<option value="require_info">Require Info</option>
 																			<option value="completed">Completed</option>
@@ -426,7 +427,7 @@ export default function AdminDashboardPage() {
 																</div>
 															) : (
 																<span className="inline-block px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-																	{(o.workflow_status === 'in_progress' && 'In Progress') || (o.workflow_status === 'require_info' && 'Require Info') || (o.workflow_status === 'completed' && 'Completed') || 'In Progress'}
+																	{!o.workflow_status ? '—' : (o.workflow_status === 'in_progress' && 'In Progress') || (o.workflow_status === 'require_info' && 'Require Info') || (o.workflow_status === 'completed' && 'Completed') || o.workflow_status}
 																</span>
 															)}
 														</td>

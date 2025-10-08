@@ -446,14 +446,13 @@ const openFirstFormEmbedded = () => {
   }
   // Derive status for a single order record. Adjust predicates as real fields become available.
   const deriveOrderStatus = (o: any): string => {
-    // Full 6-step ladder:
-    // 1. Payment Pending
-    // 2. Details Required
-    // 3. Details Submitted
-    // 4. In Progress (workflow_status = in_progress)
-    // 5. Require Info (workflow_status = require_info) -> higher urgency than In Progress
+    // Revised ladder (with Assigned):
+    // 1. Payment Pending (payment not captured)
+    // 2. Details Required (core details incomplete OR require_info workflow)
+    // 3. Details Completed (core details complete; excludes uploads/comments per existing core logic)
+    // 4. Assigned (responsible set, no workflow status yet)
+    // 5. In Progress (workflow_status = in_progress)
     // 6. Completed (workflow_status = completed)
-    // Assigned (responsible) is implicit; we surface workflow stages explicitly now.
     try {
       const paymentSucceeded = !!(
         (o.payments && ((o.payments as any).payment_status === 'paid' || (o.payments as any).status === 'captured')) ||
@@ -462,13 +461,14 @@ const openFirstFormEmbedded = () => {
       if (!paymentSucceeded) return 'Payment Pending'
       const coreDone = formsCoreComplete(o)
       if (!coreDone) return 'Details Required'
-      // After core completion, check workflow_status for advanced steps
       const wf = (o.workflow_status || '').toLowerCase()
       if (wf === 'completed') return 'Completed'
-      if (wf === 'require_info') return 'Require Info'
+      if (wf === 'require_info') return 'Details Required' // re-requested info supersedes other intermediate states
       if (wf === 'in_progress') return 'In Progress'
-      // Fallback: no workflow set yet; show Details Submitted
-      return 'Details Submitted'
+      // No workflow status yet; if responsible/assigned present, surface Assigned before just Details Completed
+      const responsible = (o.responsible || o.assigned_to || '').trim()
+      if (responsible) return 'Assigned'
+      return 'Details Completed'
     } catch {
       return 'Payment Pending'
     }
@@ -478,15 +478,13 @@ const openFirstFormEmbedded = () => {
   const aggregateBundleStatus = (orders: any[]): string => {
     if (!orders || orders.length === 0) return '—'
     const statuses = orders.map(deriveOrderStatus)
-    // Precedence: Payment Pending > Details Required > Require Info > In Progress > Completed > Details Submitted
+    // New precedence: Payment Pending > Details Required > In Progress > Completed > Assigned > Details Completed
     if (statuses.some(s => s === 'Payment Pending')) return 'Payment Pending'
     if (statuses.some(s => s === 'Details Required')) return 'Details Required'
-    if (statuses.some(s => s === 'Require Info')) return 'Require Info'
     if (statuses.some(s => s === 'In Progress')) return 'In Progress'
-    // Completed only if ALL are Completed (otherwise mixture falls back to Details Submitted)
     if (statuses.every(s => s === 'Completed')) return 'Completed'
-    // If some completed but others just submitted, keep at Details Submitted to indicate bundle not wholly done
-    return 'Details Submitted'
+    if (statuses.some(s => s === 'Assigned')) return 'Assigned'
+    return 'Details Completed'
   }
   // Track which multi-service bundles are expanded
   const [expandedBundles, setExpandedBundles] = useState<Set<string>>(new Set())
