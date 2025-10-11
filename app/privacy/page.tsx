@@ -701,11 +701,11 @@ export default function PrivacyPolicyPage() {
                     <div className="text-blue-800 text-sm space-y-2">
                       <p className="flex items-center">
                         <Mail className="h-4 w-4 mr-2" />
-                        privacy@legalippro.com
+                        info@lexanalytico.com
                       </p>
                       <p className="flex items-center">
                         <Phone className="h-4 w-4 mr-2" />
-                        (555) 123-4567 ext. 101
+                        +91 99161 93248
                       </p>
                       <p>Response time: Within 48 hours</p>
                     </div>
@@ -716,9 +716,7 @@ export default function PrivacyPolicyPage() {
                     <div className="text-gray-800 text-sm space-y-1">
                       <p>LegalIP Pro</p>
                       <p>Attn: Privacy Officer</p>
-                      <p>123 Legal Street</p>
-                      <p>IP City, LC 12345</p>
-                      <p>United States</p>
+                      <p>8th Floor, A 10, Shilpitha Tech Park- iSprout, Devarabisanahalli Rd, Kariyammana Agrahara, Bellandur, Bengaluru, Karnataka 560103</p>
                     </div>
                   </div>
                 </div>

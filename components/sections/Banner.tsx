@@ -1,27 +1,15 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { bannerSlides } from "@/constants/data"
 
 export function Banner() {
   const [currentSlide, setCurrentSlide] = useState(0)
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % bannerSlides.length)
-    }, 5000)
-    return () => clearInterval(interval)
-  }, [])
+  // Autoplay removed per request: slides now only change via user interaction
 
-  const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % bannerSlides.length)
-  }
-
-  const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + bannerSlides.length) % bannerSlides.length)
-  }
+  // Navigation via dots only; arrow controls removed
 
   return (
     <section className="banner-section relative h-[150px] md:h-[160px] overflow-hidden">
@@ -56,14 +44,16 @@ export function Banner() {
                     <div className="flex flex-col sm:flex-row gap-1.5 pt-0.5">
                       <Button
                         size="lg"
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 text-[12px] font-semibold rounded-md shadow hover:shadow-md transition-all"
+                        aria-disabled
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-1.5 text-[12px] font-semibold rounded-md shadow transition-all pointer-events-none"
                       >
                         Get Started Today
                       </Button>
                       <Button
                         variant="outline"
                         size="lg"
-                        className="border border-white/30 text-white hover:bg-white/10 backdrop-blur-sm px-3.5 py-1.5 text-[12px] font-semibold rounded-md bg-transparent"
+                        aria-disabled
+                        className="border border-white/30 text-white hover:bg-white/10 backdrop-blur-sm px-3.5 py-1.5 text-[12px] font-semibold rounded-md bg-transparent pointer-events-none"
                       >
                         Learn More
                       </Button>
@@ -109,19 +99,7 @@ export function Banner() {
         ))}
       </div>
 
-      {/* Enhanced Navigation Arrows */}
-      <button
-        onClick={prevSlide}
-  className="absolute left-2.5 top-1/2 transform -translate-y-1/2 bg-white/15 backdrop-blur-md hover:bg-white/25 p-2 rounded-full shadow transition-all duration-300 border border-white/30 group z-20"
-      >
-  <ChevronLeft className="h-3.5 w-3.5 text-white group-hover:scale-110 transition-transform" />
-      </button>
-      <button
-        onClick={nextSlide}
-  className="absolute right-2.5 top-1/2 transform -translate-y-1/2 bg-white/15 backdrop-blur-md hover:bg-white/25 p-2 rounded-full shadow transition-all duration-300 border border-white/30 group z-20"
-      >
-  <ChevronRight className="h-3.5 w-3.5 text-white group-hover:scale-110 transition-transform" />
-      </button>
+    {/* Navigation arrows removed */}
 
       {/* Enhanced Dot Indicators */}
   <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex space-x-1.5 z-20">
@@ -136,10 +114,10 @@ export function Banner() {
         ))}
       </div>
 
-      {/* Progress Bar */}
+      {/* Progress Bar (no autoplay: short transition on manual change) */}
       <div className="absolute bottom-0 left-0 w-full h-1 bg-white/20">
         <div
-          className="h-full bg-white transition-all duration-5000 ease-linear"
+          className="h-full bg-white transition-all duration-300 ease-linear"
           style={{ width: `${((currentSlide + 1) / bannerSlides.length) * 100}%` }}
         />
       </div>

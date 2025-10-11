@@ -1,7 +1,18 @@
+"use client"
+
 import { Scale } from 'lucide-react'
 import Link from "next/link"
 
 export function Footer() {
+  const goSection = (id: string) => {
+    try {
+      if (window.location.pathname === '/') {
+        window.dispatchEvent(new CustomEvent('nav:go-section', { detail: { id } }))
+      } else {
+        window.location.href = `/#${id}`
+      }
+    } catch {}
+  }
   return (
     <footer className="bg-gray-900 text-white py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -19,24 +30,24 @@ export function Footer() {
             <h3 className="text-lg font-semibold mb-4">Services</h3>
             <ul className="space-y-2 text-gray-400">
               <li>
-                <a href="#patent-services" className="hover:text-white transition-colors">
+                <button type="button" onClick={() => goSection('patent-services')} className="hover:text-white transition-colors text-left">
                   Patent Services
-                </a>
+                </button>
               </li>
               <li>
-                <a href="#trademark-services" className="hover:text-white transition-colors">
+                <button type="button" onClick={() => goSection('trademark-services')} className="hover:text-white transition-colors text-left">
                   Trademark Services
-                </a>
+                </button>
               </li>
               <li>
-                <a href="#copyright-services" className="hover:text-white transition-colors">
-                  Copyright Services
-                </a>
-              </li>
-              <li>
-                <a href="#design-services" className="hover:text-white transition-colors">
+                <button type="button" onClick={() => goSection('design-services')} className="hover:text-white transition-colors text-left">
                   Design Services
-                </a>
+                </button>
+              </li>
+              <li>
+                <button type="button" onClick={() => goSection('copyright-services')} className="hover:text-white transition-colors text-left">
+                  Copyright Services
+                </button>
               </li>
             </ul>
           </div>

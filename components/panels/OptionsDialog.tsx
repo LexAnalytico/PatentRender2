@@ -146,7 +146,7 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
                     <SelectValue placeholder="Choose applicant type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="individual">SStart-Up/Individuals/MSMEs/Educational Institute {applicantPrices.individual !== undefined ? `— ₹${applicantPrices.individual}` : ''}</SelectItem>
+                    <SelectItem value="individual">Start-Up/Individuals/MSMEs/Educational Institute {applicantPrices.individual !== undefined ? `— ₹${applicantPrices.individual}` : ''}</SelectItem>
                     <SelectItem value="others">Large Entity/Others {applicantPrices.others !== undefined ? `— ₹${applicantPrices.others}` : ''}</SelectItem>
                   </SelectContent>
                 </Select>
@@ -249,7 +249,10 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
                 </div>
               )}
               <div className="rounded-md border p-3 bg-gray-50">
-                <div className="flex items-center justify-between text-sm mb-1"><span>Professional Fee</span><span>{formatINR(previewTotal)}</span></div>
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <span>Professional Fee</span>
+                  <span>{formatINR(patentSearchTotal || previewTotal)}</span>
+                </div>
                 <div className="flex items-center justify-between text-sm"><span>Government Fee</span><span>{formatINR(0)}</span></div>
                 <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2"><span>Total</span><span>{formatINR(patentSearchTotal || previewTotal)}</span></div>
               </div>

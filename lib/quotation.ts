@@ -16,6 +16,8 @@ export interface BuildInvoiceWithFormsOptions {
   // Orders may already include embedded form responses in various shapes
   // Accept optional pre-normalized mapping: orderId -> array of { field, value }
   normalizedForms?: Record<string | number, Array<{ field: string; value: any }>>
+  // Optional attachments mapping: orderId -> array of downloadable items
+  attachments?: Record<string | number, Array<{ name: string; url: string; size?: number; type?: string }>>
 }
 
 export function buildQuotationHtml({ cartItems, total, payment, orders, company }: BuildQuotationOptions): string {
@@ -66,7 +68,7 @@ export function buildQuotationHtml({ cartItems, total, payment, orders, company 
 
 // Build an invoice HTML that appends printable form responses for each order in the bundle.
 // Attempts to detect form response shapes: order.formResponses (array), order.form_values (object), order.forms (array of { field, value }).
-export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms }: BuildInvoiceWithFormsOptions): string {
+export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms, attachments }: BuildInvoiceWithFormsOptions): string {
   const co = {
     name: company?.name || 'LegalIP Pro',
     address: company?.address || '123 Legal Street, IP City, LC 12345',
@@ -122,7 +124,34 @@ export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms }: 
     return escapeHtml(v)
   }
 
-  const formsHtml = orders.map(renderFormBlock).join('<div class="page-break"></div>')
+  const humanSize = (bytes?: number) => {
+    if (!bytes || isNaN(bytes as any)) return ''
+    const units = ['B','KB','MB','GB']
+    let b = Number(bytes)
+    let i = 0
+    while (b >= 1024 && i < units.length - 1) { b /= 1024; i++ }
+    return `${b.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
+  }
+
+  const renderAttachmentsBlock = (o: any): string => {
+    const oid = o.id
+    const list = attachments?.[oid] || attachments?.[String(oid)] || []
+    if (!list || list.length === 0) {
+      return `<div class="form-section"><h4>Order #${oid} – Attachments</h4><em>No attachments uploaded</em></div>`
+    }
+    const rows = list.map((a) => {
+      const name = escapeHtml(a.name)
+      const size = humanSize(a.size)
+      const type = escapeHtml(a.type || '')
+      const url = a.url ? String(a.url) : ''
+      // Do not open a new tab; rely on download attribute and signed URL Content-Disposition to trigger direct download
+      const link = url ? `<a href="${url}" download="${name}">Download</a>` : '<span style="color:#9ca3af;">N/A</span>'
+      return `<tr><td>${name}</td><td>${type || 'file'}</td><td>${size}</td><td>${link}</td></tr>`
+    }).join('')
+    return `<div class="form-section"><h4>Order #${oid} – Attachments</h4><table class="form-table"><thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Link</th></tr></thead><tbody>${rows}</tbody></table></div>`
+  }
+
+  const formsHtml = orders.map(o => [renderFormBlock(o), renderAttachmentsBlock(o)].join('')).join('<div class="page-break"></div>')
 
   // Removed bundle-level Application Type summary; now shown per order section
   return `<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${co.name} Invoice & Forms</title><style>

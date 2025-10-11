@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Navbar from "@/components/Navbar"; // ✅ import your Navbar
 import RefreshAppButton from "@/components/RefreshAppButton";
 import AutoLogout from '@/components/AutoLogout'
@@ -9,6 +9,14 @@ export const metadata: Metadata = {
   title: "v0 App",
   description: "Created with v0",
   generator: "v0.dev",
+};
+
+// Ensure proper mobile scaling and safe-area support
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({

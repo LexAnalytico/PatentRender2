@@ -1176,12 +1176,6 @@ const patentServices = [
   ]
   const [reviewIndex, setReviewIndex] = useState(0)
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % Math.max(1, bannerSlides.length))
-    }, 5000)
-    return () => clearInterval(interval)
-  }, [bannerSlides.length])
-  useEffect(() => {
     const id = setInterval(() => setReviewIndex((i) => (i + 1) % reviews.length), 4000)
     return () => clearInterval(id)
   }, [reviews.length])
@@ -1297,6 +1291,10 @@ const patentServices = [
   setCartItems([])
   try { localStorage.removeItem("cart_items_v1") } catch {}
   }
+
+  // Sidebar cart visibility (Orders/Profile screens): show only if there is at least one item and total > 0
+  const cartTotal = getTotalPrice()
+  const hasCartLineItems = cartItems.length > 0 && cartTotal > 0
   
   // When user clicks a Navbar service link (/#section) from the Selected Services view,
   // auto-close the quote page and scroll to the requested section on the main page.
@@ -2336,7 +2334,7 @@ if (showQuotePage) {
                 {/* Services button removed: view selected programmatically */}
                 <Button
                   variant={quoteView === 'orders' ? undefined : 'outline'}
-                  className={`w-full justify-start ${quoteView === 'orders' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
+                  className={`w-full justify-start border border-black rounded-full ${quoteView === 'orders' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
                   onClick={goToOrders}
                 >
                   Orders
@@ -2344,22 +2342,22 @@ if (showQuotePage) {
                 
                 <Button
                   variant={quoteView === 'profile' ? undefined : 'outline'}
-                  className={`w-full justify-start ${quoteView === 'profile' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
+                  className={`w-full justify-start border border-black rounded-full ${quoteView === 'profile' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
                   onClick={() => setQuoteView('profile')}
                 >
                   Profile
                 </Button>
                 <Button
                   variant="outline"
-                  className="w-full justify-start text-slate-600 hover:text-red-600 hover:bg-red-50 border border-slate-200 transition-colors"
+                  className="w-full justify-start text-slate-600 hover:text-red-600 hover:bg-red-50 border border-black rounded-full transition-colors"
                   disabled={!isAuthenticated}
                   onClick={handleLogout}
                 >
                   Logout
                 </Button>
               </div>
-              {/* Duplicated Service Cart (compact) - hidden on Selected Services view */}
-              {quoteView !== 'services' && (
+              {/* Sidebar Cart: only show on Orders/Profile and only if items exist and total > 0 */}
+              {(quoteView === 'orders' || quoteView === 'profile') && hasCartLineItems && (
               <div className="mt-6 border-t pt-4">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
                   <Scale className="h-4 w-4 text-blue-600 mr-2" />
@@ -2396,12 +2394,12 @@ if (showQuotePage) {
                 <div className="mt-4 space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-600">Estimate</span>
-                    <span className="font-semibold text-blue-600">{formatINR(getTotalPrice())}</span>
+                    <span className="font-semibold text-blue-600">{formatINR(cartTotal)}</span>
                   </div>
                   <Button
                     className="w-full bg-blue-600 hover:bg-blue-700 h-8 text-xs"
                     onClick={goToQuotePage}
-                    disabled={cartItems.length === 0}
+                    disabled={!hasCartLineItems}
                   >
                     Checkout
                   </Button>
@@ -2409,7 +2407,7 @@ if (showQuotePage) {
                     variant="outline"
                     className="w-full h-8 text-xs"
                     onClick={() => clearCart()}
-                    disabled={cartItems.length === 0}
+                    disabled={!hasCartLineItems}
                   >
                     Clear
                   </Button>
@@ -2604,8 +2602,44 @@ if (showQuotePage) {
                               }
                               const handleDownloadBundleWithForms = async () => {
                                 try {
-                                  const html = buildInvoiceWithFormsHtml({ bundle, company: { name: 'LegalIP Pro' } })
-                                  // Build blob & create object URL for inline iframe preview
+                                  // 1) Collect order IDs in this bundle
+                                  const orderIds: number[] = (bundle.orders || []).map((o: any) => o?.id).filter((v: any) => Number.isFinite(v))
+                                  // 2) Fetch attachments for these orders and create signed URLs
+                                  const attachmentsMap: Record<string, Array<{ name: string; url: string; size?: number; type?: string }>> = {}
+                                  if (orderIds.length) {
+                                    try {
+                                      const { data: rows, error: attErr } = await supabase
+                                        .from('form_attachments')
+                                        .select('order_id, filename:filename, storage_path, mime_type, size_bytes, deleted')
+                                        .in('order_id', orderIds)
+                                        .eq('deleted', false)
+                                        .order('uploaded_at', { ascending: true })
+                                      if (!attErr && Array.isArray(rows)) {
+                                        // Generate signed URLs (valid for 1 hour)
+                                        const signed = await Promise.all(rows.map(async (r: any) => {
+                                          let url = ''
+                                          if (r.storage_path) {
+                                            try {
+                                              // Request a download disposition so browsers save the file instead of attempting to view inline
+                                              const { data: sig, error: sigErr } = await supabase.storage.from('figures').createSignedUrl(r.storage_path, 60 * 60, { download: r.filename || undefined })
+                                              if (!sigErr && sig?.signedUrl) url = sig.signedUrl
+                                            } catch {}
+                                          }
+                                          return { order_id: r.order_id, name: r.filename, url, size: r.size_bytes as number | undefined, type: r.mime_type as string | undefined }
+                                        }))
+                                        for (const a of signed) {
+                                          const key = String(a.order_id)
+                                          if (!attachmentsMap[key]) attachmentsMap[key] = []
+                                          attachmentsMap[key].push({ name: a.name, url: a.url, size: a.size, type: a.type })
+                                        }
+                                      }
+                                    } catch (e) {
+                                      console.warn('[Invoice+Forms] attachments fetch/sign failed', e)
+                                    }
+                                  }
+                                  // 3) Build HTML with attachments included
+                                  const html = buildInvoiceWithFormsHtml({ bundle, company: { name: 'LegalIP Pro' }, attachments: attachmentsMap })
+                                  // 4) Build blob & create object URL for inline iframe preview
                                   const blob = new Blob([html], { type: 'text/html' })
                                   const url = URL.createObjectURL(blob)
                                   if (invoicePreviewUrl) {
@@ -2915,10 +2949,10 @@ if (showQuotePage) {
           </button>
    
           {isOpen && (
-          <div className="absolute right-0 mt-2 w-56 bg-white shadow-lg rounded-lg py-2 border border-gray-200 z-50">
+          <div className="absolute right-0 mt-2 w-56 bg-blue-50/95 backdrop-blur-sm shadow-lg rounded-lg py-2 border border-blue-100 z-50">
             {/* Dashboard: visible but disabled when not signed in */}
             <button
-              className={`block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 ${!isAuthenticated ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
+              className={`block w-full text-left px-4 py-2 text-gray-700 hover:bg-blue-100 ${!isAuthenticated ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
               onClick={() => {
                 if (!isAuthenticated) return
                 setInitialQuoteView('orders')
@@ -2935,7 +2969,7 @@ if (showQuotePage) {
             {/* Sign In: opens auth modal directly (no cart dependency) */}
             <button
               onClick={() => { if (!isAuthenticated) openSignIn(); setIsOpen(false) }}
-              className={`block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 ${isAuthenticated ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
+              className={`block w-full text-left px-4 py-2 text-gray-700 hover:bg-blue-100 ${isAuthenticated ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
               disabled={isAuthenticated}
               aria-disabled={isAuthenticated}
               title={isAuthenticated ? 'Already signed in' : undefined}
@@ -2946,7 +2980,7 @@ if (showQuotePage) {
             {/* Sign Out: visible but disabled when not signed in */}
             <button
               onClick={() => { if (!isAuthenticated) return; handleLogout(); setIsOpen(false); }}
-              className={`block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100 ${!isAuthenticated ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
+              className={`block w-full text-left px-4 py-2 text-gray-700 hover:bg-blue-100 ${!isAuthenticated ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
               disabled={!isAuthenticated}
               aria-disabled={!isAuthenticated}
               title={!isAuthenticated ? 'Sign in to enable sign out' : undefined}
@@ -2964,37 +2998,39 @@ if (showQuotePage) {
       <BannerCarousel />
 
       {/* Main Content Area: Services on Left, Cart on Right */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row gap-8">
+  <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 md:py-8 flex flex-col lg:flex-row gap-6 md:gap-8">
         {/* Left Column: Tabbed Services */}
         <div className="flex-1">
           {/* Scrollable nav styled as tabs */}
-          <div className="grid w-full grid-cols-2 md:grid-cols-4 gap-2 mb-8">
+          <div className="grid w-full grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-6 md:mb-8">
             <button onClick={() => scrollToSection('patent-services')} className="px-3 py-2 rounded bg-blue-50 text-blue-700 hover:bg-blue-100">Patent Services</button>
             <button onClick={() => scrollToSection('trademark-services')} className="px-3 py-2 rounded bg-neutral-50 text-neutral-700 hover:bg-neutral-100">Trademark Services</button>
-            <button onClick={() => scrollToSection('copyright-services')} className="px-3 py-2 rounded bg-neutral-50 text-neutral-700 hover:bg-neutral-100">Copyright Services</button>
             <button onClick={() => scrollToSection('design-services')} className="px-3 py-2 rounded bg-neutral-50 text-neutral-700 hover:bg-neutral-100">Design Services</button>
+            <button onClick={() => scrollToSection('copyright-services')} className="px-3 py-2 rounded bg-neutral-50 text-neutral-700 hover:bg-neutral-100">Copyright Services</button>
           </div>
 
           {/* Patent Services */}
-          <section id="patent-services" className="bg-blue-50 py-8 rounded-lg scroll-mt-24">
+          <section id="patent-services" className="bg-blue-50 py-6 md:py-8 rounded-lg scroll-mt-24">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Patent Services</h2>
-                <p className="text-lg text-gray-600 max-w-3xl">Comprehensive patent services to protect your innovations and inventions.</p>
+                <h2 className="text-2xl md:text-4xl font-bold text-gray-900">Patent Services</h2>
+                <p className="text-base md:text-lg text-gray-600 max-w-3xl">Comprehensive patent services to protect your innovations and inventions.</p>
               </div>
-              <div className="grid md:grid-cols-2 gap-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
                 {patentServices.map((service, index) => (
                   <Card key={index} className="bg-white hover:shadow-lg transition-shadow">
-                    <CardContent className="p-7">
-                      <div className="flex items-start justify-between">
-                        <div className="p-3 bg-blue-100 rounded-full">{service.icon}</div>
-                        <h3 className="text-xl font-semibold text-gray-900">{service.title}</h3>
+                    <CardContent className="p-5 md:p-7">
+                      <div className="flex items-start gap-3 justify-between">
+                        <div className="p-2 md:p-3 bg-blue-100 rounded-full">
+                          <span className="inline-flex items-center justify-center h-6 w-6 md:h-8 md:w-8 text-blue-600">{service.icon}</span>
+                        </div>
+                        <h3 className="text-lg md:text-xl font-semibold text-gray-900">{service.title}</h3>
                       </div>
-                      <p className="text-gray-600 mt-4">
+                      <p className="text-gray-600 mt-3 md:mt-4 text-sm md:text-base">
                         {service.description} Our experts perform in-depth analysis, draft precise documents, and guide you across the full lifecycle to maximize protection and value.
                       </p>
-                      <div className="flex items-center justify-between mt-4">
-                        <span className="text-2xl font-bold text-blue-600">
+                      <div className="flex items-center justify-between mt-3 md:mt-4">
+                        <span className="text-xl md:text-2xl font-bold text-blue-600">
                           {servicePricing[service.title] != null ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(servicePricing[service.title]) : 'Price not available'}
                         </span>
                         <Button onClick={() => openOptionsForService(service.title, 'Patent')} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Select</Button>
@@ -3008,18 +3044,18 @@ if (showQuotePage) {
 
 
           {/* Trademark Services */}
-          <section id="trademark-services" className="bg-neutral-50 py-8 rounded-lg mt-8 border border-neutral-200 scroll-mt-24">
+          <section id="trademark-services" className="bg-neutral-50 py-6 md:py-8 rounded-lg mt-6 md:mt-8 border border-neutral-200 scroll-mt-24">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Trademark Services</h2>
-                <p className="text-lg text-gray-600 max-w-3xl">Protect your brand identity with tailored search, filing, and monitoring solutions.</p>
+                <h2 className="text-2xl md:text-4xl font-bold text-gray-900">Trademark Services</h2>
+                <p className="text-base md:text-lg text-gray-600 max-w-3xl">Protect your brand identity with tailored search, filing, and monitoring solutions.</p>
               </div>
-              <div className="text-center py-12">
-                <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
-                  <Clock className="h-8 w-8 text-neutral-600" />
+              <div className="text-center py-10 md:py-12">
+                <div className="mx-auto mb-6 w-14 h-14 md:w-16 md:h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
+                  <Clock className="h-7 w-7 md:h-8 md:w-8 text-neutral-600" />
                 </div>
-                <h3 className="text-2xl font-semibold text-gray-900 mb-2">Coming soon</h3>
-                <p className="text-gray-600 max-w-2xl mx-auto">We’re polishing our trademark offerings. Meanwhile, explore our fully available patent services.</p>
+                <h3 className="text-xl md:text-2xl font-semibold text-gray-900 mb-2">Coming soon</h3>
+                <p className="text-gray-600 max-w-2xl mx-auto text-sm md:text-base">We’re polishing our trademark offerings. Meanwhile, explore our fully available patent services.</p>
                 <div className="mt-6">
                   <Button variant="outline" className="border-neutral-200" onClick={() => scrollToSection('patent-services')}>
                     Explore Patent Services
@@ -3029,19 +3065,19 @@ if (showQuotePage) {
             </div>
           </section>
 
-          {/* Copyright Services */}
-          <section id="copyright-services" className="bg-neutral-50 py-8 rounded-lg mt-8 border border-neutral-200 scroll-mt-24">
+          {/* Design Services (moved above Copyright) */}
+          <section id="design-services" className="bg-neutral-50 py-6 md:py-8 rounded-lg mt-6 md:mt-8 border border-neutral-200 scroll-mt-24">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Copyright Services</h2>
-                <p className="text-lg text-gray-600 max-w-3xl">Safeguard creative works with registration, licensing, and enforcement support.</p>
+                <h2 className="text-2xl md:text-4xl font-bold text-gray-900">Design Services</h2>
+                <p className="text-base md:text-lg text-gray-600 max-w-3xl">Protect unique designs with strategic search, filing, and portfolio support.</p>
               </div>
-              <div className="text-center py-12">
-                  <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
-                  <Clock className="h-8 w-8 text-neutral-600" />
+              <div className="text-center py-10 md:py-12">
+                <div className="mx-auto mb-6 w-14 h-14 md:w-16 md:h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
+                  <Clock className="h-7 w-7 md:h-8 md:w-8 text-neutral-600" />
                 </div>
-                <h3 className="text-2xl font-semibold text-gray-900 mb-2">Coming soon</h3>
-                <p className="text-gray-600 max-w-2xl mx-auto">We’re crafting copyright solutions to protect your creative work. Check back shortly.</p>
+                <h3 className="text-xl md:text-2xl font-semibold text-gray-900 mb-2">Coming soon</h3>
+                <p className="text-gray-600 max-w-2xl mx-auto text-sm md:text-base">Our design protection services are nearly ready. Stay tuned!</p>
                 <div className="mt-6">
                   <Button variant="outline" className="border-neutral-200" onClick={() => scrollToSection('patent-services')}>
                     Explore Patent Services
@@ -3052,19 +3088,19 @@ if (showQuotePage) {
             </div>
           </section>
 
-          {/* Design Services */}
-          <section id="design-services" className="bg-neutral-50 py-8 rounded-lg mt-8 border border-neutral-200 scroll-mt-24">
+          {/* Copyright Services (moved to last) */}
+          <section id="copyright-services" className="bg-neutral-50 py-6 md:py-8 rounded-lg mt-6 md:mt-8 border border-neutral-200 scroll-mt-24">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
-                <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Design Services</h2>
-                <p className="text-lg text-gray-600 max-w-3xl">Protect unique designs with strategic search, filing, and portfolio support.</p>
+                <h2 className="text-2xl md:text-4xl font-bold text-gray-900">Copyright Services</h2>
+                <p className="text-base md:text-lg text-gray-600 max-w-3xl">Safeguard creative works with registration, licensing, and enforcement support.</p>
               </div>
-              <div className="text-center py-12">
-                <div className="mx-auto mb-6 w-16 h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
-                  <Clock className="h-8 w-8 text-neutral-600" />
+              <div className="text-center py-10 md:py-12">
+                <div className="mx-auto mb-6 w-14 h-14 md:w-16 md:h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
+                  <Clock className="h-7 w-7 md:h-8 md:w-8 text-neutral-600" />
                 </div>
-                <h3 className="text-2xl font-semibold text-gray-900 mb-2">Coming soon</h3>
-                <p className="text-gray-600 max-w-2xl mx-auto">Our design protection services are nearly ready. Stay tuned!</p>
+                <h3 className="text-xl md:text-2xl font-semibold text-gray-900 mb-2">Coming soon</h3>
+                <p className="text-gray-600 max-w-2xl mx-auto text-sm md:text-base">We’re crafting copyright solutions to protect your creative work. Check back shortly.</p>
                 <div className="mt-6">
                   <Button variant="outline" className="border-neutral-200" onClick={() => scrollToSection('patent-services')}>
                     Explore Patent Services

@@ -40,8 +40,8 @@ export function Header() {
             {/* Primary service dropdowns */}
             <Dropdown label="Patent Services" items={patentServices} idPrefix="patent" colorHover="blue" />
             <Dropdown label="Trademark Services" items={trademarkServices} idPrefix="trademark" colorHover="green" />
-            <Dropdown label="Copyright Services" items={copyrightServices} idPrefix="copyright" colorHover="purple" />
             <Dropdown label="Design Services" items={designServices} idPrefix="design" colorHover="orange" />
+            <Dropdown label="Copyright Services" items={copyrightServices} idPrefix="copyright" colorHover="purple" />
 
             {/* Knowledge Hub link */}
             <a href="/knowledge-hub" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">Knowledge Hub</a>
@@ -92,21 +92,21 @@ export function Header() {
                 <UserCircleIcon className="h-8 w-8 text-gray-700 hover:text-blue-600" />
               </button>
               {menuOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white shadow-lg rounded-lg py-2 border border-gray-200 z-50">
+                <div className="absolute right-0 mt-2 w-56 bg-blue-50/95 backdrop-blur-sm shadow-lg rounded-lg py-2 border border-blue-100 z-50">
                   {isAuthenticated ? (
                     <>
                       <button
-                        className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+                        className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-blue-100"
                         onClick={() => { setMenuOpen(false); router.push('/profile') }}
                       >Profile</button>
                       <button
-                        className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+                        className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-blue-100"
                         onClick={() => { setMenuOpen(false); handleLogout() }}
                       >Sign Out</button>
                     </>
                   ) : (
                     <button
-                      className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
+                      className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-blue-100"
                       onClick={() => { setMenuOpen(false); handleGoogleLogin() }}
                     >Sign In with Google</button>
                   )}

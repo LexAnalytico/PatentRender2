@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+// Chevron icons removed since arrows are not used
 import { bannerSlides as staticBannerSlides } from '@/constants/data'
 
 // Rich slide metadata to support original hero design.
@@ -65,17 +65,12 @@ export function BannerCarousel({ featureFlag = process.env.NEXT_PUBLIC_ENABLE_BA
     return () => { cancelled = true }
   }, [featureFlag, slides])
 
-  // Auto advance
-  useEffect(() => {
-    const id = setInterval(() => setCurrent(i => (i + 1) % Math.max(1, slides.length)), 5000)
-    return () => clearInterval(id)
-  }, [slides.length])
+  // Autoplay removed: slides will only change via user interaction (arrows/dots)
 
-  const next = useCallback(() => setCurrent(i => (i + 1) % slides.length), [slides.length])
-  const prev = useCallback(() => setCurrent(i => (i - 1 + slides.length) % slides.length), [slides.length])
+  // Navigation via dots only; arrow handlers removed
 
   return (
-    <section className="banner-section relative h-[600px] overflow-hidden">
+    <section className="banner-section relative h-[420px] md:h-[520px] lg:h-[600px] overflow-hidden">
   <div className="absolute inset-0 bg-gradient-to-br from-[#0F3B97] via-[#1549B5] to-[#1B3F92]" />
       <div className="relative h-full">
         {slides.map((slide, index) => (
@@ -86,48 +81,50 @@ export function BannerCarousel({ featureFlag = process.env.NEXT_PUBLIC_ENABLE_BA
             {/* Single background gradient only (no per-slide overlay) */}
             <div className="absolute inset-0" />
             <div className="relative h-full flex items-center">
-              <div className="relative z-10 w-full max-w-7xl mx-auto px-6 lg:px-12 grid grid-cols-1 lg:grid-cols-2 gap-10">
+              <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-10 py-6 md:py-10">
                 {/* Left Column */}
                 <div className="flex flex-col justify-center max-w-xl">
                   {slide.eyebrow && (
-                    <span className="inline-block text-sm md:text-base font-medium text-blue-100 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 border border-white/15 shadow-sm w-fit mb-6 tracking-wide">
+                    <span className="inline-block text-xs md:text-sm font-medium text-blue-100 bg-white/10 backdrop-blur-sm rounded-full px-3 py-1.5 md:px-4 md:py-2 border border-white/15 shadow-sm w-fit mb-4 md:mb-6 tracking-wide">
                       {slide.eyebrow}
                     </span>
                   )}
                   {slide.title && (
-                    <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white leading-[1.05] drop-shadow-lg">
+                    <h1 className="text-2xl sm:text-3xl md:text-5xl font-bold tracking-tight text-white leading-tight md:leading-[1.05] drop-shadow-lg">
                       {slide.title}
                     </h1>
                   )}
                   {slide.description && (
-                    <p className="mt-6 text-lg md:text-xl text-blue-50 leading-relaxed drop-shadow-sm">
+                    <p className="mt-4 md:mt-6 text-sm sm:text-base md:text-xl text-blue-50 leading-relaxed drop-shadow-sm">
                       {slide.description}
                     </p>
                   )}
-                  <div className="mt-10 flex flex-wrap gap-4">
+                  <div className="mt-6 md:mt-10 flex flex-wrap gap-3 md:gap-4">
                     {slide.primaryCta && (
-                      <a
-                        href={slide.primaryCta.href || '#'}
-                        className="inline-flex items-center px-6 py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      <span
+                        aria-disabled="true"
+                        className="inline-flex items-center px-4 py-2 md:px-6 md:py-3 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 shadow-sm transition-colors text-sm md:text-base select-none"
+                        title="Disabled"
                       >
                         {slide.primaryCta.label}
-                      </a>
+                      </span>
                     )}
                     {slide.secondaryCta && (
-                      <a
-                        href={slide.secondaryCta.href || '#'}
-                        className="inline-flex items-center px-6 py-3 rounded-lg border border-white/30 text-white font-medium hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white/40"
+                      <span
+                        aria-disabled="true"
+                        className="inline-flex items-center px-4 py-2 md:px-6 md:py-3 rounded-lg border border-white/30 text-white font-medium hover:bg-white/10 transition-colors text-sm md:text-base select-none"
+                        title="Disabled"
                       >
                         {slide.secondaryCta.label}
-                      </a>
+                      </span>
                     )}
                   </div>
                   {slide.stats && (
-                    <div className="mt-12 flex flex-wrap gap-10 text-white/90">
+                    <div className="mt-6 md:mt-12 flex flex-wrap gap-6 md:gap-10 text-white/90">
                       {slide.stats.map((stat, i) => (
                         <div key={i} className="min-w-[95px] relative">
-                          <div className="text-xl font-semibold tracking-tight">{stat.value}</div>
-                          <div className="text-[11px] uppercase tracking-wide text-white/70 mt-1 font-medium">{stat.label}</div>
+                          <div className="text-base sm:text-lg md:text-xl font-semibold tracking-tight">{stat.value}</div>
+                          <div className="text-[10px] sm:text-[11px] uppercase tracking-wide text-white/70 mt-1 font-medium">{stat.label}</div>
                           {i < (slide.stats?.length || 0) - 1 && (
                             <span className="hidden md:block absolute top-1/2 -right-5 h-10 w-px bg-white/15 -translate-y-1/2" />
                           )}
@@ -138,8 +135,8 @@ export function BannerCarousel({ featureFlag = process.env.NEXT_PUBLIC_ENABLE_BA
                 </div>
                 {/* Right Column: Framed media placeholder */}
                 {!slide.hideFrame && (
-                  <div className="hidden lg:flex items-center justify-center">
-                    <div className="relative w-[520px] h-[340px] rounded-2xl bg-white/5 border border-white/20 backdrop-blur-md shadow-2xl overflow-hidden flex items-center justify-center">
+                  <div className="hidden md:flex items-center justify-center">
+                    <div className="relative w-[320px] h-[210px] md:w-[420px] md:h-[280px] lg:w-[520px] lg:h-[340px] rounded-2xl bg-white/5 border border-white/20 backdrop-blur-md shadow-2xl overflow-hidden flex items-center justify-center">
                       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/10 via-white/5 to-transparent" />
                       <div className="relative w-[84%] h-[74%] rounded-xl bg-neutral-100 border border-neutral-200 shadow-inner overflow-hidden flex items-center justify-center">
                         <img
@@ -161,13 +158,7 @@ export function BannerCarousel({ featureFlag = process.env.NEXT_PUBLIC_ENABLE_BA
           </div>
         ))}
       </div>
-      {/* Arrows */}
-      <button onClick={prev} className="absolute left-20 xl:left-24 top-1/2 -translate-y-1/2 bg-white/15 hover:bg-white/25 backdrop-blur-sm p-4 rounded-full shadow-lg transition-all duration-300 border border-white/30 group z-30">
-        <ChevronLeft className="h-5 w-5 text-white group-hover:scale-110 transition-transform" />
-      </button>
-      <button onClick={next} className="absolute right-20 xl:right-24 top-1/2 -translate-y-1/2 bg-white/15 hover:bg-white/25 backdrop-blur-sm p-4 rounded-full shadow-lg transition-all duration-300 border border-white/30 group z-30">
-        <ChevronRight className="h-5 w-5 text-white group-hover:scale-110 transition-transform" />
-      </button>
+      {/* Arrows removed: navigation via dots only */}
       {/* Dots */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex space-x-3 z-30">
         {slides.map((_, index) => (
@@ -179,9 +170,9 @@ export function BannerCarousel({ featureFlag = process.env.NEXT_PUBLIC_ENABLE_BA
           />
         ))}
       </div>
-      {/* Progress bar */}
+      {/* Progress bar (no autoplay: short transition on manual change) */}
       <div className="absolute bottom-0 left-0 w-full h-1 bg-white/20">
-        <div className="h-full bg-white transition-all duration-5000 ease-linear" style={{ width: `${((current + 1) / slides.length) * 100}%` }} />
+        <div className="h-full bg-white transition-all duration-300 ease-linear" style={{ width: `${((current + 1) / slides.length) * 100}%` }} />
       </div>
     </section>
   )
