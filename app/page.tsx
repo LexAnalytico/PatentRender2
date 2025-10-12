@@ -1276,11 +1276,19 @@ const patentServices = [
       category,
     }
   debugLog('addToCart - newItem', newItem)
-    setCartItems((prev) => [...prev, newItem])
+    setCartItems((prev) => {
+      const next = [...prev, newItem]
+      try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+      return next
+    })
   }
 
   const removeFromCart = (id: string) => {
-    setCartItems((prev) => prev.filter((item) => item.id !== id))
+    setCartItems((prev) => {
+      const next = prev.filter((item) => item.id !== id)
+      try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+      return next
+    })
   }
 
   const getTotalPrice = () => {
@@ -1295,6 +1303,15 @@ const patentServices = [
   // Sidebar cart visibility (Orders/Profile screens): show only if there is at least one item and total > 0
   const cartTotal = getTotalPrice()
   const hasCartLineItems = cartItems.length > 0 && cartTotal > 0
+  
+  // Ensure we persist the latest cart in case of abrupt navigations (e.g., OAuth redirects)
+  useEffect(() => {
+    const handler = () => {
+      try { localStorage.setItem('cart_items_v1', JSON.stringify(cartItems)) } catch {}
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [cartItems])
   
   // When user clicks a Navbar service link (/#section) from the Selected Services view,
   // auto-close the quote page and scroll to the requested section on the main page.
@@ -1748,7 +1765,11 @@ const computeTurnaroundTotal = (turn: "standard" | "expediated" | "rush") => {
     type: pricingKey || undefined,
     }
   console.debug('options-panel add - newItem', newItem)
-    setCartItems((prev) => [...prev, newItem])
+    setCartItems((prev) => {
+      const next = [...prev, newItem]
+      try { localStorage.setItem('cart_items_v1', JSON.stringify(next)) } catch {}
+      return next
+    })
     closeOptionsPanel()
   }
 
@@ -1926,6 +1947,7 @@ const handleAuth = async (e: React.FormEvent) => {
       setShowAuthModal(false)
       setIsOpen(false)
       resetAuthForm()
+      // Only clear the cart on explicit logout; leave cart intact on OAuth sign-in redirect
       setCartItems([])
       try { localStorage.removeItem("cart_items_v1") } catch {}
       setShowOptionsPanel(false)
