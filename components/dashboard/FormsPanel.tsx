@@ -73,6 +73,7 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
               onPrefillStateChange={onPrefillStateChange}
               externalPrefill={lastSavedSnapshot}
               onSaveLocal={(info) => setLastSavedSnapshot(info)}
+              onReturnToOrders={goToOrders}
             />
           </CardContent>
         </Card>
@@ -120,6 +121,7 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
                     externalPrefill={lastSavedSnapshot}
                     onPrefillStateChange={idx === 0 ? formPrefillHandleFirst : () => {}}
                     onSaveLocal={(info) => setLastSavedSnapshot(info)}
+                    onReturnToOrders={goToOrders}
                   />
                 </div>
               </CardContent>

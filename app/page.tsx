@@ -4,6 +4,7 @@ import type React from "react"
 import { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { OrderChatPopup } from '@/components/OrderChatPopup'
 import { supabase } from '../lib/supabase';
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { fetchOrdersMerged, invalidateOrdersCache } from '@/lib/orders'
 import { loadRazorpayScript, openRazorpayCheckout } from '@/lib/razorpay'
 import { fetchServicePricingRules, computePriceFromRules } from "@/utils/pricing";
@@ -1073,22 +1074,22 @@ useEffect(() => {
 const patentServices = [
     {
       title: "Patentability Search",
-      description: "A patentability (novelty) search is conducted before filing a patent to determine if an invention meets protection criteria—novelty, utility, and non-obviousness. It reviews patents, applications, publications, and other prior art that may affect patentability. Our experts analyze thoroughly, prepare precise documents, and guide you through the process to maximize protection and value.",
+      description: "A patentability (novelty) search identifies whether your invention meets patent criteria—novelty, utility, and non-obviousness. It reviews prior patents, applications, and publications that could affect protection. Our experts conduct detailed analysis, prepare clear reports, and guide you through the process to strengthen your innovation and maximize its protection potential.",
       icon: <Scale className="h-8 w-8 text-blue-600" />,
     },
     {
       title: "Drafting",
-      description: "Patent drafting involves creating a detailed and legally sound document that fully describes your invention to secure the broadest possible protection. It includes crafting precise claims, technical specifications, and drawings that meet global patent office standards. Our experts ensure clarity, accuracy, and strategic positioning to strengthen your IP rights and support future commercialization. We draft with precision to safeguard innovation and enhance enforceability.",
+      description: "Patent drafting transforms your invention into a precise legal document defining its scope and protection. Our experts craft strong claims, clear specifications, and compliant drawings to meet global standards. Every draft is prepared strategically to secure broad protection, ensure clarity, and support future commercialization or licensing.",
       icon: <Shield className="h-8 w-8 text-blue-600" />,
     },
     {
       title: "Patent Application Filing",
-      description: "Patent application filing is the formal submission of your drafted patent to the respective patent office for examination and protection. It requires compliance with procedural, legal, and technical standards specific to each jurisdiction. Our team manages complete filing logistics, documentation, and formality checks while ensuring deadlines and requirements are met, streamlining your path to patent grant and global protection.",
+      description: "Patent filing is the formal step toward securing protection for your invention. We handle documentation, jurisdiction-specific requirements, and complete submission to patent offices. Our team ensures accuracy, compliance, and timely filing—streamlining your path from application to patent grant with minimal hassle.",
       icon: <Award className="h-8 w-8 text-blue-600" />,
     },
     {
       title: "First Examination Response",
-      description: "A first examination response addresses the patent examiner's objections or rejections raised during examination. It involves detailed technical and legal reasoning to clarify, amend, or defend claims. Our professionals prepare strong, well-reasoned responses that align with patent laws and protect your invention's scope. We aim to resolve objections effectively and move your application toward successful grant.",
+      description: "The first examination response addresses objections raised by the patent examiner. Our professionals analyze each objection, prepare well-reasoned clarifications or amendments, and ensure compliance with patent laws. We focus on protecting your claims, strengthening your application, and guiding it smoothly toward a successful grant.",
       icon: <Award className="h-8 w-8 text-blue-600" />,
     },  
   ]
@@ -1832,7 +1833,7 @@ const goToServices = () => {
 }
 // 3) In the auth listener, honor intent but don’t force navigation otherwise
 useEffect(() => {
-  const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+  const { data: sub } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
   debugLog("[auth] event", { event, hasUser: !!session?.user })
     if (event === "SIGNED_IN" && session?.user) {
       upsertUserProfileFromSession()
@@ -2521,8 +2522,8 @@ if (showQuotePage) {
                       <div className="p-4 text-sm text-gray-500">No orders found.</div>
                     )}
                     {!embeddedOrdersLoading && !ordersLoadError && embeddedOrders && embeddedOrders.length > 0 && (
-                      <div className="overflow-x-auto">
-                        <table className="w-full table-auto border border-slate-300 rounded-md overflow-hidden">
+                      <div className="overflow-x-auto overscroll-x-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-300">
+                        <table className="table-auto border border-slate-300 rounded-md overflow-hidden min-w-[980px]">
                           <thead className="border-b border-slate-300">
                             <tr className="text-left text-base text-slate-700 bg-blue-50/70 divide-x divide-slate-300">
                               <th className="px-3 py-2 font-semibold tracking-wide">Order ID</th>

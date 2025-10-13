@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from "@/lib/supabase";
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { useRef } from 'react';
 import { useFocusTrap } from '@/components/hooks/useFocusTrap';
 
@@ -19,7 +20,10 @@ export default function Navbar() {
     };
     getUser();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((
+      _event: AuthChangeEvent,
+      session: Session | null
+    ) => {
       setUser(session?.user ?? null);
     });
 

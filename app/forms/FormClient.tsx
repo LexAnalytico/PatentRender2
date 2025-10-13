@@ -10,7 +10,7 @@ import { ALLOWED_MIME, MAX_FILE_BYTES, uploadFigure, deleteFigure } from '@/util
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { useToast } from "@/components/hooks/use-toast"
 import formData from "../data/forms-fields.json"
 import pricingToForm from '../data/service-pricing-to-form.json'
@@ -86,9 +86,10 @@ interface FormClientProps {
   onPrefillStateChange?: (info: { available: boolean; apply: () => void }) => void;
   externalPrefill?: { type: string; orderId: number | null; values: Record<string,string> } | null;
   onSaveLocal?: (info: { type: string; orderId: number | null; values: Record<string,string> }) => void;
+  onReturnToOrders?: () => void;
 }
 
-export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillStateChange, externalPrefill, onSaveLocal }: FormClientProps = {}) {
+export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillStateChange, externalPrefill, onSaveLocal, onReturnToOrders }: FormClientProps = {}) {
   // Debug flag (temporarily disabled normal verbose logging)
   const DEBUG = false // typeof window !== 'undefined' && (window as any).FORM_DEBUG !== false;
   const FLOW_DEBUG = typeof window !== 'undefined' && (window as any).FORM_FLOW_DEBUG === true
@@ -111,8 +112,10 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   const [selectedType, setSelectedType] = useState<string>("")
   const selectedTypeLabel = getApplicationTypeLabel(selectedType)
   const [formValues, setFormValues] = useState<Record<string, string>>({})
-  // Read-only mode: default true; user must click Edit to modify
-  const [readOnly, setReadOnly] = useState(true)
+  // Read-only mode: default false; form is editable by default
+  const [readOnly, setReadOnly] = useState(false)
+  // Confirmation (review) mode: show Confirm/Edit only and lock fields
+  const [confirmMode, setConfirmMode] = useState(false)
   const lastSavedRef = useRef<Record<string,string>>({})
   // popup replaced by external button; keep candidate internally
   const [prefillOpen, setPrefillOpen] = useState(false) // deprecated (kept to avoid refactor ripple)
@@ -171,6 +174,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   // Multi-author (Applicant Name) handling: store as newline-separated string in formValues
   const [multiAuthors, setMultiAuthors] = useState<Record<string, string[]>>({})
   const initializedAuthorsRef = useRef<Set<string>>(new Set())
+  // Track whether user dismissed auto-confirm so we don't immediately re-enter confirm mode
+  const autoConfirmDismissedRef = useRef<boolean>(false)
   // Initialize multiAuthors only once per matching field when persisted data (with at least one non-empty name) exists
   useEffect(() => {
     const pattern = /^(inventor\s*\/\s*)?applicant.*name\(s\)|^(inventor|applicant).*name(s)?$/i
@@ -192,6 +197,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   const toastHook = useToast?.()
   const toast = toastHook ?? { toast: (opts: any) => { if (opts?.title) alert(`${opts.title}\n${opts?.description || ""}`) } }
   const searchParams = useSearchParams()
+  const router = useRouter()
   
   const orderIdFromProps = orderIdProp ?? null
   const typeFromProps = typeProp ?? null
@@ -328,6 +334,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   }
   const beginEdit = () => { setReadOnly(false) }
   const revertToLastSaved = () => { setFormValues(lastSavedRef.current || {}); setReadOnly(true) }
+  const enterConfirmMode = () => { setReadOnly(true); setConfirmMode(true) }
+  const exitConfirmModeToEdit = () => { setConfirmMode(false); setReadOnly(false); autoConfirmDismissedRef.current = true }
 
   const handleSave = () => {
     if (!selectedType) {
@@ -350,13 +358,22 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         const startedAt = Date.now()
         setSaveStartedAt(startedAt)
         setLastSaveDebug({ started: startedAt, payload: { tentativeFields: filledFields.length } })
-        // Timeout safeguard (e.g., hanging network/RLS). If not cleared in 25s, reset.
+        // Timeout safeguard (e.g., hanging network/RLS). If not cleared in 15s, mark stalled and allow retry.
         timeoutId = setTimeout(() => {
           setSaveStall(true)
-          if (saveStartedAt) {
-            const elapsed = Date.now() - saveStartedAt
-            setLastSaveDebug(prev => prev ? { ...prev, error: prev.error || `Stalled after ${elapsed}ms (possible network/RLS hang)` } : prev)
-          }
+          setSaving(false)
+          try {
+            toast.toast?.({
+              title: 'Save taking longer than usual',
+              description: 'Network is slow or temporarily unavailable. Please retry.',
+              variant: 'destructive'
+            })
+          } catch {}
+          setLastSaveDebug(prev => {
+            const elapsed = saveStartedAt ? (Date.now() - saveStartedAt) : undefined
+            const msg = `Stalled after ${elapsed ?? 'unknown'}ms (possible network/RLS hang)`
+            return prev ? { ...prev, error: prev.error || msg } : prev
+          })
         }, 15000)
   // finished flag now declared in outer scope for finally block
         const { data: sessionRes } = await supabase.auth.getSession()
@@ -386,6 +403,16 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         setSaveSuccessTs(Date.now())
   setSavedBannerState('visible')
         setLastSaveDebug(prev => prev ? { ...prev, ended: Date.now(), payload: { ...prev.payload, saved: true, filled: filledFields.length, total: relevantFields.length } } : prev)
+
+        // If we are in confirm (review) mode, show thank-you and navigate to orders now
+        if (confirmMode) {
+          try { toast.toast?.({ title: 'Thank you for submitting form' }) } catch {}
+          setConfirmMode(false)
+          try {
+            if (onReturnToOrders) onReturnToOrders()
+            else router.push('/orders')
+          } catch {}
+        }
       } catch (e: any) {
         console.error('Save error', e)
         toast.toast?.({ title: 'Save failed', description: e?.message || 'Unable to save form', variant: 'destructive' })
@@ -399,7 +426,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         try { clearTimeout(timeoutId) } catch {}
         if (finished) {
           lastSavedRef.current = { ...formValues }
-          setReadOnly(true)
+          // Stay in edit mode after saving
         }
       }
     })()
@@ -415,6 +442,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   useEffect(() => {
     if (!selectedType) return
     let active = true
+    const confirmInitDoneRef = { current: false }
     ;(async () => {
       try {
         flowLog('load-values:start', 'Begin loading form values', { selectedType, orderIdEffective })
@@ -424,15 +452,19 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         if (!userId) { setFormValues({}); return }
         const orderId = orderIdEffective
         let exactData: any = null
+        let exactCompleted: boolean | null = null
         if (orderId != null) {
           const { data: exact, error: exactErr } = await supabase
             .from('form_responses')
-            .select('data')
+            .select('data, completed')
             .eq('user_id', userId)
             .eq('order_id', orderId)
             .eq('form_type', selectedType)
             .maybeSingle()
-          if (!exactErr && exact?.data) exactData = exact.data
+          if (!exactErr) {
+            if (exact?.data) exactData = exact.data
+            if (typeof exact?.completed === 'boolean') exactCompleted = !!exact.completed
+          }
         } else {
           const { data: latest, error: latestErr } = await supabase
             .from('form_responses')
@@ -443,7 +475,19 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
             .limit(1)
           if (!latestErr && latest && latest.length > 0) exactData = (latest[0] as any).data
         }
-  if (exactData) { if (active) { setFormValues(exactData as any); setLastLoadMeta({ phase: 'load', orderId, type: selectedType, foundExact: true, fallbackUsed: false, ts: Date.now() }) }; return }
+  if (exactData) {
+          if (active) {
+            setFormValues(exactData as any)
+            setLastLoadMeta({ phase: 'load', orderId, type: selectedType, foundExact: true, fallbackUsed: false, ts: Date.now() })
+            // If this order's form is completed, start in confirm (read-only) mode
+            if (orderId != null && exactCompleted === true && !confirmInitDoneRef.current) {
+              setReadOnly(true)
+              setConfirmMode(true)
+              confirmInitDoneRef.current = true
+            }
+          }
+          return
+        }
         const { data: anyData, error: anyErr } = await supabase
           .from('form_responses')
           .select('data, updated_at')
@@ -483,6 +527,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           const hideTimer = setTimeout(() => setSavedBannerState('hidden'), 2400)
           return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer) }
         }, [saveSuccessTs, readOnly])
+
+        
 
         // Hide banner immediately when entering edit mode
         useEffect(() => {
@@ -527,6 +573,33 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     })
   }, [relevantFields])
   const manualReloadForm = () => { if (selectedType) setManualReloadTick(t => t + 1) }
+
+  // Determine if all core fields (excluding comments and uploads) are filled
+  useEffect(() => {
+    if (!selectedType || !relevantFields.length) return
+    // Identify core fields: exclude uploads and comments
+    const coreFields = relevantFields.filter((field) => {
+      const title = field.field_title.trim().toLowerCase()
+      const isComment = /comment/.test(title)
+      const category = inferAttachmentCategoryFromField(field.field_title)
+      const isUpload = !!category || /^drawings\s*\/\s*figures$/i.test(field.field_title.trim())
+      return !isComment && !isUpload
+    })
+    const coreComplete = coreFields.every(f => {
+      const v = (formValues as any)[f.field_title]
+      return typeof v === 'string' && v.trim() !== ''
+    })
+    // If core is complete, auto-enter confirm mode unless user dismissed it
+    if (coreComplete) {
+      if (!confirmMode && !autoConfirmDismissedRef.current) {
+        setReadOnly(true)
+        setConfirmMode(true)
+      }
+    } else {
+      // Reset dismissal when core becomes incomplete so we can auto-enter next time
+      autoConfirmDismissedRef.current = false
+    }
+  }, [formValues, selectedType, relevantFields, confirmMode])
 
   // Load existing attachments for this (user, order, form type)
   useEffect(() => {
@@ -792,10 +865,10 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                   progress: 100,
                   storage_path: r.storage_path,
                 }))
-                setAttachments(prev => {
+                setAttachments((prev) => {
                   // Only add if not already present
-                  const existing = new Set(prev.map(p => p.id || p.tempId))
-                  const add = mapped.filter(m => !existing.has(m.id || m.tempId))
+                  const existing = new Set<string>(prev.map((p) => String(p.id || p.tempId)))
+                  const add = mapped.filter((m: any) => !existing.has(String(m.id || m.tempId)))
                   return [...prev, ...add]
                 })
               }
@@ -1253,29 +1326,55 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                   </div>
                   {/* Action buttons */}
                   <div className="flex flex-wrap gap-4 items-center">
-                  <Button
-                    onClick={beginEdit}
-                    className={styleTokens.primaryBtn}
-                    disabled={!readOnly || saving}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    onClick={handleSave}
-                    disabled={readOnly || saving}
-                    className={styleTokens.primaryBtn + ((!readOnly && saving) ? ' opacity-70 cursor-not-allowed' : '')}
-                  >
-                    {(!readOnly && saving) ? 'Saving…' : 'Save'}
-                  </Button>
-                  <Button
-                    onClick={handleCancel}
-                    variant="outline"
-                    className={styleTokens.secondaryBtn}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </Button>
-                    {readOnly && saveSuccessTs && (Date.now() - saveSuccessTs) < RECENT_SAVE_MS && savedBannerState !== 'hidden' && (
+                    {/* Confirm mode: show Confirm/Edit only; hide Save/Refill/Submit */}
+                    {confirmMode ? (
+                      <>
+                        <Button
+                          onClick={() => handleSave()}
+                          disabled={saving}
+                          className={styleTokens.primaryBtn + (saving ? ' opacity-70 cursor-not-allowed' : '')}
+                        >
+                          {saving ? 'Saving…' : 'Confirm'}
+                        </Button>
+                        <Button
+                          onClick={exitConfirmModeToEdit}
+                          variant="outline"
+                          className={styleTokens.secondaryBtn}
+                          disabled={saving}
+                        >
+                          Edit
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        {/* Primary: Save (default action while editing) */}
+                        <Button
+                          onClick={handleSave}
+                          disabled={readOnly || saving}
+                          className={styleTokens.primaryBtn + ((!readOnly && saving) ? ' opacity-70 cursor-not-allowed' : '')}
+                        >
+                          {(!readOnly && saving) ? 'Saving…' : 'Save'}
+                        </Button>
+                        {/* Refill retains same behavior as previous Cancel */}
+                        <Button
+                          onClick={handleCancel}
+                          variant="outline"
+                          className={styleTokens.secondaryBtn}
+                          disabled={saving}
+                        >
+                          Refill
+                        </Button>
+                        {/* Submit enters read-only confirm mode to review */}
+                        <Button
+                          onClick={enterConfirmMode}
+                          className={styleTokens.primaryBtn}
+                          disabled={saving}
+                        >
+                          Submit
+                        </Button>
+                      </>
+                    )}
+                    {readOnly && !confirmMode && saveSuccessTs && (Date.now() - saveSuccessTs) < RECENT_SAVE_MS && savedBannerState !== 'hidden' && (
                       <div className={`flex items-center gap-2 text-sm font-medium text-green-600 transition-opacity duration-600 ${savedBannerState === 'fading' ? 'opacity-0' : 'opacity-100'}`}>
                         <span className="inline-block w-2 h-2 bg-green-600 rounded-full animate-pulse" />
                         Data saved
