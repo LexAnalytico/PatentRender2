@@ -76,10 +76,11 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
   filingTypePrices,
   ferTotal,
 }) => {
+  // Enable Add when minimum selections are present. For Filing, filing type can default; only applicant type is required.
   const disabledAdd = (
     (selectedServiceTitle === 'Patentability Search' && (!optionsForm.searchType || !optionsForm.goodsServices)) ||
     (selectedServiceTitle === 'Drafting' && (!optionsForm.searchType || !optionsForm.goodsServices)) ||
-    (selectedServiceTitle === 'Patent Application Filing' && (!optionsForm.searchType || !optionsForm.goodsServices)) ||
+    (selectedServiceTitle === 'Patent Application Filing' && (!optionsForm.searchType)) ||
     (selectedServiceTitle === 'First Examination Response' && (!optionsForm.searchType))
   )
 

@@ -62,16 +62,132 @@ export interface SelectedOptions {
   option1?: boolean
 }
 
-export async function fetchServicePricingRules(serviceId: number): Promise<PricingRule[]> {
-  const { data, error } = await supabase
-    .from("service_pricing_rules")
-    .select("id, service_id, application_type, key, unit, amount")
-    .eq("service_id", serviceId)
+// ---- Lightweight client-side cache for rules (per-session via localStorage) ----
+let rulesCache: PricingRule[] | null = null
+let rulesCacheLoadedAt: number | null = null
+const CACHE_VER = process.env.NEXT_PUBLIC_PRICING_CACHE_VER || '1'
+const RULES_CACHE_KEY = `pricing:service_rules:v${CACHE_VER}`
+
+export async function ensureRulesCache(client = supabase): Promise<PricingRule[]> {
+  // Server guards: only attempt localStorage in browser
+  const isBrowser = typeof window !== 'undefined'
+  if (rulesCache && rulesCache.length > 0) return rulesCache
+  if (isBrowser) {
+    try {
+      const raw = window.localStorage.getItem(RULES_CACHE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw) as PricingRule[]
+        if (Array.isArray(parsed) && parsed.length >= 0) {
+          rulesCache = parsed.map((r) => ({ ...r, amount: Number((r as any).amount) }))
+          rulesCacheLoadedAt = Date.now()
+          return rulesCache
+        }
+      }
+    } catch {}
+  }
+
+  // Fallback: fetch all rules once from Supabase and cache
+  const { data, error } = await client
+    .from('service_pricing_rules')
+    .select('id, service_id, application_type, key, unit, amount')
 
   if (error) throw new Error(error.message)
-  return (data ?? []).map((r) => ({ ...r, amount: Number(r.amount) }))
+  rulesCache = (data ?? []).map((r: any) => ({ ...r, amount: Number(r.amount) })) as PricingRule[]
+  rulesCacheLoadedAt = Date.now()
+  if (isBrowser) {
+    try { window.localStorage.setItem(RULES_CACHE_KEY, JSON.stringify(rulesCache)) } catch {}
+  }
+  return rulesCache!
 }
 
+export async function fetchServicePricingRules(serviceId: number): Promise<PricingRule[]> {
+  // Use cache in browser if available, else fall back to targeted query
+  const isBrowser = typeof window !== 'undefined'
+  try {
+    const cached = await ensureRulesCache()
+    if (cached && cached.length > 0) {
+      return cached.filter((r) => r.service_id === serviceId)
+    }
+  } catch {
+    // ignore cache errors; fall through to direct fetch
+  }
+
+  const { data, error } = await supabase
+    .from('service_pricing_rules')
+    .select('id, service_id, application_type, key, unit, amount')
+    .eq('service_id', serviceId)
+
+  if (error) throw new Error(error.message)
+  return (data ?? []).map((r: any) => ({ ...r, amount: Number(r.amount) })) as PricingRule[]
+}
+
+// ---- Patentrender (base pricing table) cache ----
+export interface PatentrenderRow {
+  patent_search: number | null
+  patent_application: number | null
+  patent_portfolio: number | null
+  first_examination: number | null
+  trademark_search: number | null
+  trademark_registration: number | null
+  trademark_monitoring: number | null
+  copyright_registration: number | null
+  dmca_services: number | null
+  copyright_licensing: number | null
+  design_registration: number | null
+  design_search: number | null
+  design_portfolio: number | null
+}
+
+const PATENTRENDER_CACHE_KEY = `pricing:patentrender:v${CACHE_VER}`
+let patentrenderCache: PatentrenderRow | null = null
+export async function ensurePatentrenderCache(client = supabase): Promise<PatentrenderRow | null> {
+  const isBrowser = typeof window !== 'undefined'
+  if (patentrenderCache) return patentrenderCache
+  if (isBrowser) {
+    try {
+      const raw = window.localStorage.getItem(PATENTRENDER_CACHE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw) as PatentrenderRow
+        if (parsed && typeof parsed === 'object') {
+          patentrenderCache = parsed
+          return patentrenderCache
+        }
+      }
+    } catch {}
+  }
+  const { data, error } = await client
+    .from('patentrender')
+    .select(
+      'patent_search, patent_application, patent_portfolio, first_examination, trademark_search, trademark_registration, trademark_monitoring, copyright_registration, dmca_services, copyright_licensing, design_registration, design_search, design_portfolio'
+    )
+    .maybeSingle()
+  if (error) {
+    console.error('[pricing] patentrender fetch failed', error)
+    return null
+  }
+  const normalized: PatentrenderRow | null = data
+    ? {
+        patent_search: Number(data.patent_search ?? 0),
+        patent_application: Number(data.patent_application ?? 0),
+        patent_portfolio: Number(data.patent_portfolio ?? 0),
+        first_examination: Number(data.first_examination ?? 0),
+        trademark_search: Number(data.trademark_search ?? 0),
+        trademark_registration: Number(data.trademark_registration ?? 0),
+        trademark_monitoring: Number(data.trademark_monitoring ?? 0),
+        copyright_registration: Number(data.copyright_registration ?? 0),
+        dmca_services: Number(data.dmca_services ?? 0),
+        copyright_licensing: Number(data.copyright_licensing ?? 0),
+        design_registration: Number(data.design_registration ?? 0),
+        design_search: Number(data.design_search ?? 0),
+        design_portfolio: Number(data.design_portfolio ?? 0),
+      }
+    : null
+  patentrenderCache = normalized
+  if (isBrowser && normalized) {
+    try { window.localStorage.setItem(PATENTRENDER_CACHE_KEY, JSON.stringify(normalized)) } catch {}
+  }
+  return normalized
+}
 export function computePriceFromRules(rules: PricingRule[], opts: SelectedOptions): number {
   const byKey = new Map<string, PricingRule>()
   const anyKey = new Map<string, PricingRule>()

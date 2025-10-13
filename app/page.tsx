@@ -7,7 +7,7 @@ import { supabase } from '../lib/supabase';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { fetchOrdersMerged, invalidateOrdersCache } from '@/lib/orders'
 import { loadRazorpayScript, openRazorpayCheckout } from '@/lib/razorpay'
-import { fetchServicePricingRules, computePriceFromRules } from "@/utils/pricing";
+import { fetchServicePricingRules, computePriceFromRules, ensurePatentrenderCache } from "@/utils/pricing";
 import { computePatentabilityPrice } from '@/utils/pricing/services/patentabilitySearch'
 import { computeDraftingPrice as draftingPriceHelper } from '@/utils/pricing/services/drafting'
 import { usePricingPreview } from '@/hooks/usePricingPreview'
@@ -997,45 +997,95 @@ if (quoteView === "orders") {
     }
   }
 
- 
-useEffect(() => {
-    async function fetchPricing() {
-      const { data, error } = await supabase
-        .from('patentrender')
-        .select(
-          'patent_search, patent_application, patent_portfolio, first_examination, trademark_search, trademark_registration, trademark_monitoring, copyright_registration, dmca_services, copyright_licensing, design_registration, design_search, design_portfolio'
-        )
-        .maybeSingle();
-           
-      if (error) {
-        console.error("Error fetching pricing:", error)
-      } else if (data) {
-        const formattedPricing: Record<string, number> = {
-          "Patentability Search": data.patent_search,
-          "Drafting": data.patent_application,
-          "Patent Application Filing": data.patent_portfolio,
-          "First Examination Response": data.first_examination,  
-          "Trademark Search": data.trademark_search,
-          "Trademark Registration": data.trademark_registration,
-          "Trademark Monitoring": data.trademark_monitoring,
-          "Copyright Registration": data.copyright_registration,
-          "DMCA Services": data.dmca_services,
-          "Copyright Licensing": data.copyright_licensing,
-          "Design Registration": data.design_registration,
-          "Design Search": data.design_search,
-          "Design Portfolio": data.design_portfolio,
-        }
-        setServicePricing(formattedPricing)
-      } else {
-        console.log("No pricing data found in the database. Please add a row to the 'patentrender' table.")
-      }
+// Pricing: cache-first load with in-flight guard; uses JSON from localStorage via ensurePatentrenderCache
+const pricingLoadInFlightRef = useRef(false)
+const PATENTRENDER_CACHE_KEY = useMemo(() => `pricing:patentrender:v${process.env.NEXT_PUBLIC_PRICING_CACHE_VER || '1'}`,[process.env.NEXT_PUBLIC_PRICING_CACHE_VER])
+const mapPatentrenderToPricing = (row: any): Record<string, number> => ({
+  'Patentability Search': Number(row?.patent_search ?? 0),
+  'Drafting': Number(row?.patent_application ?? 0),
+  'Patent Application Filing': Number(row?.patent_portfolio ?? 0),
+  'First Examination Response': Number(row?.first_examination ?? 0),
+  'Trademark Search': Number(row?.trademark_search ?? 0),
+  'Trademark Registration': Number(row?.trademark_registration ?? 0),
+  'Trademark Monitoring': Number(row?.trademark_monitoring ?? 0),
+  'Copyright Registration': Number(row?.copyright_registration ?? 0),
+  'DMCA Services': Number(row?.dmca_services ?? 0),
+  'Copyright Licensing': Number(row?.copyright_licensing ?? 0),
+  'Design Registration': Number(row?.design_registration ?? 0),
+  'Design Search': Number(row?.design_search ?? 0),
+  'Design Portfolio': Number(row?.design_portfolio ?? 0),
+})
 
-      setLoading(false)
+const fetchPricing = useCallback(async () => {
+  if (pricingLoadInFlightRef.current) return
+  pricingLoadInFlightRef.current = true
+  try {
+    // 1) Cache-first: try localStorage JSON immediately to avoid 0s on tab return
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = window.localStorage.getItem(PATENTRENDER_CACHE_KEY)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          const formatted = mapPatentrenderToPricing(parsed)
+          if (Object.values(formatted).some((v) => v > 0)) {
+            setServicePricing(formatted)
+          }
+        }
+      } catch {}
     }
 
-    fetchPricing()
-       
-  }, [])
+    // 2) Ensure cache from DB if needed, then set pricing
+    const row = await ensurePatentrenderCache()
+    if (row) {
+      setServicePricing(mapPatentrenderToPricing(row))
+    } else {
+      console.log("No pricing data found in 'patentrender'.")
+    }
+  } finally {
+    setLoading(false)
+    pricingLoadInFlightRef.current = false
+  }
+}, [PATENTRENDER_CACHE_KEY])
+
+// Initial pricing load on mount: seed from localStorage JSON, then fetch/cache
+useEffect(() => {
+  // Seed from local JSON first for immediate UI
+  try {
+    if (typeof window !== 'undefined') {
+      const raw = window.localStorage.getItem(PATENTRENDER_CACHE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        const formatted = mapPatentrenderToPricing(parsed)
+        if (Object.values(formatted).some((v) => v > 0)) {
+          setServicePricing(formatted)
+        }
+      }
+    }
+  } catch {}
+  // Then ensure cache and refresh state
+  fetchPricing()
+}, [fetchPricing, PATENTRENDER_CACHE_KEY])
+
+// Main screen (landing) focus/visibility/pageshow refresh: only when missing, mirroring Orders/Profile missing-only behavior
+useEffect(() => {
+  if (showQuotePage) return // only apply to main/landing screen
+  const handler = () => {
+    // Only act when tab is visible
+    if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return
+    const hasPricing = servicePricing && Object.keys(servicePricing).length > 0
+    if (!hasPricing && !pricingLoadInFlightRef.current) {
+      fetchPricing()
+    }
+  }
+  window.addEventListener('focus', handler)
+  document.addEventListener('visibilitychange', handler)
+  window.addEventListener('pageshow', handler)
+  return () => {
+    window.removeEventListener('focus', handler)
+    document.removeEventListener('visibilitychange', handler)
+    window.removeEventListener('pageshow', handler)
+  }
+}, [showQuotePage, servicePricing, fetchPricing])
 
 
   const [bannerSlides, setBannerSlides] = useState(staticBannerSlides)
@@ -1394,6 +1444,12 @@ const patentServices = [
   // Live fee preview state and pricing rules (rules fetched here; derived pricing via usePricingPreview hook)
   const [pricingRules, setPricingRules] = useState<any[] | null>(null)
   const [preview, setPreview] = useState({ total: 0, professional: 0, government: 0 })
+  // Versioned cache keys for localStorage persistence to survive tab suspends
+  const CACHE_VER = process.env.NEXT_PUBLIC_PRICING_CACHE_VER || '1'
+  const SELECTED_SERVICE_TITLE_KEY = `pricing:selectedServiceTitle:v${CACHE_VER}`
+  const SELECTED_SERVICE_CATEGORY_KEY = `pricing:selectedServiceCategory:v${CACHE_VER}`
+  const OPTIONS_FORM_KEY = `pricing:optionsForm:v${CACHE_VER}`
+  const rulesKeyFor = (name: string) => `pricing:rules:byName:${name}:v${CACHE_VER}`
   // Hook-managed derived pricing values
   const [visibilityTick, setVisibilityTick] = useState(0) // declared earlier previously; keep ordering consistent
   const pricingDerived = usePricingPreview({
@@ -1411,6 +1467,44 @@ const patentServices = [
     const onVis = () => { if (!document.hidden) setVisibilityTick(t => t + 1) }
     document.addEventListener('visibilitychange', onVis)
     return () => document.removeEventListener('visibilitychange', onVis)
+  }, [])
+
+  // Persist selection and options to localStorage for resilience across tab suspends
+  useEffect(() => {
+    try {
+      if (selectedServiceTitle) localStorage.setItem(SELECTED_SERVICE_TITLE_KEY, selectedServiceTitle)
+      else localStorage.removeItem(SELECTED_SERVICE_TITLE_KEY)
+    } catch {}
+  }, [selectedServiceTitle])
+  useEffect(() => {
+    try {
+      if (selectedServiceCategory) localStorage.setItem(SELECTED_SERVICE_CATEGORY_KEY, selectedServiceCategory)
+      else localStorage.removeItem(SELECTED_SERVICE_CATEGORY_KEY)
+    } catch {}
+  }, [selectedServiceCategory])
+  useEffect(() => {
+    try {
+      localStorage.setItem(OPTIONS_FORM_KEY, JSON.stringify(optionsForm))
+    } catch {}
+  }, [optionsForm])
+
+  // Hydrate persisted selection and options on mount
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem(SELECTED_SERVICE_TITLE_KEY)
+      if (s) setSelectedServiceTitle(s)
+    } catch {}
+    try {
+      const c = localStorage.getItem(SELECTED_SERVICE_CATEGORY_KEY)
+      if (c) setSelectedServiceCategory(c)
+    } catch {}
+    try {
+      const raw = localStorage.getItem(OPTIONS_FORM_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        setOptionsForm(prev => ({ ...prev, ...parsed }))
+      }
+    } catch {}
   }, [])
 
   // Nudge recomputations also on window focus (Safari sometimes fails visibilitychange alone)
@@ -1472,6 +1566,15 @@ const patentServices = [
         setPricingRules(null)
         return
       }
+      // Preload cached rules by service name for instant totals
+      try {
+        const cached = localStorage.getItem(rulesKeyFor(selectedServiceTitle))
+        if (cached) {
+          const arr = JSON.parse(cached)
+          if (Array.isArray(arr) && arr.length > 0) setPricingRules(arr)
+        }
+      } catch {}
+
       let serviceId: number | null = null
       const { data: svc, error: svcErr } = await supabase
         .from("services")
@@ -1484,7 +1587,7 @@ const patentServices = [
         serviceId = typeof mapped === "number" ? mapped : null
       }
       if (serviceId == null) {
-        setPricingRules(null)
+        // keep any cached rules if present
         return
       }
       try {
@@ -1498,9 +1601,10 @@ const patentServices = [
           sampleKeys: Array.isArray(rules) ? Array.from(new Set(rules.slice(0, 12).map((r: any) => r.key))) : [],
         })
         setPricingRules(rules as any)
+        try { localStorage.setItem(rulesKeyFor(selectedServiceTitle), JSON.stringify(rules)) } catch {}
       } catch (e) {
         console.error("Failed to load pricing rules:", e)
-        setPricingRules(null)
+        // if cached rules were set earlier, keep them; otherwise null
       }
     }
     loadRules()
@@ -1625,18 +1729,22 @@ const computeTurnaroundTotal = (turn: "standard" | "expediated" | "rush") => {
        
     // Always compute price from DB rules using selected options
   const baseServicePrice = servicePricing[selectedServiceTitle as keyof typeof servicePricing] || 0
-    const { data: svc, error: svcErr } = await supabase
-      .from("services")
-      .select("id")
-      .eq("name", selectedServiceTitle)
-      .maybeSingle()
-
     let serviceId: number | null = null
-    if (!svcErr && svc?.id) {
-      serviceId = svc.id
-    } else {
+    try {
+      const { data: svc, error: svcErr } = await supabase
+        .from("services")
+        .select("id")
+        .eq("name", selectedServiceTitle)
+        .maybeSingle()
+      if (!svcErr && svc?.id) {
+        serviceId = svc.id
+      }
+    } catch (e) {
+      console.warn('[Cart] Service lookup failed, using local map', e)
+    }
+    if (serviceId == null) {
       const mapped = serviceIdByName[selectedServiceTitle as keyof typeof serviceIdByName]
-      serviceId = typeof mapped === "number" ? mapped : null
+      serviceId = typeof mapped === 'number' ? mapped : null
     }
 
     let price = 0
@@ -1766,12 +1874,16 @@ const computeTurnaroundTotal = (turn: "standard" | "expediated" | "rush") => {
     type: pricingKey || undefined,
     }
   console.debug('options-panel add - newItem', newItem)
-    setCartItems((prev) => {
-      const next = [...prev, newItem]
-      try { localStorage.setItem('cart_items_v1', JSON.stringify(next)) } catch {}
-      return next
-    })
-    closeOptionsPanel()
+    try {
+      setCartItems((prev) => {
+        const next = [...prev, newItem]
+        try { localStorage.setItem('cart_items_v1', JSON.stringify(next)) } catch {}
+        return next
+      })
+    } finally {
+      // Always close the panel so the user sees the cart update even if background pricing calls had issues
+      closeOptionsPanel()
+    }
   }
 
   const calculateAdjustedTotal = () => {

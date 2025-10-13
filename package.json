@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "clean": "rm -rf .next",
     "build": "next build",
     "dev": "next dev",
+    "dev:memcache": "NEXT_DEV_MEMORY_CACHE=1 next dev",
     "lint": "next lint",
     "start": "next start"
   },
