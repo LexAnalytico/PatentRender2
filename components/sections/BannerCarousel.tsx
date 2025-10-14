@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 // Chevron icons removed since arrows are not used
 import { bannerSlides as staticBannerSlides } from '@/constants/data'
 
@@ -44,10 +44,12 @@ export function BannerCarousel({ featureFlag = process.env.NEXT_PUBLIC_ENABLE_BA
 
   const [slides, setSlides] = useState<Slide[]>(enrichedStaticSlides)
   const [current, setCurrent] = useState(0)
+  const overrideAppliedRef = useRef(false)
 
   // Remote override (optional)
   useEffect(() => {
     if (featureFlag !== '1') return
+    if (overrideAppliedRef.current) return
     let cancelled = false
     ;(async () => {
       try {
@@ -55,15 +57,16 @@ export function BannerCarousel({ featureFlag = process.env.NEXT_PUBLIC_ENABLE_BA
         if (!res.ok) return
         const json = await res.json()
         const images: Array<{ url: string; filename: string }> = Array.isArray(json.images) ? json.images : []
-        if (!cancelled && images.length >= slides.length) {
-          const clone = slides.map((s, i) => ({ ...s, image: images[i]?.url || s.image }))
+        if (!cancelled && images.length > 0) {
+          const clone = enrichedStaticSlides.map((s, i) => ({ ...s, image: images[i % images.length]?.url || s.image }))
+          overrideAppliedRef.current = true
           setSlides(clone)
           setCurrent(0)
         }
       } catch {/* swallow */}
     })()
     return () => { cancelled = true }
-  }, [featureFlag, slides])
+  }, [featureFlag, enrichedStaticSlides])
 
   // Autoplay removed: slides will only change via user interaction (arrows/dots)
 

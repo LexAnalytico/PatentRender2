@@ -367,7 +367,38 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     // Allow future auto-confirm behavior (if re-enabled later) by resetting dismissal flag
     autoConfirmDismissedRef.current = false
   }
-  const enterConfirmMode = () => { setReadOnly(true); setConfirmMode(true) }
+  const enterConfirmMode = () => {
+    // Safety: only allow entering confirm mode when core fields are complete
+    try {
+      // coreComplete is defined below (after relevantFields), but due to closures
+      // we defensively re-check here using the same logic to avoid ordering issues.
+      const commentKeys = ['comment', 'comments', 'notes', 'additional instructions', 'additional_instructions', 'instructions', 'message']
+      const isCommentLike = (title: string) => {
+        const t = title.trim().toLowerCase()
+        return commentKeys.some(k => t.includes(k))
+      }
+      const isUploadLike = (title: string) => {
+        const cat = inferAttachmentCategoryFromField(title)
+        return !!cat || /^drawings\s*\/\s*figures$/i.test(title.trim())
+      }
+      const core = (relevantFields || []).filter(f => !isCommentLike(f.field_title) && !isUploadLike(f.field_title))
+      const complete = core.every(f => {
+        const v = (formValues as any)[f.field_title]
+        return typeof v === 'string' && v.trim() !== ''
+      })
+      if (!complete) {
+        try {
+          toast.toast?.({
+            title: 'Complete required fields',
+            description: 'Please fill all required fields before submitting (uploads and comments are optional).',
+            variant: 'destructive',
+          })
+        } catch {}
+        return
+      }
+    } catch {}
+    setReadOnly(true); setConfirmMode(true)
+  }
   const exitConfirmModeToEdit = () => {
     setConfirmMode(false)
     setReadOnly(false)
@@ -429,9 +460,10 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           fields_filled_count: filledFields.length,
           fields_total: relevantFields.length,
         }
-        if (confirmMode) {
-          payload.completed = true
-        }
+        // Completion semantics:
+        // - In confirm mode, mark as completed
+        // - In edit mode, explicitly clear completion to avoid stale 'completed=true' after Refill/Save
+        payload.completed = !!confirmMode
         const { error } = await supabase
           .from('form_responses')
           .upsert(payload, { onConflict: 'user_id,order_id,form_type' })
@@ -633,6 +665,32 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     }
   }, [relevantFields, formValues])
 
+  // Determine core (required) fields: exclude uploads and comment-like fields
+  const coreFields = useMemo(() => {
+    try {
+      if (!relevantFields || relevantFields.length === 0) return [] as FormField[]
+      const commentKeys = ['comment', 'comments', 'notes', 'additional instructions', 'additional_instructions', 'instructions', 'message']
+      return relevantFields.filter((field) => {
+        const title = field.field_title
+        const t = title.trim().toLowerCase()
+        const isComment = commentKeys.some(k => t.includes(k))
+        const isUpload = !!inferAttachmentCategoryFromField(title) || /^drawings\s*\/\s*figures$/i.test(title.trim())
+        return !isComment && !isUpload
+      })
+    } catch { return [] as FormField[] }
+  }, [relevantFields])
+
+  // Whether all core fields are filled (non-empty strings)
+  const coreComplete = useMemo(() => {
+    try {
+      if (!coreFields || coreFields.length === 0) return true
+      return coreFields.every(f => {
+        const v = (formValues as any)[f.field_title]
+        return typeof v === 'string' && v.trim() !== ''
+      })
+    } catch { return false }
+  }, [coreFields, formValues])
+
   // Build a list of attachment entries (by upload field) for the submitted details table
   const attachmentEntries = useMemo(() => {
     try {
@@ -690,28 +748,21 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     }
   }, [relevantFields, attachments])
 
-  // Determine if all core fields (excluding comments and uploads) are filled.
-  // Updated behavior: DO NOT auto-enter confirm/edit when core becomes complete.
-  // The flow should only switch to Confirm/Edit after the user clicks Submit.
+  // Track completeness transitions: only reset dismissal when fields become incomplete
   useEffect(() => {
     if (!selectedType || !relevantFields.length) return
-    // Identify core fields: exclude uploads and comments
-    const coreFields = relevantFields.filter((field) => {
-      const title = field.field_title.trim().toLowerCase()
-      const isComment = /comment/.test(title)
-      const category = inferAttachmentCategoryFromField(field.field_title)
-      const isUpload = !!category || /^drawings\s*\/\s*figures$/i.test(field.field_title.trim())
-      return !isComment && !isUpload
-    })
-    const coreComplete = coreFields.every(f => {
-      const v = (formValues as any)[f.field_title]
-      return typeof v === 'string' && v.trim() !== ''
-    })
-    // Only reset the dismissal flag when fields become incomplete again.
-    if (!coreComplete) {
-      autoConfirmDismissedRef.current = false
+    if (!coreComplete) autoConfirmDismissedRef.current = false
+  }, [coreComplete, selectedType, relevantFields])
+
+  // If we are in confirm mode but form becomes incomplete (e.g., after Refill on reopen),
+  // automatically exit confirm/read-only so the user regains Save/Refill/Submit controls.
+  useEffect(() => {
+    if (confirmMode && !coreComplete) {
+      setConfirmMode(false)
+      setReadOnly(false)
+      setShowThankYouBanner(false)
     }
-  }, [formValues, selectedType, relevantFields])
+  }, [confirmMode, coreComplete])
 
   // Load existing attachments for this (user, order, form type)
   useEffect(() => {
@@ -1153,14 +1204,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                     const isDrawingsField = /^drawings\s*\/\s*figures$/i.test(field.field_title.trim())
                     const category = inferAttachmentCategoryFromField(field.field_title)
                     const isApplicantField = /^(inventor\s*\/\s*)?applicant.*name\(s\)|^(inventor|applicant).*name(s)?$/.test(field.field_title.trim().toLowerCase())
-                    const forceFullWidth = [
-                      'technical field',
-                      'brief summary of invention',
-                      'problem statement',
-                      'proposed solution',
-                      'key novel features',
-                      'closest known solutions (if any)'
-                    ].includes(lower.trim())
+                    // Determine if this field is an upload or comment-like (thus NOT mandatory)
                     const limitMeta = (() => {
                       // Normalize: lowercase, remove spaces around slashes, remove punctuation except underscores, collapse to single underscores
                       const raw = field.field_title.trim().toLowerCase()
@@ -1173,6 +1217,25 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                       const lm: any = (formCharLimits as any)[key]
                       return lm || null
                     })()
+                    const isUpload = isDrawingsField || (limitMeta && limitMeta.kind === 'upload') || !!category
+                    const isCommentLike = (
+                      lower.includes('comment') ||
+                      lower.includes('comments') ||
+                      lower.includes('notes') ||
+                      lower.includes('additional instructions') ||
+                      lower.includes('additional_instructions') ||
+                      lower.includes('instructions') ||
+                      lower.includes('message')
+                    )
+                    const isRequired = !isUpload && !isCommentLike
+                    const forceFullWidth = [
+                      'technical field',
+                      'brief summary of invention',
+                      'problem statement',
+                      'proposed solution',
+                      'key novel features',
+                      'closest known solutions (if any)'
+                    ].includes(lower.trim())
                     const value = formValues[field.field_title] || ''
                     let remaining: number | null = null
                     if (limitMeta && limitMeta.kind === 'chars' && typeof limitMeta.max === 'number') {
@@ -1193,6 +1256,9 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                         <Label htmlFor={`field-${index}`} className={styleTokens.label}>
                           <span className={styleTokens.badgeNumber}>{index + 1}</span>
                           {field.field_title}
+                          {isRequired && (
+                            <span className="ml-1 text-red-600" aria-hidden="true">*</span>
+                          )}
                           {limitMeta && limitMeta.kind !== 'upload' && (
                             <span className="ml-2 text-[10px] font-normal text-gray-500">
                               {limitMeta.kind === 'chars' && typeof limitMeta.max === 'number' && `${value.length}/${limitMeta.max} ch`}
@@ -1352,6 +1418,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                         })
                                       }}
                                       className={styleTokens.input}
+                                      aria-required={isRequired}
+                                      required={isRequired}
                                       style={{ fontSize: formFontSize, fontWeight: formFontBold ? 600 : 400 }}
                                     />
                                     <Button
@@ -1384,6 +1452,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                 readOnly={readOnly}
                                 disabled={readOnly}
                                 className={`${styleTokens.textarea} whitespace-pre-wrap break-words`}
+                                aria-required={isRequired}
+                                required={isRequired}
                                 style={{ fontSize: formFontSize, fontWeight: formFontBold ? 600 : 400 }}
                               />
                             ) : (
@@ -1396,6 +1466,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                 readOnly={readOnly}
                                 disabled={readOnly}
                                 className={`${styleTokens.input} break-words`}
+                                aria-required={isRequired}
+                                required={isRequired}
                                 style={{ fontSize: formFontSize, fontWeight: formFontBold ? 600 : 400 }}
                               />
                             )
@@ -1443,7 +1515,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                       <>
                         <Button
                           onClick={() => handleSave()}
-                          disabled={saving}
+                          disabled={saving || !coreComplete}
                           className={styleTokens.primaryBtn + (saving ? ' opacity-70 cursor-not-allowed' : '')}
                         >
                           {saving ? 'Saving…' : 'Confirm'}
@@ -1480,11 +1552,16 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                         <Button
                           onClick={enterConfirmMode}
                           className={styleTokens.primaryBtn}
-                          disabled={saving}
+                          disabled={saving || !coreComplete}
                         >
                           Submit
                         </Button>
                       </>
+                    )}
+                    {!confirmMode && !coreComplete && (
+                      <div className="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded">
+                        Fill all required fields to enable Submit
+                      </div>
                     )}
                     {!confirmMode && saveSuccessTs && (Date.now() - saveSuccessTs) < RECENT_SAVE_MS && savedBannerState !== 'hidden' && (
                       <div className={`flex items-center gap-2 text-sm font-medium text-green-600 transition-opacity duration-600 ${savedBannerState === 'fading' ? 'opacity-0' : 'opacity-100'}`}>

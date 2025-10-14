@@ -1106,11 +1106,13 @@ useEffect(() => {
 
 
   const [bannerSlides, setBannerSlides] = useState(staticBannerSlides)
+  const bannerOverrideAppliedRef = useRef(false)
 
   useEffect(() => {
     // New logic: by default ALWAYS use static /public img_1..4.
     // Only override when a full replacement set is available AND feature flag explicitly enabled.
-    if (process.env.NEXT_PUBLIC_ENABLE_BANNER_API !== '1') return
+  if (process.env.NEXT_PUBLIC_ENABLE_BANNER_API !== '1') return
+  if (bannerOverrideAppliedRef.current) return
     let cancelled = false
     const loadBanners = async () => {
       try {
@@ -1118,17 +1120,18 @@ useEffect(() => {
         if (!res.ok) return
         const json = await res.json()
         const images: Array<{ url: string; filename: string }> = Array.isArray(json.images) ? json.images : []
-        // Only apply if we have a complete set matching slide count (avoid partial mixed sources)
-        if (!cancelled && images.length >= staticBannerSlides.length) {
-          const slides = staticBannerSlides.map((s: any) => ({ ...s }))
-          for (let i = 0; i < slides.length; i++) {
-            slides[i].image = images[i].url
-          }
+        // Apply partial override: if we have at least one image, cycle them across slides
+        if (!cancelled && images.length > 0) {
+          const slides = staticBannerSlides.map((s: any, idx: number) => ({
+            ...s,
+            image: images[idx % images.length].url || s.image,
+          }))
+          bannerOverrideAppliedRef.current = true
           setBannerSlides(slides as any)
           setCurrentSlide(0)
-          console.debug('[Banner] remote override applied')
+          console.debug('[Banner] remote override applied', { count: images.length })
         } else {
-          if (!cancelled) console.debug('[Banner] remote override skipped (flag set but incomplete set)')
+          if (!cancelled) console.debug('[Banner] remote override skipped (no images found)')
         }
       } catch (e) {
         console.debug('[Banner] remote load failed; using static images', e)
