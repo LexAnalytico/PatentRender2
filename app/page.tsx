@@ -123,6 +123,8 @@ export default function LegalIPWebsite() {
       const t = resolveFormTypeFromOrderLike(o)
       console.debug('[openFormEmbedded] resolved type', t)
       if (!t) { alert('No form available for this order'); return }
+      // Enter single-form mode explicitly: clear any stale multi-form context
+      setEmbeddedMultiForms(null)
       setSelectedFormOrderId(Number(o.id))
       setSelectedFormType(String(t))
       setShowQuotePage(true)
@@ -149,6 +151,8 @@ export default function LegalIPWebsite() {
   }
 const openFirstFormEmbedded = () => {
   if (!checkoutOrders || checkoutOrders.length === 0) return
+  // Ensure we switch to single-form mode for the first order
+  setEmbeddedMultiForms(null)
   openFormEmbedded(checkoutOrders[0])
 }
   const {
