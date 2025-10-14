@@ -464,8 +464,10 @@ const openFirstFormEmbedded = () => {
         o.payment_status === 'paid'
       )
       if (!paymentSucceeded) return 'Payment Pending'
-      const coreDone = formsCoreComplete(o)
-      if (!coreDone) return 'Details Required'
+  // New rule: treat 'submitted/confirmed' when at least one form_responses.completed=true for that order
+  const confirmed = !!o.form_confirmed
+  const coreDone = formsCoreComplete(o)
+  if (!confirmed) return 'Details Required'
       const wf = (o.workflow_status || '').toLowerCase()
       if (wf === 'completed') return 'Completed'
       if (wf === 'require_info') return 'Details Required' // re-requested info supersedes other intermediate states
@@ -482,10 +484,21 @@ const openFirstFormEmbedded = () => {
   // Aggregate status across all orders in a bundle (parent row)
   const aggregateBundleStatus = (orders: any[]): string => {
     if (!orders || orders.length === 0) return '—'
+    // For multi-order bundles, show Details Required if ANY order is not confirmed yet; only show Details Completed when ALL are confirmed.
+    const anyPaymentPending = orders.some(o => {
+      const paymentSucceeded = !!(
+        (o.payments && ((o.payments as any).payment_status === 'paid' || (o.payments as any).status === 'captured')) ||
+        o.payment_status === 'paid'
+      )
+      return !paymentSucceeded
+    })
+    if (anyPaymentPending) return 'Payment Pending'
+    const anyUnconfirmed = orders.some(o => !o.form_confirmed)
+    if (anyUnconfirmed) return 'Details Required'
     const statuses = orders.map(deriveOrderStatus)
-    // New precedence: Payment Pending > Details Required > In Progress > Completed > Assigned > Details Completed
+    // Precedence after confirmation: In Progress > Completed > Assigned > Details Completed
     if (statuses.some(s => s === 'Payment Pending')) return 'Payment Pending'
-    if (statuses.some(s => s === 'Details Required')) return 'Details Required'
+    // We've already enforced unconfirmed -> Details Required above
     if (statuses.some(s => s === 'In Progress')) return 'In Progress'
     if (statuses.every(s => s === 'Completed')) return 'Completed'
     if (statuses.some(s => s === 'Assigned')) return 'Assigned'

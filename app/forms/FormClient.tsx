@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { styleTokens } from './styleTokens'
@@ -420,14 +420,17 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         if (!userId) throw new Error('Not signed in')
 
   const orderId = orderIdEffective
-        const payload = {
+        // Only mark as completed when user confirms; for normal saves we leave it unchanged
+        const payload: any = {
           user_id: userId,
           order_id: orderId,
           form_type: selectedType,
           data: formValues,
           fields_filled_count: filledFields.length,
           fields_total: relevantFields.length,
-          completed: filledFields.length === relevantFields.length,
+        }
+        if (confirmMode) {
+          payload.completed = true
         }
         const { error } = await supabase
           .from('form_responses')
@@ -612,6 +615,80 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     })
   }, [relevantFields])
   const manualReloadForm = () => { if (selectedType) setManualReloadTick(t => t + 1) }
+
+  // Build a list of filled (non-empty) entries for the submitted details table
+  const filledEntries = useMemo(() => {
+    try {
+      if (!relevantFields || relevantFields.length === 0) return [] as Array<{ label: string; value: string }>
+      const rows: Array<{ label: string; value: string }> = []
+      for (const f of relevantFields) {
+        const val = (formValues as any)[f.field_title]
+        if (typeof val === 'string' && val.trim() !== '') {
+          rows.push({ label: f.field_title, value: val })
+        }
+      }
+      return rows
+    } catch {
+      return []
+    }
+  }, [relevantFields, formValues])
+
+  // Build a list of attachment entries (by upload field) for the submitted details table
+  const attachmentEntries = useMemo(() => {
+    try {
+      if (!relevantFields || relevantFields.length === 0) return [] as Array<{ label: string; files: string[] }>
+      const rows: Array<{ label: string; files: string[] }> = []
+      // Helper to compute limit meta like in the field renderer
+      const limitMetaFor = (title: string) => {
+        const raw = title.trim().toLowerCase()
+          .replace(/\s*\/\s*/g, '_')
+          .replace(/[()]/g, '')
+          .replace(/\?/g, '')
+          .replace(/\s+/g, '_')
+          .replace(/__+/g, '_')
+        const lm: any = (formCharLimits as any)[raw]
+        return lm || null
+      }
+      for (const f of relevantFields) {
+        const isDrawingsField = /^drawings\s*\/\s*figures$/i.test(f.field_title.trim())
+        const category = inferAttachmentCategoryFromField(f.field_title)
+        const limitMeta = limitMetaFor(f.field_title)
+        const isUpload = isDrawingsField || (limitMeta && limitMeta.kind === 'upload') || !!category
+        // Only include upload fields that map to a known category (or explicit drawings)
+        if (!isUpload || (!isDrawingsField && !category)) continue
+        const cat: AttachmentCategory = isDrawingsField ? 'drawing' : (category as AttachmentCategory)
+        const files = attachments
+          .filter(a => {
+            if (a.status !== 'done') return false
+            const name = a.name || ''
+            const hasPrefix = /^\[(DISCLOSURE|DRAWING|SPEC|CLAIMS|ABSTRACT)\]/i.test(name)
+            if (!hasPrefix) {
+              // Legacy files without prefix: attribute to drawings section only
+              return cat === 'drawing'
+            }
+            if (cat === 'disclosure') return name.startsWith(ATTACH_PREFIX_DISCLOSURE)
+            if (cat === 'drawing') return name.startsWith(ATTACH_PREFIX_DRAWING)
+            if (cat === 'spec') return name.startsWith(ATTACH_PREFIX_SPEC)
+            if (cat === 'claims') return name.startsWith(ATTACH_PREFIX_CLAIMS)
+            if (cat === 'abstract') return name.startsWith(ATTACH_PREFIX_ABSTRACT)
+            return false
+          })
+          .map(a => stripAttachmentPrefix(a.name))
+        if (files.length > 0) rows.push({ label: f.field_title, files })
+      }
+      // De-duplicate by label to avoid repetition if multiple fields resolve to same label
+      const seen = new Set<string>()
+      const dedup: Array<{ label: string; files: string[] }> = []
+      for (const r of rows) {
+        if (seen.has(r.label)) continue
+        seen.add(r.label)
+        dedup.push(r)
+      }
+      return dedup
+    } catch {
+      return []
+    }
+  }, [relevantFields, attachments])
 
   // Determine if all core fields (excluding comments and uploads) are filled.
   // Updated behavior: DO NOT auto-enter confirm/edit when core becomes complete.
@@ -1409,10 +1486,10 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                         </Button>
                       </>
                     )}
-                    {readOnly && !confirmMode && saveSuccessTs && (Date.now() - saveSuccessTs) < RECENT_SAVE_MS && savedBannerState !== 'hidden' && (
+                    {!confirmMode && saveSuccessTs && (Date.now() - saveSuccessTs) < RECENT_SAVE_MS && savedBannerState !== 'hidden' && (
                       <div className={`flex items-center gap-2 text-sm font-medium text-green-600 transition-opacity duration-600 ${savedBannerState === 'fading' ? 'opacity-0' : 'opacity-100'}`}>
                         <span className="inline-block w-2 h-2 bg-green-600 rounded-full animate-pulse" />
-                        Data saved
+                        Saved successfully
                       </div>
                     )}
                   </div>
@@ -1438,6 +1515,42 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                   <div className="min-w-0 flex-1">
                     <p className="text-base md:text-lg font-semibold leading-tight">Thank you for submitting the form</p>
                     <p className="text-sm md:text-base leading-relaxed">Our team will get back to you.</p>
+                    {/* Submitted details table */}
+                    <div className="mt-4">
+                      <div className="text-sm font-semibold text-green-900 mb-2">Submitted Details</div>
+                      <div className="overflow-x-auto rounded-md border border-green-200 bg-white/70">
+                        <table className="w-full text-sm">
+                          <thead className="bg-green-100/70 text-green-900">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-medium">Field</th>
+                              <th className="px-3 py-2 text-left font-medium">Your input</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(filledEntries.length === 0 && attachmentEntries.length === 0) ? (
+                              <tr>
+                                <td colSpan={2} className="px-3 py-3 text-gray-600">No details captured.</td>
+                              </tr>
+                            ) : (
+                              <>
+                                {filledEntries.map((e, i) => (
+                                  <tr key={`txt-${i}`} className="odd:bg-green-50/40">
+                                    <td className="align-top px-3 py-2 font-medium text-gray-800">{e.label}</td>
+                                    <td className="align-top px-3 py-2 whitespace-pre-wrap text-gray-700">{e.value}</td>
+                                  </tr>
+                                ))}
+                                {attachmentEntries.map((e, i) => (
+                                  <tr key={`att-${i}`} className="odd:bg-green-50/40">
+                                    <td className="align-top px-3 py-2 font-medium text-gray-800">{e.label}</td>
+                                    <td className="align-top px-3 py-2 whitespace-pre-wrap text-gray-700">{e.files.join('\n')}</td>
+                                  </tr>
+                                ))}
+                              </>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
                   <button
                     type="button"

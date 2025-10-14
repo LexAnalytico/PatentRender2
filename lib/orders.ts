@@ -122,14 +122,15 @@ export async function fetchOrdersMerged(
     // Build form responses aggregation per order id
     const uploadsFieldNames = new Set(['upload','uploads','attachments','files','file_upload','disclosure document','drawings / figures'])
     const commentFieldNames = new Set(['comments','comment','notes','additional instructions','additional_instructions','instructions','message'])
-    const formAgg: Record<string, { filled_fields: number; total_fields: number; form_core_complete: boolean; form_values: Record<string, any> | null }> = {}
+  const formAgg: Record<string, { filled_fields: number; total_fields: number; form_core_complete: boolean; form_values: Record<string, any> | null; any_confirmed: boolean }> = {}
     try {
       for (const r of (formsRes?.data ?? [])) {
         const oid = r.order_id
         if (!oid) continue
         const total = Number(r.fields_total) || 0
         const filled = Number(r.fields_filled_count) || 0
-        const completed = !!r.completed || (total > 0 && filled >= total)
+  const hardConfirmed = !!r.completed
+  const completed = hardConfirmed || (total > 0 && filled >= total)
         // Sanitize data (remove uploads/comments) & only keep non-empty core values
         let sanitized: Record<string, any> | null = null
         if (r.data && typeof r.data === 'object') {
@@ -146,12 +147,13 @@ export async function fetchOrdersMerged(
         }
         // If duplicate rows per order (multiple form types), merge: take max totals & union values
         if (!formAgg[oid]) {
-          formAgg[oid] = { filled_fields: filled, total_fields: total, form_core_complete: completed, form_values: sanitized }
+          formAgg[oid] = { filled_fields: filled, total_fields: total, form_core_complete: completed, form_values: sanitized, any_confirmed: hardConfirmed }
         } else {
           const prev = formAgg[oid]
             prev.filled_fields = Math.max(prev.filled_fields, filled)
             prev.total_fields = Math.max(prev.total_fields, total)
             prev.form_core_complete = prev.form_core_complete || completed
+            prev.any_confirmed = prev.any_confirmed || hardConfirmed
             if (sanitized) {
               prev.form_values = { ...(prev.form_values || {}), ...sanitized }
             }
@@ -175,7 +177,8 @@ export async function fetchOrdersMerged(
         // Expose standardized field names consumed by formsCoreComplete heuristic
         filled_fields: form?.filled_fields ?? null,
         total_fields: form?.total_fields ?? null,
-        form_core_complete: form?.form_core_complete ?? null,
+  form_core_complete: form?.form_core_complete ?? null,
+  form_confirmed: form?.any_confirmed ?? false,
         form_values: form?.form_values ?? null,
       }
     })

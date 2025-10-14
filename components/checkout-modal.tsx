@@ -141,11 +141,7 @@ const openSingleOrderForm = (o: any) => {
                     <p className="text-blue-100 text-sm">Your order has been confirmed and verified</p>
                   </div>
                 </div>
-                <button onClick={onClose} className="text-white/80 hover:text-white transition-colors" aria-label="Close">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                {/* Removed top-right close (X) button as requested */}
               </div>
             </div>
 
