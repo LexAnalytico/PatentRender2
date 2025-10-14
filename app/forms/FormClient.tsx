@@ -86,10 +86,11 @@ interface FormClientProps {
   onPrefillStateChange?: (info: { available: boolean; apply: () => void }) => void;
   externalPrefill?: { type: string; orderId: number | null; values: Record<string,string> } | null;
   onSaveLocal?: (info: { type: string; orderId: number | null; values: Record<string,string> }) => void;
-  onReturnToOrders?: () => void;
+  // Called after a successful Confirm action. If omitted, we stay on the form.
+  onConfirmComplete?: () => void;
 }
 
-export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillStateChange, externalPrefill, onSaveLocal, onReturnToOrders }: FormClientProps = {}) {
+export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillStateChange, externalPrefill, onSaveLocal, onConfirmComplete }: FormClientProps = {}) {
   // Debug flag (temporarily disabled normal verbose logging)
   const DEBUG = false // typeof window !== 'undefined' && (window as any).FORM_DEBUG !== false;
   const FLOW_DEBUG = typeof window !== 'undefined' && (window as any).FORM_FLOW_DEBUG === true
@@ -126,6 +127,15 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   const [saveSuccessTs, setSaveSuccessTs] = useState<number | null>(null)
   const [savedBannerState, setSavedBannerState] = useState<'hidden' | 'visible' | 'fading'>('hidden')
   const RECENT_SAVE_MS = 4000
+  // Inline success banner shown after Confirm
+  const [showThankYouBanner, setShowThankYouBanner] = useState<boolean>(false)
+  const thankYouRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (showThankYouBanner && thankYouRef.current) {
+      try { thankYouRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' }) } catch {}
+      try { (thankYouRef.current as any).focus?.() } catch {}
+    }
+  }, [showThankYouBanner])
   // User-adjustable form text styling
   const [formFontSize, setFormFontSize] = useState<number>(12)
   const [formFontBold, setFormFontBold] = useState<boolean>(false)
@@ -334,8 +344,37 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   }
   const beginEdit = () => { setReadOnly(false) }
   const revertToLastSaved = () => { setFormValues(lastSavedRef.current || {}); setReadOnly(true) }
+  // Refill: clear all fields and keep the form in edit mode
+  const handleRefill = () => {
+    // Exit any confirm/read-only state
+    setConfirmMode(false)
+    setReadOnly(false)
+    // Hide any thank-you message when refilling to start fresh
+    setShowThankYouBanner(false)
+    // Clear all current field values
+    setFormValues({})
+    // Reset multi-author fields to a single blank row where applicable
+    try {
+      const pattern = /^(inventor\s*\/\s*)?applicant.*name\(s\)|^(inventor|applicant).*name(s)?$/i
+      const next: Record<string, string[]> = {}
+      for (const f of relevantFields) {
+        if (pattern.test(f.field_title.trim())) {
+          next[f.field_title] = ['']
+        }
+      }
+      setMultiAuthors(next)
+    } catch {}
+    // Allow future auto-confirm behavior (if re-enabled later) by resetting dismissal flag
+    autoConfirmDismissedRef.current = false
+  }
   const enterConfirmMode = () => { setReadOnly(true); setConfirmMode(true) }
-  const exitConfirmModeToEdit = () => { setConfirmMode(false); setReadOnly(false); autoConfirmDismissedRef.current = true }
+  const exitConfirmModeToEdit = () => {
+    setConfirmMode(false)
+    setReadOnly(false)
+    // Hide the thank-you banner when returning to edit so it can be shown again after the next Confirm
+    setShowThankYouBanner(false)
+    autoConfirmDismissedRef.current = true
+  }
 
   const handleSave = () => {
     if (!selectedType) {
@@ -404,13 +443,14 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   setSavedBannerState('visible')
         setLastSaveDebug(prev => prev ? { ...prev, ended: Date.now(), payload: { ...prev.payload, saved: true, filled: filledFields.length, total: relevantFields.length } } : prev)
 
-        // If we are in confirm (review) mode, show thank-you and navigate to orders now
+        // If we are in confirm (review) mode, show thank-you and stay in Confirm/Edit (read-only) until user clicks Edit.
         if (confirmMode) {
-          try { toast.toast?.({ title: 'Thank you for submitting form' }) } catch {}
-          setConfirmMode(false)
+          try { toast.toast?.({ title: 'Thank you for submitting the form' }) } catch {}
+          setShowThankYouBanner(true)
+          // Stay in confirm mode; do not toggle back to edit.
+          // Keep readOnly true implicitly via confirmMode.
           try {
-            if (onReturnToOrders) onReturnToOrders()
-            else router.push('/orders')
+            if (onConfirmComplete) onConfirmComplete()
           } catch {}
         }
       } catch (e: any) {
@@ -433,9 +473,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   }
 
   const handleCancel = () => {
-    // If we're already in read-only mode, treat Cancel as a no-op (could later add toast)
-    if (readOnly) return
-    revertToLastSaved()
+    // Deprecated old cancel semantics; use refill behavior instead
+    handleRefill()
   }
 
   // Load form values when type or effective order changes
@@ -574,7 +613,9 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   }, [relevantFields])
   const manualReloadForm = () => { if (selectedType) setManualReloadTick(t => t + 1) }
 
-  // Determine if all core fields (excluding comments and uploads) are filled
+  // Determine if all core fields (excluding comments and uploads) are filled.
+  // Updated behavior: DO NOT auto-enter confirm/edit when core becomes complete.
+  // The flow should only switch to Confirm/Edit after the user clicks Submit.
   useEffect(() => {
     if (!selectedType || !relevantFields.length) return
     // Identify core fields: exclude uploads and comments
@@ -589,17 +630,11 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
       const v = (formValues as any)[f.field_title]
       return typeof v === 'string' && v.trim() !== ''
     })
-    // If core is complete, auto-enter confirm mode unless user dismissed it
-    if (coreComplete) {
-      if (!confirmMode && !autoConfirmDismissedRef.current) {
-        setReadOnly(true)
-        setConfirmMode(true)
-      }
-    } else {
-      // Reset dismissal when core becomes incomplete so we can auto-enter next time
+    // Only reset the dismissal flag when fields become incomplete again.
+    if (!coreComplete) {
       autoConfirmDismissedRef.current = false
     }
-  }, [formValues, selectedType, relevantFields, confirmMode])
+  }, [formValues, selectedType, relevantFields])
 
   // Load existing attachments for this (user, order, form type)
   useEffect(() => {
@@ -1355,9 +1390,9 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                         >
                           {(!readOnly && saving) ? 'Saving…' : 'Save'}
                         </Button>
-                        {/* Refill retains same behavior as previous Cancel */}
+                        {/* Refill clears all fields and keeps edit mode */}
                         <Button
-                          onClick={handleCancel}
+                          onClick={handleRefill}
                           variant="outline"
                           className={styleTokens.secondaryBtn}
                           disabled={saving}
@@ -1383,6 +1418,39 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                   </div>
                 </div>
               </div>
+
+              {showThankYouBanner && (
+                <div
+                  ref={thankYouRef}
+                  role="status"
+                  tabIndex={-1}
+                  className="mx-8 mt-8 flex items-start gap-4 rounded-lg border-2 border-green-300 bg-green-50/90 px-6 py-5 text-green-900 shadow"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                    className="h-6 w-6 md:h-7 md:w-7 flex-shrink-0 text-green-600"
+                    aria-hidden="true"
+                  >
+                    <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm13.36-2.59a.75.75 0 1 0-1.22-.86l-3.236 4.59-1.59-1.59a.75.75 0 1 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.16-.094l3.756-5.356Z" clipRule="evenodd" />
+                  </svg>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-base md:text-lg font-semibold leading-tight">Thank you for submitting the form</p>
+                    <p className="text-sm md:text-base leading-relaxed">Our team will get back to you.</p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Dismiss message"
+                    onClick={() => setShowThankYouBanner(false)}
+                    className="ml-3 rounded-md p-1.5 text-green-700 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-400"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden="true">
+                      <path fillRule="evenodd" d="M6.225 4.811a.75.75 0 0 1 1.06 0L12 9.525l4.715-4.714a.75.75 0 1 1 1.06 1.06L13.06 10.586l4.715 4.714a.75.75 0 1 1-1.06 1.06L12 11.646l-4.715 4.714a.75.75 0 1 1-1.06-1.06l4.714-4.715-4.714-4.714a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-12 text-muted-foreground">

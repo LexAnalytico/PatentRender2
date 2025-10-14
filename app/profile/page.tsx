@@ -1,6 +1,7 @@
 "use client"
 
 import React, { Suspense, useEffect, useState } from "react"
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "../../lib/supabase"
@@ -646,7 +647,7 @@ function ProfilePageInner() {
   // navigation; Navbar also listens but having a local listener here makes the
   // page resilient and ensures dependent state (sessionEmail/userId) updates.
   useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+  const { data: listener } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       const email = session?.user?.email ?? null
       const id = session?.user?.id ?? null
       console.debug('ProfilePage onAuthStateChange', { event: _event, email, id })
@@ -1049,9 +1050,13 @@ function ProfilePageInner() {
                     onClose={handleCloseThankYou}
                     payment={thankYouPayment}
                     orders={thankYouOrders}
-                    onProceedSingle={() => {
-                    if (thankYouOrders?.length === 1) handleProceedSingle(thankYouOrders[0])
-                  }}
+                    onProceedSingle={(order?: any) => {
+                      if (order) {
+                        handleProceedSingle(order)
+                      } else if (thankYouOrders?.length === 1) {
+                        handleProceedSingle(thankYouOrders[0])
+                      }
+                    }}
                   onProceedMultiple={handleProceedMultiple}
                     
                     />  

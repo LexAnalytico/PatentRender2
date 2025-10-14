@@ -73,7 +73,8 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
               onPrefillStateChange={onPrefillStateChange}
               externalPrefill={lastSavedSnapshot}
               onSaveLocal={(info) => setLastSavedSnapshot(info)}
-              onReturnToOrders={goToOrders}
+              // Single form: show thank-you and remain on the form
+              onConfirmComplete={() => {/* stay on form; optional: could surface a banner here */}}
             />
           </CardContent>
         </Card>
@@ -121,7 +122,14 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
                     externalPrefill={lastSavedSnapshot}
                     onPrefillStateChange={idx === 0 ? formPrefillHandleFirst : () => {}}
                     onSaveLocal={(info) => setLastSavedSnapshot(info)}
-                    onReturnToOrders={goToOrders}
+                    // Multi-form: after confirm, show thank-you and move focus to next form (if any)
+                    onConfirmComplete={() => {
+                      try {
+                        // Shift focus to next form card
+                        const next = embeddedMultiForms[idx + 1]
+                        if (next) onSetActive(next.id, next.type)
+                      } catch {}
+                    }}
                   />
                 </div>
               </CardContent>
