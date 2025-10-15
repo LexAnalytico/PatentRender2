@@ -2871,16 +2871,27 @@ if (showQuotePage) {
                                     <td className="p-2">{bundle.date ? new Date(bundle.date).toLocaleString() : 'N/A'}</td>
                                     {/* Forms */}
                                     <td className="p-2">
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => {
-                                          if (hasMultiple) openMultipleFormsEmbedded(bundle.orders)
-                                          else openFormEmbedded(first)
-                                        }}
-                                      >
-                                        {hasMultiple ? 'Open Forms' : 'Open Form'}
-                                      </Button>
+                                      {(() => {
+                                        const formsDisabled = hasMultiple
+                                          ? (bundle.orders || []).every((o: any) => !!o.form_confirmed)
+                                          : !!first?.form_confirmed
+                                        return (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={formsDisabled}
+                                            className={formsDisabled ? 'opacity-60 cursor-not-allowed' : ''}
+                                            title={formsDisabled ? 'Details have been confirmed' : undefined}
+                                            onClick={() => {
+                                              if (formsDisabled) return
+                                              if (hasMultiple) openMultipleFormsEmbedded(bundle.orders)
+                                              else openFormEmbedded(first)
+                                            }}
+                                          >
+                                            {hasMultiple ? 'Open Forms' : 'Open Form'}
+                                          </Button>
+                                        )
+                                      })()}
                                     </td>
                                     {/* Invoice */}
                                     <td className="p-2">

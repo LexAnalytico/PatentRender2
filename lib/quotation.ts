@@ -18,6 +18,8 @@ export interface BuildInvoiceWithFormsOptions {
   normalizedForms?: Record<string | number, Array<{ field: string; value: any }>>
   // Optional attachments mapping: orderId -> array of downloadable items
   attachments?: Record<string | number, Array<{ name: string; url: string; size?: number; type?: string }>>
+  // When true, omit invoice header/lines and start document at the "Forms" section
+  formsOnly?: boolean
 }
 
 export function buildQuotationHtml({ cartItems, total, payment, orders, company }: BuildQuotationOptions): string {
@@ -68,7 +70,7 @@ export function buildQuotationHtml({ cartItems, total, payment, orders, company 
 
 // Build an invoice HTML that appends printable form responses for each order in the bundle.
 // Attempts to detect form response shapes: order.formResponses (array), order.form_values (object), order.forms (array of { field, value }).
-export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms, attachments }: BuildInvoiceWithFormsOptions): string {
+export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms, attachments, formsOnly }: BuildInvoiceWithFormsOptions): string {
   const co = {
     name: company?.name || 'LegalIP Pro',
     address: company?.address || '123 Legal Street, IP City, LC 12345',
@@ -154,7 +156,7 @@ export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms, at
   const formsHtml = orders.map(o => [renderFormBlock(o), renderAttachmentsBlock(o)].join('')).join('<div class="page-break"></div>')
 
   // Removed bundle-level Application Type summary; now shown per order section
-  return `<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${co.name} Invoice & Forms</title><style>
+  const docStart = `<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${co.name} ${formsOnly ? 'Forms' : 'Invoice & Forms'}</title><style>
     body { font-family: Arial, sans-serif; margin:24px; color:#111827; }
     h1 { font-size:22px; margin:0 0 4px; }
     h2 { font-size:18px; margin:32px 0 12px; }
@@ -170,11 +172,23 @@ export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms, at
     .form-table th { background:#e0f2fe; }
     .page-break { page-break-after:always; height:0; }
     @media print { .no-print { display:none; } body { margin:12px; } }
-  </style></head><body>
+  </style></head><body>`
+
+  if (formsOnly) {
+    return `${docStart}
+    <h2>Forms</h2>
+    <p class="meta">Below are the captured form responses for each order. Empty sections indicate no stored responses.</p>
+    ${formsHtml || '<div class="form-section"><em>No forms available.</em></div>'}
+    <div class="footer">System generated document containing submitted form responses and uploaded attachments.</div>
+    <button class="no-print" onclick="window.print()" style="margin-top:24px;padding:8px 14px;font-size:12px;cursor:pointer;">Print / Save PDF</button>
+  </body></html>`
+  }
+
+  return `${docStart}
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
         <h1>Invoice & Form Summary</h1>
-  <div class="meta">Generated: ${generatedAt}<br/>Payment / Bundle Key: ${paymentId}<br/>Orders: ${orders.map(o=>o.id).join(', ') || '—'}</div>
+  <div class="meta">Generated: ${generatedAt}<br/>Payment / Bundle Key: ${paymentId}<br/>Orders: ${orders.map(o=>o.id).join(', ') || '\u2014'}</div>
       </div>
       <div style="text-align:right;font-size:12px;">
         <strong>${co.name}</strong><br/>${co.address}<br/>${co.phone} | ${co.email}
