@@ -4,11 +4,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import FormClient from '@/app/forms/FormClient'
-import { buildInvoiceWithFormsHtml } from '@/lib/quotation'
+import { buildInvoiceWithFormsHtml, buildFormsSummaryHtml } from '@/lib/quotation'
 import { supabaseBrowser as supabase } from '@/lib/supabase-browser'
 
 export interface EmbeddedFormEntry { id: number; type: string }
-
 interface FormsPanelProps {
   embeddedMultiForms: EmbeddedFormEntry[] | null
   selectedFormOrderId: number | null
@@ -44,6 +43,9 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
 }) => {
   const [showFinalBanner, setShowFinalBanner] = useState(false)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
+  const [showFormsPreview, setShowFormsPreview] = useState(false)
+  const [formsPreviewUrl, setFormsPreviewUrl] = useState<string | null>(null)
+  const [formsPreviewFilename, setFormsPreviewFilename] = useState<string>('forms.html')
   // Track which embedded forms (by orderId) have been confirmed in this session
   const [confirmedForms, setConfirmedForms] = useState<Set<number>>(new Set())
   const topAnchorRef = useRef<HTMLDivElement | null>(null)
@@ -185,18 +187,38 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
       }
     } catch {}
 
-    const html = buildInvoiceWithFormsHtml({
-      bundle: { orders, paymentKey: paymentId, totalAmount },
-      company: { name: 'LegalIP Pro' },
+    // Build a Submitted Details summary matching the in-form preview
+    const html = buildFormsSummaryHtml({
+      orders,
       normalizedForms,
       attachments: attachmentsMap,
-      // Forms panel requirement: forms-only export (omit invoice details)
-      formsOnly: true,
+      title: orders.length === 1 ? `Order #${orders[0].id} – ${orders[0].type || 'Form'}` : 'Form Submission Summary',
     })
     const filenameSafe = (s: string) => s.replace(/[^a-z0-9-_]+/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-    const base = orders.length === 1 ? `order-${orders[0].id}` : `orders-${orders.map(o=>o.id).join('-')}`
-    const file = `forms-${filenameSafe(paymentId || base) || base}.html`
+    if (orders.length === 1) {
+      const id = String(orders[0].id)
+      const t = String(orders[0].type || 'form')
+      return { html, filename: `order-${filenameSafe(id)}-${filenameSafe(t)}.html` }
+    }
+    const file = `forms-${filenameSafe(paymentId || `orders-${orders.map(o=>o.id).join('-')}`)}.html`
     return { html, filename: file }
+  }
+
+  // Resolve a best-effort single order to preview when ID isn't reliably available post-confirm
+  const getSingleOrderForPreview = (): any | null => {
+    try {
+      const byId = findOrderById(selectedFormOrderId)
+      if (byId) return byId
+      if (selectedFormType) {
+        const t = String(selectedFormType).toLowerCase()
+        const eo = (embeddedOrders || []).find((o: any) => String(o?.type || '').toLowerCase() === t)
+        if (eo) return eo
+        const co = (checkoutOrders || []).find((o: any) => String(o?.type || '').toLowerCase() === t)
+        if (co) return co
+      }
+      const first = (embeddedOrders || [])[0] || (checkoutOrders || [])[0] || null
+      return first || null
+    } catch { return null }
   }
 
   const downloadHtmlFile = (html: string, filename: string) => {
@@ -214,6 +236,26 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
     } catch (e) {
       console.error('Download failed', e)
       alert('Failed to download file.')
+    }
+  }
+
+  const openFormsPreview = (html: string, filename: string) => {
+    try {
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      if (formsPreviewUrl) {
+        try { URL.revokeObjectURL(formsPreviewUrl) } catch {}
+      }
+      setFormsPreviewUrl(url)
+      setFormsPreviewFilename(filename || 'forms.html')
+      setShowFormsPreview(true)
+      // focus management: move focus to header of overlay on next tick
+      setTimeout(() => {
+        try { (document.getElementById('forms-preview-header') as HTMLElement | null)?.focus() } catch {}
+      }, 0)
+    } catch (e) {
+      console.error('Preview failed', e)
+      alert('Failed to open preview.')
     }
   }
 
@@ -238,10 +280,10 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
                   onClick={async () => {
                     try {
                       setDownloadingPdf(true)
-                      const ord = findOrderById(selectedFormOrderId)
+                      const ord = findOrderById(selectedFormOrderId) || getSingleOrderForPreview()
                       if (!ord) { alert('Could not determine order for PDF.'); return }
                       const { html, filename } = await generateInvoiceHtmlForOrders([ord])
-                      downloadHtmlFile(html, filename)
+                      openFormsPreview(html, filename)
                     } catch (e) {
                       console.error('Final banner PDF error', e)
                       alert('Failed to generate PDF.')
@@ -249,7 +291,7 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
                       setDownloadingPdf(false)
                     }
                   }}
-                >{downloadingPdf ? 'Preparing…' : 'Download PDF'}</Button>
+                >{downloadingPdf ? 'Preparing…' : 'Download Form'}</Button>
               </div>
             </div>
             <button type="button" aria-label="Dismiss" onClick={() => setShowFinalBanner(false)} className="ml-2 rounded-md p-1 text-green-700 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-400">
@@ -271,6 +313,27 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
               />
             </CardContent>
           </Card>
+        )}
+        {showFormsPreview && formsPreviewUrl && (
+          <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex flex-col">
+            <div className="flex items-center justify-between px-4 py-2 bg-white border-b shadow-sm">
+              <h3 id="forms-preview-header" tabIndex={-1} className="text-sm font-semibold text-slate-700">Forms Summary Preview</h3>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    try { if (formsPreviewUrl) URL.revokeObjectURL(formsPreviewUrl) } catch {}
+                    setFormsPreviewUrl(null)
+                    setShowFormsPreview(false)
+                    try { goToOrders() } catch {}
+                  }}
+                >Close</Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-hidden bg-white">
+              <iframe id="forms-preview-iframe" src={formsPreviewUrl} className="w-full h-full" />
+            </div>
+          </div>
         )}
       </>
     )
@@ -339,11 +402,10 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
                 onClick={async () => {
                   try {
                     setDownloadingPdf(true)
-                    // Multi-form: include all embedded forms' orders in the bundle
                     const orders = (embeddedMultiForms || []).map(f => findOrderById(f.id)).filter(Boolean) as any[]
                     if (!orders.length) { alert('No orders available for PDF.'); return }
                     const { html, filename } = await generateInvoiceHtmlForOrders(orders)
-                    downloadHtmlFile(html, filename)
+                    openFormsPreview(html, filename)
                   } catch (e) {
                     console.error('Final banner PDF error', e)
                     alert('Failed to generate PDF.')
@@ -351,7 +413,7 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
                     setDownloadingPdf(false)
                   }
                 }}
-              >{downloadingPdf ? 'Preparing…' : 'Download PDF'}</Button>
+              >{downloadingPdf ? 'Preparing…' : 'Download Form'}</Button>
             </div>
           </div>
           <button type="button" aria-label="Dismiss" onClick={() => setShowFinalBanner(false)} className="ml-2 rounded-md p-1 text-green-700 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-400">
@@ -361,71 +423,90 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
       )}
       {!showFinalBanner && (
         <div className="space-y-12">
-        {embeddedMultiForms.map((f, idx) => {
-          // Attempt to find the corresponding order object (from embeddedOrders or checkoutOrders) to pull payment id
-          const sourceOrder = (embeddedOrders || []).find(o => Number(o.id) === Number(f.id)) || (checkoutOrders || []).find(o => Number(o.id) === Number(f.id))
-          const payId = (sourceOrder && (sourceOrder.payments as any)?.razorpay_payment_id) || null
-          const isConfirmed = confirmedForms.has(Number(f.id)) || !!sourceOrder?.form_confirmed
-          return (
-            <Card id={`embedded-form-${f.id}`} key={f.id} className="bg-white border border-slate-200 shadow-sm scroll-mt-24 transition-shadow">
-              <CardContent className="p-0">
-                <div className="px-6 pt-6 flex items-center justify-between">
-                  <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-medium">{idx+1}</span>
-                    {payId ? `Payment ${payId}` : `Order #${f.id}`}
-                    {isConfirmed && (
-                      <span className="ml-2 inline-flex items-center rounded-full bg-green-100 text-green-800 border border-green-300 px-2 py-0.5 text-[11px]">Confirmed</span>
-                    )}
-                  </h2>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant={selectedFormOrderId === f.id ? 'default' : 'outline'}
-                          disabled={isConfirmed}
-                          className={isConfirmed ? 'opacity-60 cursor-not-allowed' : ''}
-                          onClick={() => { if (!isConfirmed) onSetActive(f.id, f.type) }}
-                        >
-                          Focus
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" className="max-w-xs text-xs leading-snug">
-                        {isConfirmed ? 'This form has been confirmed.' : 'Make this form the active one: scroll it into view, highlight it briefly, and sync shared prefill context.'}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                {!isConfirmed ? (
-                  <div className="mt-4">
-                    <FormClient
-                      orderIdProp={f.id}
-                      typeProp={f.type}
-                      externalPrefill={lastSavedSnapshot}
-                      onPrefillStateChange={idx === 0 ? formPrefillHandleFirst : () => {}}
-                      onSaveLocal={(info) => setLastSavedSnapshot(info)}
-                      // Multi-form: after confirm, mark confirmed and move to next unconfirmed form
-                      onConfirmComplete={() => {
-                        try {
-                          setConfirmedForms(prev => {
-                            const upd = new Set<number>(prev)
-                            upd.add(Number(f.id))
-                            const pending = (embeddedMultiForms || []).find(ff => !upd.has(Number(ff.id)))
-                            if (pending) onSetActive(pending.id, pending.type)
-                            else setShowFinalBanner(true)
-                            return upd
-                          })
-                        } catch {}
-                      }}
-                    />
+          {embeddedMultiForms.map((f, idx) => {
+            const sourceOrder = (embeddedOrders || []).find(o => Number(o.id) === Number(f.id)) || (checkoutOrders || []).find(o => Number(o.id) === Number(f.id))
+            const isConfirmed = confirmedForms.has(Number(f.id)) || !!sourceOrder?.form_confirmed
+            const payId = (sourceOrder?.payments as any)?.razorpay_payment_id || (sourceOrder?.payments as any)?.id || null
+            return (
+              <Card id={`embedded-form-${f.id}`} key={f.id} className="bg-white border border-slate-200 shadow-sm scroll-mt-24 transition-shadow">
+                <CardContent className="p-0">
+                  <div className="px-6 pt-6 flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-medium">{idx+1}</span>
+                      {payId ? `Payment ${payId}` : `Order #${f.id}`}
+                      {isConfirmed && (
+                        <span className="ml-2 inline-flex items-center rounded-full bg-green-100 text-green-800 border border-green-300 px-2 py-0.5 text-[11px]">Confirmed</span>
+                      )}
+                    </h2>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant={selectedFormOrderId === f.id ? 'default' : 'outline'}
+                            disabled={isConfirmed}
+                            className={isConfirmed ? 'opacity-60 cursor-not-allowed' : ''}
+                            onClick={() => { if (!isConfirmed) onSetActive(f.id, f.type) }}
+                          >
+                            Focus
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-xs text-xs leading-snug">
+                          {isConfirmed ? 'This form has been confirmed.' : 'Make this form the active one: scroll it into view, highlight it briefly, and sync shared prefill context.'}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
-                ) : (
-                  <div className="mt-4 px-6 pb-6 text-xs text-green-800">This form has been confirmed.</div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
+                  {!isConfirmed ? (
+                    <div className="mt-4">
+                      <FormClient
+                        orderIdProp={f.id}
+                        typeProp={f.type}
+                        externalPrefill={lastSavedSnapshot}
+                        onPrefillStateChange={idx === 0 ? formPrefillHandleFirst : () => {}}
+                        onSaveLocal={(info) => setLastSavedSnapshot(info)}
+                        onConfirmComplete={() => {
+                          try {
+                            setConfirmedForms(prev => {
+                              const upd = new Set<number>(prev)
+                              upd.add(Number(f.id))
+                              const pending = (embeddedMultiForms || []).find(ff => !upd.has(Number(ff.id)))
+                              if (pending) onSetActive(pending.id, pending.type)
+                              else setShowFinalBanner(true)
+                              return upd
+                            })
+                          } catch {}
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="mt-4 px-6 pb-6 text-xs text-green-800">This form has been confirmed.</div>
+                  )}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
+      {showFormsPreview && formsPreviewUrl && (
+        <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex flex-col">
+          <div className="flex items-center justify-between px-4 py-2 bg-white border-b shadow-sm">
+            <h3 id="forms-preview-header" tabIndex={-1} className="text-sm font-semibold text-slate-700">Forms Summary Preview</h3>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => {
+                  try { if (formsPreviewUrl) URL.revokeObjectURL(formsPreviewUrl) } catch {}
+                  setFormsPreviewUrl(null)
+                  setShowFormsPreview(false)
+                  try { goToOrders() } catch {}
+                }}
+              >Close</Button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-hidden bg-white">
+            <iframe id="forms-preview-iframe" src={formsPreviewUrl} className="w-full h-full" />
+          </div>
         </div>
       )}
     </>
@@ -450,3 +531,6 @@ function propsEqual(prev: FormsPanelProps, next: FormsPanelProps) {
 
 const FormsPanel = React.memo(FormsPanelComponent, propsEqual)
 export default FormsPanel
+
+// Overlay for Forms Preview (HTML) displayed inline to avoid browser download UI focus side-effects
+// Placed outside memo to keep file tidy; rendered via state in component return.

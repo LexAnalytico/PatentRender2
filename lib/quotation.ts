@@ -206,3 +206,89 @@ export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms, at
     <button class="no-print" onclick="window.print()" style="margin-top:24px;padding:8px 14px;font-size:12px;cursor:pointer;">Print / Save PDF</button>
   </body></html>`
 }
+
+// Build a compact "Submitted Details" summary HTML similar to the in-form thank-you table.
+export function buildFormsSummaryHtml(opts: {
+  orders: any[]
+  normalizedForms?: Record<string | number, Array<{ field: string; value: any }>>
+  attachments?: Record<string | number, Array<{ name: string; url: string; size?: number; type?: string }>>
+  title?: string
+}): string {
+  const { orders, normalizedForms, attachments, title } = opts
+  const docStart = `<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${title || 'Form Submission Summary'}</title><style>
+    body { font-family: Arial, sans-serif; margin:24px; color:#0f172a; background:#f8fafc; }
+    .container { max-width: 860px; margin: 0 auto; }
+    h1 { font-size:22px; margin:0 0 12px; color:#0f172a }
+    .order { background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:16px; margin:16px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.04) }
+    .order h2 { font-size:16px; margin:0 0 10px; color:#0f172a }
+    .meta { font-size:12px; color:#475569; margin-bottom:8px }
+    table { width:100%; border-collapse:collapse; font-size:13px; background:#ffffff }
+    th, td { padding:10px; border-bottom:1px solid #e2e8f0; vertical-align:top; }
+    thead th { background:#e6f4ea; color:#065f46; font-weight:600; text-align:left }
+    tbody tr:nth-child(odd) { background:#f8fafc }
+    .section { margin-top:14px }
+    .attachments th { background:#eef2ff; color:#3730a3 }
+    .empty { color:#64748b; font-style:italic }
+    .footer { margin-top:28px; font-size:11px; color:#6b7280; text-align:center }
+    .actions { margin-top:16px }
+    .btn { display:inline-block; padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; color:#1e293b; text-decoration:none; background:#f1f5f9 }
+    @media print { .no-print { display:none } body { background:#fff } }
+  </style></head><body><div class="container">`
+
+  const escapeHtml = (s: any): string => {
+    if (s == null) return ''
+    return String(s)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;')
+      .replace(/'/g,'&#39;')
+  }
+  const formatValue = (v: any): string => {
+    if (Array.isArray(v)) return escapeHtml(v.join(', '))
+    if (typeof v === 'object' && v !== null) return escapeHtml(JSON.stringify(v))
+    return escapeHtml(v)
+  }
+
+  const sections = (orders || []).map((o: any) => {
+    const oid = o.id
+    const formType = o.type || ''
+    const pairs = (normalizedForms && (normalizedForms[oid] || normalizedForms[String(oid)])) || []
+    const att = (attachments && (attachments[oid] || attachments[String(oid)])) || []
+    const rows = (pairs.length > 0) ? pairs.map(p => `<tr><td style="width:38%; font-weight:600; color:#111827;">${escapeHtml(p.field)}</td><td>${formatValue(p.value)}</td></tr>`).join('') : `<tr><td colspan="2" class="empty">No details captured.</td></tr>`
+    const attRows = (att.length > 0) ? att.map(a => {
+      const name = escapeHtml(a.name || 'file')
+      const href = a.url ? String(a.url) : ''
+      const link = href ? `<a href="${href}" download="${name}">${name}</a>` : name
+      const size = a.size ? ` (${Math.round((a.size/1024) * 10)/10} KB)` : ''
+      const typ = a.type ? ` – ${escapeHtml(a.type)}` : ''
+      return `<tr><td colspan="2">${link}${typ}${size}</td></tr>`
+    }).join('') : `<tr><td colspan="2" class="empty">No attachments uploaded.</td></tr>`
+    return `
+      <section class="order">
+        <h2>Order #${escapeHtml(oid)} – ${escapeHtml(formType)}</h2>
+        <div class="meta">Submitted Details</div>
+        <div class="section">
+          <table>
+            <thead><tr><th>Field</th><th>Your input</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div class="section">
+          <table class="attachments">
+            <thead><tr><th colspan="2">Uploaded Files</th></tr></thead>
+            <tbody>${attRows}</tbody>
+          </table>
+        </div>
+      </section>
+    `
+  }).join('')
+
+  return `${docStart}
+    <h1>${escapeHtml(title || 'Form Submission Summary')}</h1>
+    ${sections || '<div class="empty">No forms available.</div>'}
+    <div class="footer no-print">
+      <a class="btn" href="#" onclick="window.print();return false;">Print / Save PDF</a>
+    </div>
+  </div></body></html>`
+}
