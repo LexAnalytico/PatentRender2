@@ -148,6 +148,13 @@ export function BannerCarousel({ featureFlag = process.env.NEXT_PUBLIC_ENABLE_BA
                           className="absolute inset-0 w-full h-full object-cover"
                           loading={index === 0 ? 'eager' : 'lazy'}
                           decoding="async"
+                          onError={(e) => {
+                            const el = e.currentTarget as HTMLImageElement
+                            // Prevent infinite loop if placeholder also fails
+                            if (el.dataset.fallbackApplied === '1') return
+                            el.dataset.fallbackApplied = '1'
+                            el.src = '/img_1.jpg'
+                          }}
                         />
                         <span className="absolute top-3 right-3 block h-3 w-3 rounded-full bg-blue-400 shadow ring-2 ring-white/70" />
                       </div>

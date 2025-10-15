@@ -127,8 +127,12 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   const [saveSuccessTs, setSaveSuccessTs] = useState<number | null>(null)
   const [savedBannerState, setSavedBannerState] = useState<'hidden' | 'visible' | 'fading'>('hidden')
   const RECENT_SAVE_MS = 4000
-  // Inline success banner shown after Confirm
+  // Inline success banner shown after Submit/Confirm
   const [showThankYouBanner, setShowThankYouBanner] = useState<boolean>(false)
+  // Variant: 'review' (after Submit — show details) or 'confirmed' (after Confirm — simple message)
+  const [thankYouVariant, setThankYouVariant] = useState<'review' | 'confirmed' | null>(null)
+  // Focus anchor at the top of this form (used when exiting confirm via Edit)
+  const formTopRef = useRef<HTMLDivElement | null>(null)
   const thankYouRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     if (showThankYouBanner && thankYouRef.current) {
@@ -350,7 +354,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     setConfirmMode(false)
     setReadOnly(false)
     // Hide any thank-you message when refilling to start fresh
-    setShowThankYouBanner(false)
+  setShowThankYouBanner(false)
+  setThankYouVariant(null)
     // Clear all current field values
     setFormValues({})
     // Reset multi-author fields to a single blank row where applicable
@@ -398,13 +403,27 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
       }
     } catch {}
     setReadOnly(true); setConfirmMode(true)
+    // Show review banner (with submitted details) right after Submit
+    setShowThankYouBanner(true)
+    setThankYouVariant('review')
   }
   const exitConfirmModeToEdit = () => {
     setConfirmMode(false)
     setReadOnly(false)
     // Hide the thank-you banner when returning to edit so it can be shown again after the next Confirm
     setShowThankYouBanner(false)
+    setThankYouVariant(null)
     autoConfirmDismissedRef.current = true
+    // After state updates, move focus/scroll to the top of this form instance
+    try {
+      // Use a slight delay to allow the DOM to update readOnly state and layout
+      setTimeout(() => {
+        const el = formTopRef.current
+        if (!el) return
+        try { el.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch {}
+        try { (el as any).focus?.() } catch {}
+      }, 50)
+    } catch {}
   }
 
   const handleSave = () => {
@@ -478,10 +497,11 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   setSavedBannerState('visible')
         setLastSaveDebug(prev => prev ? { ...prev, ended: Date.now(), payload: { ...prev.payload, saved: true, filled: filledFields.length, total: relevantFields.length } } : prev)
 
-        // If we are in confirm (review) mode, show thank-you and stay in Confirm/Edit (read-only) until user clicks Edit.
+        // If we are in confirm (review) mode, convert banner to 'confirmed' variant
         if (confirmMode) {
-          try { toast.toast?.({ title: 'Thank you for submitting the form' }) } catch {}
+          try { toast.toast?.({ title: 'Thank you for confirming your details' }) } catch {}
           setShowThankYouBanner(true)
+          setThankYouVariant('confirmed')
           // Stay in confirm mode; do not toggle back to edit.
           // Keep readOnly true implicitly via confirmMode.
           try {
@@ -761,6 +781,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
       setConfirmMode(false)
       setReadOnly(false)
       setShowThankYouBanner(false)
+      setThankYouVariant(null)
     }
   }, [confirmMode, coreComplete])
 
@@ -1125,6 +1146,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
       {/* Prefill banner removed; replaced by external header button in parent component */}
       <div className={styleTokens.outer}>
         <Card className="border-0 shadow-none">
+        <div ref={formTopRef} tabIndex={-1} aria-label="Form top anchor">
         <CardHeader className="px-8 pt-8 pb-4">
           <CardTitle className={styleTokens.headerTitle}>IP Application Form Builder</CardTitle>
           <CardDescription className={styleTokens.headerDesc}>Select an application type and fill out the relevant fields for your intellectual property application.</CardDescription>
@@ -1158,7 +1180,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
               )}
             </div>
           )}
-        </CardHeader>
+  </CardHeader>
+  </div>
         <CardContent className="px-8 pb-10 space-y-12">
           <div className="space-y-3">
             <Label htmlFor="application-type" className="text-sm font-semibold text-gray-800 tracking-wide">Application Type</Label>
@@ -1590,44 +1613,53 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                     <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm13.36-2.59a.75.75 0 1 0-1.22-.86l-3.236 4.59-1.59-1.59a.75.75 0 1 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.16-.094l3.756-5.356Z" clipRule="evenodd" />
                   </svg>
                   <div className="min-w-0 flex-1">
-                    <p className="text-base md:text-lg font-semibold leading-tight">Thank you for submitting the form</p>
-                    <p className="text-sm md:text-base leading-relaxed">Our team will get back to you.</p>
-                    {/* Submitted details table */}
-                    <div className="mt-4">
-                      <div className="text-sm font-semibold text-green-900 mb-2">Submitted Details</div>
-                      <div className="overflow-x-auto rounded-md border border-green-200 bg-white/70">
-                        <table className="w-full text-sm">
-                          <thead className="bg-green-100/70 text-green-900">
-                            <tr>
-                              <th className="px-3 py-2 text-left font-medium">Field</th>
-                              <th className="px-3 py-2 text-left font-medium">Your input</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {(filledEntries.length === 0 && attachmentEntries.length === 0) ? (
-                              <tr>
-                                <td colSpan={2} className="px-3 py-3 text-gray-600">No details captured.</td>
-                              </tr>
-                            ) : (
-                              <>
-                                {filledEntries.map((e, i) => (
-                                  <tr key={`txt-${i}`} className="odd:bg-green-50/40">
-                                    <td className="align-top px-3 py-2 font-medium text-gray-800">{e.label}</td>
-                                    <td className="align-top px-3 py-2 whitespace-pre-wrap text-gray-700">{e.value}</td>
+                    {thankYouVariant === 'confirmed' ? (
+                      <>
+                        <p className="text-base md:text-lg font-semibold leading-tight">Thank you for confirming your details</p>
+                        <p className="text-sm md:text-base leading-relaxed">Our team will have a look and get in touch soon.</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-base md:text-lg font-semibold leading-tight">Thank you for submitting the form</p>
+                        <p className="text-sm md:text-base leading-relaxed">Our team will get back to you.</p>
+                        {/* Submitted details table */}
+                        <div className="mt-4">
+                          <div className="text-sm font-semibold text-green-900 mb-2">Submitted Details</div>
+                          <div className="overflow-x-auto rounded-md border border-green-200 bg-white/70">
+                            <table className="w-full text-sm">
+                              <thead className="bg-green-100/70 text-green-900">
+                                <tr>
+                                  <th className="px-3 py-2 text-left font-medium">Field</th>
+                                  <th className="px-3 py-2 text-left font-medium">Your input</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(filledEntries.length === 0 && attachmentEntries.length === 0) ? (
+                                  <tr>
+                                    <td colSpan={2} className="px-3 py-3 text-gray-600">No details captured.</td>
                                   </tr>
-                                ))}
-                                {attachmentEntries.map((e, i) => (
-                                  <tr key={`att-${i}`} className="odd:bg-green-50/40">
-                                    <td className="align-top px-3 py-2 font-medium text-gray-800">{e.label}</td>
-                                    <td className="align-top px-3 py-2 whitespace-pre-wrap text-gray-700">{e.files.join('\n')}</td>
-                                  </tr>
-                                ))}
-                              </>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                                ) : (
+                                  <>
+                                    {filledEntries.map((e, i) => (
+                                      <tr key={`txt-${i}`} className="odd:bg-green-50/40">
+                                        <td className="align-top px-3 py-2 font-medium text-gray-800">{e.label}</td>
+                                        <td className="align-top px-3 py-2 whitespace-pre-wrap text-gray-700">{e.value}</td>
+                                      </tr>
+                                    ))}
+                                    {attachmentEntries.map((e, i) => (
+                                      <tr key={`att-${i}`} className="odd:bg-green-50/40">
+                                        <td className="align-top px-3 py-2 font-medium text-gray-800">{e.label}</td>
+                                        <td className="align-top px-3 py-2 whitespace-pre-wrap text-gray-700">{e.files.join('\n')}</td>
+                                      </tr>
+                                    ))}
+                                  </>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <button
                     type="button"

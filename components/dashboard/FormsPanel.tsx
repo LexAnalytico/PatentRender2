@@ -1,9 +1,11 @@
 "use client";
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import FormClient from '@/app/forms/FormClient'
+import { buildInvoiceWithFormsHtml } from '@/lib/quotation'
+import { supabaseBrowser as supabase } from '@/lib/supabase-browser'
 
 export interface EmbeddedFormEntry { id: number; type: string }
 
@@ -40,6 +42,21 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
   embeddedOrders,
   checkoutOrders,
 }) => {
+  const [showFinalBanner, setShowFinalBanner] = useState(false)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
+  const topAnchorRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!showFinalBanner) return
+    try {
+      const el = topAnchorRef.current
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        ;(el as any).focus?.()
+      }
+    } catch {}
+  }, [showFinalBanner])
+
   const renderHeader = () => (
     <div className="mb-6 flex items-center justify-between">
       <div>
@@ -61,10 +78,153 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
     </div>
   )
 
+  // Helper to find the enriched order object by id from provided sources
+  const findOrderById = (id: number | null | undefined) => {
+    if (id == null) return null
+    const eo = (embeddedOrders || []).find((o: any) => Number(o.id) === Number(id))
+    if (eo) return eo
+    const co = (checkoutOrders || []).find((o: any) => Number(o.id) === Number(id))
+    return co || null
+  }
+
+  // Generate Invoice+Forms HTML for given order objects (single or multiple)
+  const generateInvoiceHtmlForOrders = async (orders: any[]): Promise<{ html: string; filename: string }> => {
+    // Compute bundle metadata
+    const paymentId = (() => {
+      const allPayIds = orders.map(o => (o?.payments as any)?.razorpay_payment_id || (o?.payments as any)?.id || null).filter(Boolean)
+      if (allPayIds.length === 0) return `orders-${orders.map(o=>o.id).join('-')}`
+      const uniq = Array.from(new Set(allPayIds.map(String)))
+      return uniq.length === 1 ? String(uniq[0]) : `orders-${orders.map(o=>o.id).join('-')}`
+    })()
+    const totalAmount = orders.reduce((sum, o) => sum + (Number(o?.amount ?? 0) || 0), 0)
+
+    // Prepare attachments map with signed URLs
+    const orderIds: number[] = orders.map((o: any) => Number(o.id)).filter((v) => Number.isFinite(v))
+    const attachmentsMap: Record<string, Array<{ name: string; url: string; size?: number; type?: string }>> = {}
+    const normalizedForms: Record<string | number, Array<{ field: string; value: any }>> = {}
+    try {
+      if (orderIds.length) {
+        // 1) Attachments with signed URLs
+        const { data: rows, error: attErr } = await supabase
+          .from('form_attachments')
+          .select('order_id, filename:filename, storage_path, mime_type, size_bytes, deleted')
+          .in('order_id', orderIds)
+          .eq('deleted', false)
+          .order('uploaded_at', { ascending: true })
+        if (!attErr && Array.isArray(rows)) {
+          const signed = await Promise.all(rows.map(async (r: any) => {
+            let url = ''
+            if (r.storage_path) {
+              try {
+                const { data: sig, error: sigErr } = await supabase.storage
+                  .from('figures')
+                  .createSignedUrl(r.storage_path, 60 * 60, { download: r.filename || undefined })
+                if (!sigErr && sig?.signedUrl) url = sig.signedUrl
+              } catch {}
+            }
+            return { order_id: r.order_id, name: r.filename, url, size: r.size_bytes as number | undefined, type: r.mime_type as string | undefined }
+          }))
+          for (const a of signed) {
+            const key = String(a.order_id)
+            if (!attachmentsMap[key]) attachmentsMap[key] = []
+            attachmentsMap[key].push({ name: a.name, url: a.url, size: a.size, type: a.type })
+          }
+        }
+        // 2) Form responses for normalization (to include submitted values in PDF)
+        try {
+          const { data: frRows } = await supabase
+            .from('form_responses')
+            .select('order_id, data')
+            .in('order_id', orderIds)
+          const uploadsFieldNames = new Set(['upload','uploads','attachments','files','file_upload'])
+          for (const r of (frRows as any[] | null) || []) {
+            const oid = r.order_id
+            const data = r.data || {}
+            const pairs: Array<{ field: string; value: any }> = []
+            try {
+              const obj = typeof data === 'object' && data != null ? data : {}
+              for (const [k, v] of Object.entries(obj)) {
+                const lk = k.toLowerCase()
+                if (uploadsFieldNames.has(lk)) continue
+                pairs.push({ field: k, value: v })
+              }
+            } catch {}
+            if (pairs.length) normalizedForms[String(oid)] = pairs
+          }
+        } catch {}
+      }
+    } catch {}
+
+    const html = buildInvoiceWithFormsHtml({
+      bundle: { orders, paymentKey: paymentId, totalAmount },
+      company: { name: 'LegalIP Pro' },
+      normalizedForms,
+      attachments: attachmentsMap,
+    })
+    const filenameSafe = (s: string) => s.replace(/[^a-z0-9-_]+/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+    const base = orders.length === 1 ? `order-${orders[0].id}` : `orders-${orders.map(o=>o.id).join('-')}`
+    const file = `invoice-forms-${filenameSafe(paymentId || base) || base}.html`
+    return { html, filename: file }
+  }
+
+  const downloadHtmlFile = (html: string, filename: string) => {
+    try {
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename || 'invoice.html'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      // Revoke shortly after to allow download to start
+      setTimeout(() => { try { URL.revokeObjectURL(url) } catch {} }, 1000)
+    } catch (e) {
+      console.error('Download failed', e)
+      alert('Failed to download file.')
+    }
+  }
+
   if (!embeddedMultiForms) {
     return (
       <>
+        <div ref={topAnchorRef} tabIndex={-1} aria-label="Forms top anchor" />
         {renderHeader()}
+        {showFinalBanner && (
+          <div className="mb-5 mx-1 md:mx-0 flex items-start gap-4 rounded-xl border-2 border-green-400 bg-green-50 px-5 py-4 text-green-900 shadow-md">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 flex-shrink-0 text-green-600" aria-hidden="true">
+              <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm13.36-2.59a.75.75 0 1 0-1.22-.86l-3.236 4.59-1.59-1.59a.75.75 0 1 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.16-.094l3.756-5.356Z" clipRule="evenodd" />
+            </svg>
+            <div className="min-w-0 flex-1">
+              <p className="text-base md:text-lg font-semibold leading-tight">Thank you for submitting all the required details</p>
+              <p className="text-xs md:text-sm leading-relaxed mt-1">Our team will review everything and get in touch soon.</p>
+              <p className="text-xs md:text-sm leading-relaxed mt-2">Please find attached a PDF copy of your form submission.</p>
+              <div className="mt-3 flex items-center gap-2">
+                <Button
+                  size="sm"
+                  disabled={downloadingPdf}
+                  onClick={async () => {
+                    try {
+                      setDownloadingPdf(true)
+                      const ord = findOrderById(selectedFormOrderId)
+                      if (!ord) { alert('Could not determine order for PDF.'); return }
+                      const { html, filename } = await generateInvoiceHtmlForOrders([ord])
+                      downloadHtmlFile(html, filename)
+                    } catch (e) {
+                      console.error('Final banner PDF error', e)
+                      alert('Failed to generate PDF.')
+                    } finally {
+                      setDownloadingPdf(false)
+                    }
+                  }}
+                >{downloadingPdf ? 'Preparing…' : 'Download PDF'}</Button>
+              </div>
+            </div>
+            <button type="button" aria-label="Dismiss" onClick={() => setShowFinalBanner(false)} className="ml-2 rounded-md p-1 text-green-700 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-400">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden="true"><path fillRule="evenodd" d="M6.225 4.811a.75.75 0 0 1 1.06 0L12 9.525l4.715-4.714a.75.75 0 1 1 1.06 1.06L13.06 10.586l4.715 4.714a.75.75 0 1 1-1.06 1.06L12 11.646l-4.715 4.714a.75.75 0 1 1-1.06-1.06l4.714-4.715-4.714-4.714a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>
+            </button>
+          </div>
+        )}
         <Card className="bg-white">
           <CardContent className="p-0">
             <FormClient
@@ -73,8 +233,8 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
               onPrefillStateChange={onPrefillStateChange}
               externalPrefill={lastSavedSnapshot}
               onSaveLocal={(info) => setLastSavedSnapshot(info)}
-              // Single form: show thank-you and remain on the form
-              onConfirmComplete={() => {/* stay on form; optional: could surface a banner here */}}
+              // Single form: after final confirm, show a final global banner
+              onConfirmComplete={() => { setShowFinalBanner(true) }}
             />
           </CardContent>
         </Card>
@@ -84,7 +244,44 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
 
   return (
     <>
+      <div ref={topAnchorRef} tabIndex={-1} aria-label="Forms top anchor" />
       {renderHeader()}
+      {showFinalBanner && (
+        <div className="mb-5 mx-1 md:mx-0 flex items-start gap-4 rounded-xl border-2 border-green-400 bg-green-50 px-5 py-4 text-green-900 shadow-md">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 flex-shrink-0 text-green-600" aria-hidden="true">
+            <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm13.36-2.59a.75.75 0 1 0-1.22-.86l-3.236 4.59-1.59-1.59a.75.75 0 1 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.16-.094l3.756-5.356Z" clipRule="evenodd" />
+          </svg>
+          <div className="min-w-0 flex-1">
+            <p className="text-base md:text-lg font-semibold leading-tight">Thank you for submitting all the required details</p>
+            <p className="text-xs md:text-sm leading-relaxed mt-1">Our team will review everything and get in touch soon.</p>
+            <p className="text-xs md:text-sm leading-relaxed mt-2">Please find attached a PDF copy of your form submission.</p>
+            <div className="mt-3 flex items-center gap-2">
+              <Button
+                size="sm"
+                disabled={downloadingPdf}
+                onClick={async () => {
+                  try {
+                    setDownloadingPdf(true)
+                    // Multi-form: include all embedded forms' orders in the bundle
+                    const orders = (embeddedMultiForms || []).map(f => findOrderById(f.id)).filter(Boolean) as any[]
+                    if (!orders.length) { alert('No orders available for PDF.'); return }
+                    const { html, filename } = await generateInvoiceHtmlForOrders(orders)
+                    downloadHtmlFile(html, filename)
+                  } catch (e) {
+                    console.error('Final banner PDF error', e)
+                    alert('Failed to generate PDF.')
+                  } finally {
+                    setDownloadingPdf(false)
+                  }
+                }}
+              >{downloadingPdf ? 'Preparing…' : 'Download PDF'}</Button>
+            </div>
+          </div>
+          <button type="button" aria-label="Dismiss" onClick={() => setShowFinalBanner(false)} className="ml-2 rounded-md p-1 text-green-700 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-400">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4" aria-hidden="true"><path fillRule="evenodd" d="M6.225 4.811a.75.75 0 0 1 1.06 0L12 9.525l4.715-4.714a.75.75 0 1 1 1.06 1.06L13.06 10.586l4.715 4.714a.75.75 0 1 1-1.06 1.06L12 11.646l-4.715 4.714a.75.75 0 1 1-1.06-1.06l4.714-4.715-4.714-4.714a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>
+          </button>
+        </div>
+      )}
       <div className="space-y-12">
         {embeddedMultiForms.map((f, idx) => {
           // Attempt to find the corresponding order object (from embeddedOrders or checkoutOrders) to pull payment id
@@ -127,7 +324,12 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
                       try {
                         // Shift focus to next form card
                         const next = embeddedMultiForms[idx + 1]
-                        if (next) onSetActive(next.id, next.type)
+                        if (next) {
+                          onSetActive(next.id, next.type)
+                        } else {
+                          // No next form: show final global banner
+                          setShowFinalBanner(true)
+                        }
                       } catch {}
                     }}
                   />

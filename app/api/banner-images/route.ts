@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 
+// Ensure Node.js runtime on Vercel so fs is available
+export const runtime = 'nodejs'
+// Avoid static rendering/caching mishaps for dynamic file listings
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const pubDir = path.join(process.cwd(), 'public', 'banners')
