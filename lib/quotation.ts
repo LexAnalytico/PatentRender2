@@ -146,8 +146,8 @@ export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms, at
       const size = humanSize(a.size)
       const type = escapeHtml(a.type || '')
       const url = a.url ? String(a.url) : ''
-      // Do not open a new tab; rely on download attribute and signed URL Content-Disposition to trigger direct download
-      const link = url ? `<a href="${url}" download="${name}">Download</a>` : '<span style="color:#9ca3af;">N/A</span>'
+      // Attach data attributes to allow in-document Save-As dialog via File System Access API when available
+      const link = url ? `<a href="${url}" class="att-save" data-att-url="${url}" data-att-name="${name}" download="${name}">Download</a>` : '<span style="color:#9ca3af;">N/A</span>'
       return `<tr><td>${name}</td><td>${type || 'file'}</td><td>${size}</td><td>${link}</td></tr>`
     }).join('')
     return `<div class="form-section"><h4>Order #${oid} – Attachments</h4><table class="form-table"><thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Link</th></tr></thead><tbody>${rows}</tbody></table></div>`
@@ -174,6 +174,52 @@ export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms, at
     @media print { .no-print { display:none; } body { margin:12px; } }
   </style></head><body>`
 
+  const saveScript = `<script>(function(){
+    function setup(){
+      var supportsPicker = typeof window.showSaveFilePicker === 'function';
+      var links = document.querySelectorAll('a.att-save[data-att-url]');
+      links.forEach(function(a){
+        a.addEventListener('click', function(e){
+          if (!supportsPicker) return; // let default download happen
+          e.preventDefault();
+          var url = a.getAttribute('data-att-url') || a.getAttribute('href') || '';
+          var name = a.getAttribute('data-att-name') || a.getAttribute('download') || 'file';
+          var ext = (name.split('.').pop()||'').toLowerCase();
+          var mimeGuess = ext === 'pdf' ? 'application/pdf'
+                        : (ext === 'png' ? 'image/png'
+                        : ((ext === 'jpg' || ext === 'jpeg') ? 'image/jpeg'
+                        : (ext === 'svg' ? 'image/svg+xml' : 'application/octet-stream')));
+          var types = [{ description: 'File', accept: {} }];
+          types[0].accept[mimeGuess] = [ ext ? ('.'+ext) : '.bin' ];
+          (async function(){
+            var handle;
+            try {
+              handle = await window.showSaveFilePicker({ suggestedName: name, types: types });
+            } catch (err) {
+              // If user cancels the picker, do nothing (no download)
+              if (err && (err.name === 'AbortError' || err.code === 20)) return;
+              // For other errors, fallback to default download
+              if (url) window.location.href = url;
+              return;
+            }
+            try {
+              var res = await fetch(url);
+              if (!res || !res.ok) throw new Error('Download failed');
+              var blob = await res.blob();
+              var writable = await handle.createWritable();
+              await writable.write(blob);
+              await writable.close();
+            } catch (err2) {
+              // If fetch/write fails, fallback to default download
+              if (url) window.location.href = url;
+            }
+          })();
+        }, { passive: false });
+      });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup); else setup();
+  })();</script>`
+
   if (formsOnly) {
     return `${docStart}
     <h2>Forms</h2>
@@ -181,6 +227,7 @@ export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms, at
     ${formsHtml || '<div class="form-section"><em>No forms available.</em></div>'}
     <div class="footer">System generated document containing submitted form responses and uploaded attachments.</div>
     <button class="no-print" onclick="window.print()" style="margin-top:24px;padding:8px 14px;font-size:12px;cursor:pointer;">Print / Save PDF</button>
+  ${saveScript}
   </body></html>`
   }
 
@@ -204,6 +251,7 @@ export function buildInvoiceWithFormsHtml({ bundle, company, normalizedForms, at
     ${formsHtml || '<div class="form-section"><em>No forms available.</em></div>'}
     <div class="footer">System generated document combining invoice lines and associated form responses. For official invoicing, contact support.</div>
     <button class="no-print" onclick="window.print()" style="margin-top:24px;padding:8px 14px;font-size:12px;cursor:pointer;">Print / Save PDF</button>
+  ${saveScript}
   </body></html>`
 }
 

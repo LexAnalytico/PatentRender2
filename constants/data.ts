@@ -26,28 +26,28 @@ export const bannerSlides: BannerSlide[] = [
     title: "Protect Your Intellectual Property",
     description:
       "Comprehensive IP services to safeguard your innovations and creative works with expert legal guidance",
-    image: "/img_3.jpg",
+  image: "/banners/a.jpg",
   },
   {
     title: "Patent Registration Made Simple",
     description: "Expert guidance through the complex patent application process with guaranteed results",
-    image: "/img_4.jpg",
+  image: "/banners/b.jpg",
   },
   {
     title: "Trademark Your Brand Identity",
     description: "Secure your brand with professional trademark services and comprehensive protection strategies",
-    image: "/img_1.jpg",
+  image: "/banners/c.jpg",
   },
   // Newly added design slide (format identical to others)
   {
     title: "Design Protection & Registration",
     description: "Protect your unique product designs with expert registration, compliance, and enforcement support across jurisdictions",
-    image: "/img_4.jpg",
+  image: "/banners/d.jpg",
   },
   {
     title: "Copyright Protection Services",
     description: "Protect your creative works with comprehensive copyright solutions and enforcement support",
-    image: "/img_2.jpg",
+  image: "/banners/e.jpg",
   },
 ]
 
