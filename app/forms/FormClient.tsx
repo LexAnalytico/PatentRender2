@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from "react"
 import { supabase } from '@/lib/supabase'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { styleTokens } from './styleTokens'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
@@ -212,6 +212,15 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   const toast = toastHook ?? { toast: (opts: any) => { if (opts?.title) alert(`${opts.title}\n${opts?.description || ""}`) } }
   const searchParams = useSearchParams()
   const router = useRouter()
+  
+  // ---- JSON cache helpers (localStorage) – mirrors main screen cache-first approach ----
+  const FORM_CACHE_VER = 'v1'
+  const formDraftKey = (uid: string | null, orderId: number | null, type: string | null | undefined) => `form_draft_${FORM_CACHE_VER}::${uid || 'nouser'}::${orderId ?? 'none'}::${type || 'notype'}`
+  const lastByTypeKey = (uid: string | null, type: string | null | undefined) => `form_last_by_type_${FORM_CACHE_VER}::${uid || 'nouser'}::${type || 'notype'}`
+  const hasNonEmpty = (obj: Record<string,string>) => {
+    for (const v of Object.values(obj || {})) { if (typeof v === 'string' && v.trim() !== '') return true }
+    return false
+  }
   
   const orderIdFromProps = orderIdProp ?? null
   const typeFromProps = typeProp ?? null
@@ -507,6 +516,13 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           try {
             if (onConfirmComplete) onConfirmComplete()
           } catch {}
+          // On final confirmation, clear the local draft cache for this key to avoid stale data on reopen
+          try {
+            const { data: s } = await supabase.auth.getSession()
+            const uid = s?.session?.user?.id || null
+            const k = formDraftKey(uid, orderId ?? null, selectedType)
+            localStorage.removeItem(k)
+          } catch {}
         }
       } catch (e: any) {
         console.error('Save error', e)
@@ -533,6 +549,60 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   }
 
   // Load form values when type or effective order changes
+  // Seed from local JSON cache immediately (cache-first), then do DB lookups below
+  useEffect(() => {
+    if (!selectedType) return
+    let mounted = true
+    ;(async () => {
+      try {
+        const { data: s } = await supabase.auth.getSession()
+        const uid = s?.session?.user?.id || null
+        const exactKey = formDraftKey(uid, orderIdEffective ?? null, selectedType)
+        const raw = typeof window !== 'undefined' ? localStorage.getItem(exactKey) : null
+        const parsed = raw ? (() => { try { return JSON.parse(raw) } catch { return null } })() : null
+        const currentHas = hasNonEmpty(formValues)
+        if (mounted && parsed?.values && !currentHas) {
+          setFormValues(parsed.values as Record<string,string>)
+          setLastLoadMeta({ phase: 'cache-seed', orderId: orderIdEffective ?? null, type: selectedType, foundExact: true, fallbackUsed: false, ts: Date.now() })
+          return
+        }
+        // Fallback to last-by-type if no exact draft
+        if (!currentHas) {
+          const lastKey = lastByTypeKey(uid, selectedType)
+          const lastRaw = typeof window !== 'undefined' ? localStorage.getItem(lastKey) : null
+          const lastParsed = lastRaw ? (() => { try { return JSON.parse(lastRaw) } catch { return null } })() : null
+          if (mounted && lastParsed?.values) {
+            setFormValues(lastParsed.values as Record<string,string>)
+            setLastLoadMeta({ phase: 'cache-seed', orderId: orderIdEffective ?? null, type: selectedType, foundExact: false, fallbackUsed: true, ts: Date.now() })
+          }
+        }
+      } catch {}
+    })()
+    return () => { mounted = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedType, orderIdEffective])
+
+  // Autosave draft to localStorage with a debounce; do not overwrite with empty forms
+  const draftTimerRef = useRef<any>(null)
+  useEffect(() => {
+    if (!selectedType) return
+    if (!hasNonEmpty(formValues)) return
+    try { if (draftTimerRef.current) clearTimeout(draftTimerRef.current) } catch {}
+    draftTimerRef.current = setTimeout(async () => {
+      try {
+        const { data: s } = await supabase.auth.getSession()
+        const uid = s?.session?.user?.id || null
+        const payload = { v: FORM_CACHE_VER, ts: Date.now(), values: formValues }
+        const keyExact = formDraftKey(uid, orderIdEffective ?? null, selectedType)
+        const keyLast = lastByTypeKey(uid, selectedType)
+        localStorage.setItem(keyExact, JSON.stringify(payload))
+        localStorage.setItem(keyLast, JSON.stringify(payload))
+      } catch {}
+    }, 350)
+    return () => { try { if (draftTimerRef.current) clearTimeout(draftTimerRef.current) } catch {} }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formValues, selectedType, orderIdEffective])
+
   useEffect(() => {
     if (!selectedType) return
     let active = true
@@ -1146,42 +1216,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
       {/* Prefill banner removed; replaced by external header button in parent component */}
       <div className={styleTokens.outer}>
         <Card className="border-0 shadow-none">
-        <div ref={formTopRef} tabIndex={-1} aria-label="Form top anchor">
-        <CardHeader className="px-8 pt-8 pb-4">
-          <CardTitle className={styleTokens.headerTitle}>IP Application Form Builder</CardTitle>
-          <CardDescription className={styleTokens.headerDesc}>Select an application type and fill out the relevant fields for your intellectual property application.</CardDescription>
-          {orderIdProp && (
-            <div className="mt-2 text-[11px] text-gray-500 flex flex-wrap gap-x-4 gap-y-1">
-              <span>orderIdProp={orderIdProp}</span>
-              <span>resolvedTypeKey={selectedType || '(empty)'}</span>
-              <span>resolvedTypeLabel={selectedTypeLabel || '(empty)'}</span>
-              <span>urlType={(searchParams?.get('type')||'').toString() || '(none)'}</span>
-              <span>urlPricingKey={(searchParams?.get('pricing_key')||'').toString() || '(none)'}</span>
-            </div>
-          )}
-          {DEBUG && (
-            <div className="mt-3 rounded-md border border-dashed border-blue-300 bg-blue-50 p-3 text-xs text-blue-900 space-y-1">
-              <div className="font-semibold">[Debug Panel]</div>
-              <div><strong>selectedType:</strong> {selectedType || '(empty)'}</div>
-              <div><strong>orderIdProp:</strong> {String(orderIdProp ?? '')}</div>
-              <div><strong>typeProp:</strong> {String(typeProp ?? '')}</div>
-              <div><strong>URL:</strong> {typeof window !== 'undefined' ? window.location.search : ''}</div>
-              <div><strong>prefillCandidate keys:</strong> {prefillCandidate ? Object.keys(prefillCandidate).join(', ') : 'none'}</div>
-              <div><strong>isOrderLocked:</strong> {String(isOrderLocked)}</div>
-              {lastLoadMeta && (<div><strong>lastLoad:</strong> {lastLoadMeta.foundExact ? 'exact' : (lastLoadMeta.fallbackUsed ? 'fallback' : 'none')} order={String(lastLoadMeta.orderId)} type={lastLoadMeta.type}</div>)}
-              {lastSaveDebug && (
-                <div className="mt-2 border-t pt-1">
-                  <div className="font-semibold">Last Save Attempt</div>
-                  <div>Started: {new Date(lastSaveDebug.started).toLocaleTimeString()}</div>
-                  {lastSaveDebug.ended && <div>Ended: {new Date(lastSaveDebug.ended).toLocaleTimeString()}</div>}
-                  {lastSaveDebug.error && <div className="text-red-700">Error: {lastSaveDebug.error}</div>}
-                  {lastSaveDebug.payload && <div>Meta: {JSON.stringify(lastSaveDebug.payload)}</div>}
-                </div>
-              )}
-            </div>
-          )}
-  </CardHeader>
-  </div>
+        {/* Anchor for focus/scroll after exiting confirm mode */}
+        <div ref={formTopRef} tabIndex={-1} aria-label="Form top anchor" />
         <CardContent className="px-8 pb-10 space-y-12">
           <div className="space-y-3">
             <Label htmlFor="application-type" className="text-sm font-semibold text-gray-800 tracking-wide">Application Type</Label>
@@ -1339,7 +1375,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                 )}
                               </div>
                               {attachmentsError && <div className="text-xs text-red-600 font-medium">{attachmentsError}</div>}
-                              {attachmentsDebugInfo && !attachmentsError && (
+                              {FLOW_DEBUG && attachmentsDebugInfo && !attachmentsError && (
                                 <div className={styleTokens.attachmentsMeta}>{attachmentsDebugInfo}</div>
                               )}
                               {loadingAttachments && (
