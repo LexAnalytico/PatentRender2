@@ -433,7 +433,12 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
                   <div className="px-6 pt-6 flex items-center justify-between">
                     <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
                       <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-sm font-medium">{idx+1}</span>
-                      {payId ? `Payment ${payId}` : `Order #${f.id}`}
+                      {`Order #${f.id}`}
+                      {payId && (
+                        <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 text-slate-700 border border-slate-300 px-2 py-0.5 text-[11px]">
+                          Payment ID {payId}
+                        </span>
+                      )}
                       {isConfirmed && (
                         <span className="ml-2 inline-flex items-center rounded-full bg-green-100 text-green-800 border border-green-300 px-2 py-0.5 text-[11px]">Confirmed</span>
                       )}

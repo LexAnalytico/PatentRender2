@@ -1,0 +1,115 @@
+High-level Design
+
+Overview
+- PatentRender2 is a Next.js (App Router) app with a Supabase backend for auth, database, and storage, plus a client-side Razorpay checkout flow. Users select IP services, create orders/payments, complete forms with attachments, and download PDFs of submissions and invoices.
+- The system is split into: UI (Next.js + shadcn UI), API routes (Next.js server actions/routes), Supabase services (auth, DB, storage), and third-party payments (Razorpay, with planned Paytm).
+
+Text-based Block Diagram
+
+  [User Browser]
+	  |
+	  v
+  Next.js App (App Router)
+  - Pages/Routes: /, /orders, /forms, /profile, /admin
+  - Components: ServicesPanel, FormsPanel, Checkout Modal, ProfilePanel
+	  |
+	  | Client calls (fetch)
+	  v
+  Next.js API Routes
+  - /api/create-order
+  - /api/verify-payment
+  - /api/notify-payment
+  - /api/orders/*, /api/resolve-order-form
+	  |
+	  | Server SDK
+	  v
+  Supabase (Auth + Database + Storage)
+  - Auth: user sessions (supabase-browser/server)
+  - Database tables (core): payments, orders, form_responses, form_attachments, services, service_pricing_rules
+  - Storage: attachments bucket
+	  ^
+	  |
+	  | Webhooks / verify flows
+	  |
+  Razorpay (Client SDK + REST)
+  - CheckoutJS on client (openRazorpayCheckout)
+  - Server verifies/records payment; updates payments/orders
+
+Key Components
+
+1) UI (Next.js + shadcn UI)
+- Location: app/* and components/*
+- Main screens: Home (cart/checkout), Orders status (/orders), Forms (/forms), Profile (/profile), Admin (/admin)
+- Forms: dynamic fields driven by JSON in app/data/*.json; supports autosave, confirm mode, and attachments per category (Disclosure/Drawings/Spec/Claims/Abstract)
+- LocalStorage JSON cache for drafts ensures instant restore after tabbing/reloads; clears on final Confirm
+
+2) API Routes (Next.js)
+- create-order: materializes orders for selected services and initiates payment intent
+- verify-payment: validates Razorpay signature and updates payment/order
+- notify-payment: optional notification channel after verification
+- orders/*: supporting endpoints for admin/user dashboards
+- resolve-order-form: resolves canonical form type from order/payment/service pricing key
+
+3) Supabase
+- Auth: session tokens used both client-side and server-side (supabase-browser.ts, supabase-server.ts)
+- Database (key tables):
+  • payments: id, razorpay_payment_id, total_amount, payment_status, type, service_id, payment_date
+  • orders: id, user_id, service_id, amount, type (nullable; often resolved), payment_id, workflow_status
+  • form_responses: user_id, order_id, form_type, data (JSON), completed (bool)
+  • form_attachments: id, user_id, order_id, form_type, filename, storage_path, mime_type, size_bytes, deleted
+  • service_pricing_rules: service_id, key (maps to form type)
+- Storage:
+  • attachments bucket for uploaded figures/specs, with metadata rows in form_attachments
+  • Upload/delete helpers in utils/attachments.ts
+- RLS Policies: enforce per-user access for form_responses and form_attachments
+
+4) Payments (Razorpay → Paytm planned)
+- Current: Razorpay CheckoutJS invoked client-side with server-created order
+- Server: verify payment signature, upsert payments row, link to orders, set statuses
+- UI: shows Payment ID in forms/profile/admin; forms lock type when opened via order
+- Planned: Paytm integration under same provider-agnostic fields (provider_order_id/provider_payment_id)
+
+5) Attachments Pipeline
+- Per-field category routing: titles mapped to categories; stored with prefixes like [DRAWING] filename.pdf
+- Upload sequence: validate type/size → upload to storage → insert metadata row → render in UI
+- Removal: soft delete (deleted=true) with fallback hard delete if RLS blocks; storage object deletion best-effort
+
+6) PDFs and Exports
+- buildInvoiceWithFormsHtml and buildFormsSummaryHtml in lib/quotation.ts assemble printable HTML (invoice + submitted details)
+- FormsPanel links allow “Download Form”; Admin provides invoice+forms view
+
+7) Caching & Resilience
+- Form drafts: versioned localStorage keys: form_draft_v1::<uid>::<orderId|none>::<type|notype> and form_last_by_type_v1::<uid>::<type>
+- Cache-first seed on mount, debounced autosave (~350ms), clear-on-confirm
+- Attachments load with timeouts and guarded UI states; debug info gated by FLOW_DEBUG
+
+Primary Flows
+
+1. Checkout & Payment
+   - User selects service(s) → create-order API → server creates payment intent → client opens Razorpay checkout
+   - On success: verify-payment API confirms; payments row upserted; orders linked and marked ready
+   - Orders page polls until ready, then routes user to /forms?order_id=<id>&type=<resolved>
+
+2. Forms Completion
+   - FormClient resolves type (order.type → payment.type → pricing map)
+   - Loads previous response for (user, order, type) or suggests prefill from latest for that type
+   - User edits fields, uploads attachments, hits Submit to enter confirm mode; Confirm persists with completed=true
+   - Post-confirm, draft cache for that key is cleared
+
+3. Attachments Management
+   - Upload via ephemeral file inputs per category; show per-field filtered list
+   - Remove triggers soft delete then optional storage removal; background refresh merges server state
+
+Operational Considerations
+- Env: NEXT_PUBLIC_RAZORPAY_KEY_ID and Supabase keys; future Paytm envs
+- RLS: ensure UPDATE/DELETE for form_attachments and form_responses scoped to auth.uid()
+- Timeouts: network/RLS stalls show user-friendly messages; logs available with FLOW_DEBUG toggles
+- Admin: can view orders, statuses, and generate invoice+forms HTML for recordkeeping
+
+References
+- UI: app/, components/
+- Data/config: app/data/*.json, constants/, types/
+- Logic & helpers: lib/*.ts, utils/*.ts
+- API routes: app/api/*
+- Diagram: db_schema/architecture/deps.png
+
