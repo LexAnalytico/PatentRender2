@@ -1,0 +1,4 @@
+lsof -i :3000
+kill -9 1245
+
+https://patent-render2.vercel.app

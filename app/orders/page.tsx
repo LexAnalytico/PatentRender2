@@ -14,6 +14,13 @@ function flowLog(phase: string, msg: string, extra?: any) {
   try { console.debug(`[flow][orders-page][${phase}][${ts}] ${msg}`, extra || '') } catch {}
 }
 
+// Local cache for fast UI seed after tab-out/tab-in
+const ORDERS_CACHE_VER = 'v1'
+function ordersStatusKey(ref: { razorpayOrderId?: string | undefined; orderIdParam?: string | undefined }) {
+  const base = ref.razorpayOrderId ? `r:${ref.razorpayOrderId}` : (ref.orderIdParam ? `o:${ref.orderIdParam}` : 'none')
+  return `orders_status_${ORDERS_CACHE_VER}::${base}`
+}
+
 interface StatusPayload {
   ok: boolean
   stage: string
@@ -37,6 +44,7 @@ function OrdersPageInner() {
   const [overlayVisible, setOverlayVisible] = useState<boolean>(showThanks)
   const [stopped, setStopped] = useState(false)
   const firstReadyRef = useRef(false)
+  const mountedRef = useRef(false)
 
   // On mount decide if debug should be enabled from query/localStorage
   useEffect(() => {
@@ -65,6 +73,22 @@ function OrdersPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Cache-first seed on mount: hydrate last known status immediately for snappy UI
+  useEffect(() => {
+    mountedRef.current = true
+    try {
+      const key = ordersStatusKey({ razorpayOrderId, orderIdParam })
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null
+      const parsed = raw ? (() => { try { return JSON.parse(raw) as { ts: number; value: StatusPayload } } catch { return null } })() : null
+      if (parsed?.value && !status) {
+        setStatus(parsed.value)
+        flowLog('cache-seed', 'Hydrated status from cache', { stage: parsed.value.stage, ready: parsed.value.ready })
+      }
+    } catch {}
+    return () => { mountedRef.current = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const buildStatusUrl = () => {
     const qs: string[] = []
     if (razorpayOrderId) qs.push(`razorpay_order_id=${encodeURIComponent(razorpayOrderId)}`)
@@ -77,6 +101,12 @@ function OrdersPageInner() {
       const res = await fetch(buildStatusUrl(), { cache: 'no-store' })
       const json: StatusPayload = await res.json()
       setStatus(json)
+      // Persist to local cache for fast rehydration on focus
+      try {
+        const key = ordersStatusKey({ razorpayOrderId, orderIdParam })
+        const payload = { ts: Date.now(), value: json }
+        if (typeof window !== 'undefined') window.localStorage.setItem(key, JSON.stringify(payload))
+      } catch {}
       flowLog('poll', 'Status response', { stage: json.stage, ready: json.ready, paid: json?.meta?.paid, orders: json?.meta?.orderCount })
       if (json.ready && !firstReadyRef.current) {
         firstReadyRef.current = true
@@ -103,6 +133,43 @@ function OrdersPageInner() {
     const id = setTimeout(() => { poll() }, pollCount === 0 ? 50 : POLL_INTERVAL)
     return () => clearTimeout(id)
   }, [pollCount, poll, stopped])
+
+  // Resume polling and rehydrate on focus/visibility
+  useEffect(() => {
+    function onFocus() {
+      try {
+        // Rehydrate from cache if status empty or stale
+        const key = ordersStatusKey({ razorpayOrderId, orderIdParam })
+        const raw = typeof window !== 'undefined' ? window.localStorage.getItem(key) : null
+        const parsed = raw ? (() => { try { return JSON.parse(raw) as { ts: number; value: StatusPayload } } catch { return null } })() : null
+        if (parsed?.value && (!status || status.stage === 'initial')) {
+          setStatus(parsed.value)
+          flowLog('focus-cache', 'Rehydrated from cache on focus', { stage: parsed.value.stage, ready: parsed.value.ready })
+        }
+      } catch {}
+      // If we had stopped but not ready, resume and trigger an immediate poll
+      if (stopped && !(status?.ready)) {
+        setStopped(false)
+        flowLog('focus', 'Resuming polling on focus')
+        // Trigger immediate poll
+        poll()
+      }
+    }
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') onFocus()
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', onFocus)
+      document.addEventListener('visibilitychange', onVisibilityChange)
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', onFocus)
+        document.removeEventListener('visibilitychange', onVisibilityChange)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopped, status, razorpayOrderId, orderIdParam, poll])
 
   const handleViewForms = () => {
     // Prefer a single order id if available; pass order_id + type for locking form
