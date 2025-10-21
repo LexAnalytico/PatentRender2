@@ -1489,6 +1489,36 @@ const patentServices = [
     return () => document.removeEventListener('visibilitychange', onVis)
   }, [])
 
+  // Persist/rehydrate options form + selected service when the panel opens
+  useEffect(() => {
+    if (!showOptionsPanel) return
+    try {
+      // Hydrate last selections for smoother resume on Vercel/tab restores
+      const lastTitle = localStorage.getItem(SELECTED_SERVICE_TITLE_KEY)
+      const lastCat = localStorage.getItem(SELECTED_SERVICE_CATEGORY_KEY)
+      const lastFormRaw = localStorage.getItem(OPTIONS_FORM_KEY)
+      if (!selectedServiceTitle && lastTitle) setSelectedServiceTitle(lastTitle)
+      if (!selectedServiceCategory && lastCat) setSelectedServiceCategory(lastCat)
+      if (lastFormRaw) {
+        try {
+          const parsed = JSON.parse(lastFormRaw)
+          // Only apply if shape roughly matches
+          if (parsed && typeof parsed === 'object' && Array.isArray(parsed.applicantTypes)) {
+            setOptionsForm((prev) => ({ ...prev, ...parsed }))
+          }
+        } catch {}
+      }
+    } catch {}
+  }, [showOptionsPanel])
+
+  // Save selections as user interacts
+  useEffect(() => {
+    if (!showOptionsPanel) return
+    try { if (selectedServiceTitle) localStorage.setItem(SELECTED_SERVICE_TITLE_KEY, selectedServiceTitle) } catch {}
+    try { if (selectedServiceCategory) localStorage.setItem(SELECTED_SERVICE_CATEGORY_KEY, selectedServiceCategory) } catch {}
+    try { localStorage.setItem(OPTIONS_FORM_KEY, JSON.stringify(optionsForm)) } catch {}
+  }, [showOptionsPanel, selectedServiceTitle, selectedServiceCategory, optionsForm])
+
   // Persist selection and options to localStorage for resilience across tab suspends
   useEffect(() => {
     try {
@@ -1902,6 +1932,11 @@ const computeTurnaroundTotal = (turn: "standard" | "expediated" | "rush") => {
       })
     } finally {
       // Always close the panel so the user sees the cart update even if background pricing calls had issues
+      try {
+        localStorage.removeItem(OPTIONS_FORM_KEY)
+        localStorage.removeItem(SELECTED_SERVICE_TITLE_KEY)
+        localStorage.removeItem(SELECTED_SERVICE_CATEGORY_KEY)
+      } catch {}
       closeOptionsPanel()
     }
   }

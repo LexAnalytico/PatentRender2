@@ -76,6 +76,8 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
   filingTypePrices,
   ferTotal,
 }) => {
+  // Debug toggle (env or localStorage DEBUG=1)
+  const debug = (process.env.NEXT_PUBLIC_DEBUG === '1') || (typeof window !== 'undefined' && localStorage.getItem('DEBUG') === '1')
   // Enable Add when minimum selections are present. For Filing, filing type can default; only applicant type is required.
   const disabledAdd = (
     (selectedServiceTitle === 'Patentability Search' && (!optionsForm.searchType || !optionsForm.goodsServices)) ||
@@ -83,6 +85,23 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
     (selectedServiceTitle === 'Patent Application Filing' && (!optionsForm.searchType)) ||
     (selectedServiceTitle === 'First Examination Response' && (!optionsForm.searchType))
   )
+  const disabledAddReason = (() => {
+    if (selectedServiceTitle === 'Patentability Search') {
+      if (!optionsForm.searchType) return 'Select a search type'
+      if (!optionsForm.goodsServices) return 'Select a turnaround'
+    }
+    if (selectedServiceTitle === 'Drafting') {
+      if (!optionsForm.searchType) return 'Select a specification type (PS/CS/PS-CS)'
+      if (!optionsForm.goodsServices) return 'Select a turnaround'
+    }
+    if (selectedServiceTitle === 'Patent Application Filing') {
+      if (!optionsForm.searchType) return 'Select an applicant type'
+    }
+    if (selectedServiceTitle === 'First Examination Response') {
+      if (!optionsForm.searchType) return 'Select a response due option'
+    }
+    return null
+  })()
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -95,7 +114,7 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
             <>
               <div>
                 <Label className="text-sm font-medium text-gray-700">Specification Type</Label>
-                <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm(p => ({ ...p, searchType: v, goodsServices: '' }))}>
+                <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm(p => ({ ...p, searchType: v, goodsServices: 'standard' }))}>
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Choose specification" />
                   </SelectTrigger>
@@ -142,7 +161,7 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
             <>
               <div>
                 <Label className="text-sm font-medium text-gray-700">Applicant Type</Label>
-                <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm(p => ({ ...p, searchType: v, goodsServices: '' }))}>
+                <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm(p => ({ ...p, searchType: v, goodsServices: 'provisional_filing' }))}>
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Choose applicant type" />
                   </SelectTrigger>
@@ -219,7 +238,7 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
                     <TooltipContent>Select the scope of search and whether a legal opinion is included.</TooltipContent>
                   </Tooltip>
                 </div>
-                <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm(p => ({ ...p, searchType: v, goodsServices: '' }))}>
+                <Select value={optionsForm.searchType} onValueChange={(v) => setOptionsForm(p => ({ ...p, searchType: v, goodsServices: 'standard' }))}>
                   <SelectTrigger className="mt-1"><SelectValue placeholder="Choose search type" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="quick">Quick Knockout Search {patentSearchPrices?.quick ? `— ${formatINR(patentSearchPrices.quick)}` : ''}</SelectItem>
@@ -271,6 +290,9 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
           </Button>
             <Button variant="outline" onClick={closeOptionsPanel}>Cancel</Button>
         </DialogFooter>
+        {debug && disabledAdd && disabledAddReason && (
+          <p className="text-xs text-amber-600 mt-2 text-center">Add is disabled: {disabledAddReason}</p>
+        )}
         <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
       </DialogContent>
     </Dialog>
