@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import type { User } from "@supabase/supabase-js"
+import type { User, Session, AuthChangeEvent } from "@supabase/supabase-js"
 import { supabase } from "@/lib/supabase"
 
 export type AuthProfile = {
@@ -89,12 +89,17 @@ export function useAuthProfile(): AuthProfile {
   useEffect(() => {
     let active = true
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return
-      setIsAuthenticated(!!data?.session)
-      setUser(data?.session?.user ?? null)
-      refreshDisplayName()
-    })
+    ;(async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        if (!active) return
+        setIsAuthenticated(!!data?.session)
+        setUser(data?.session?.user ?? null)
+        refreshDisplayName()
+      } catch (e) {
+        console.warn('[auth] getSession failed', e)
+      }
+    })()
 
     // Safari deferred logout completion
     ;(async () => {
@@ -112,7 +117,7 @@ export function useAuthProfile(): AuthProfile {
       } catch {}
     })()
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       if (!active) return
       const u = session?.user ?? null
       setIsAuthenticated(!!session)
