@@ -29,12 +29,3 @@ The service name in the “services” table must match the UI service title exa
 Result:
 
 Selecting Standard/Expediated/Rush in the modal dropdown will now add the correct amount from the database rules to the final cart price. No client-side multipliers are used.
-
-## Architecture & Docs
-
-- High-level design: db_schema/architecture/high-level-design
-- Dependency diagram (madge): db_schema/architecture/deps.png
-- Data model overview: db_schema/docs/data-model-overview.md
-- Payments flow (Razorpay now, Paytm-ready): db_schema/docs/payments-flow.md
-- RLS policies: db_schema/docs/rls-policies.md
-- Tab focus guidelines (tab-out/tab-in): db_schema/architecture/docs/tab-focus-guidelines.md
