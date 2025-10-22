@@ -1428,6 +1428,14 @@ const patentServices = [
     const handler = () => {
       const winFlag = (typeof window !== 'undefined') && ((window as any).RESET_ON_RESIZE === true)
       if (!RESET_ON_RESIZE && !winFlag) return
+      // If tab is hidden, don't reload immediately; mark to refresh on focus/visibility
+      if (typeof document !== 'undefined' && (document as any).hidden) {
+        try {
+          localStorage.setItem('app_refresh_on_focus', '1')
+          localStorage.setItem('app_prev_dims_on_hide', `${window.innerWidth}x${window.innerHeight}`)
+        } catch {}
+        return
+      }
       // If we're inside the dashboard, set a pending marker to force-refresh when we return to landing
       if (showQuotePage) {
         try {
@@ -1448,6 +1456,24 @@ const patentServices = [
       try { if ((handler as any)._t) clearTimeout((handler as any)._t) } catch {}
       ;(handler as any)._t = setTimeout(() => {
         try {
+          try {
+            const dpr = (window as any).devicePixelRatio || 1
+            const scr = (window as any).screen
+            const screenSize = (scr && typeof scr.width === 'number' && typeof scr.height === 'number') ? `${scr.width}x${scr.height}` : ''
+            const payload = {
+              reason: 'resize',
+              ts: Date.now(),
+              details: {
+                dims: `${window.innerWidth}x${window.innerHeight}`,
+                dpr,
+                screen: screenSize,
+                showQuotePage,
+                RESET_ON_RESIZE,
+                winFlag,
+              }
+            }
+            localStorage.setItem('app_debug_refresh', JSON.stringify(payload))
+          } catch {}
           const w = window as any
           if (typeof w.triggerAppReset === 'function') {
             // eslint-disable-next-line no-console
@@ -1486,6 +1512,21 @@ const patentServices = [
         // eslint-disable-next-line no-console
         console.debug('[AppRefresh] returning to landing -> consuming pending refresh marker (forced)')
         localStorage.removeItem('app_refresh_on_main')
+        try {
+          const dpr = (window as any).devicePixelRatio || 1
+          const scr = (window as any).screen
+          const screenSize = (scr && typeof scr.width === 'number' && typeof scr.height === 'number') ? `${scr.width}x${scr.height}` : ''
+          const payload = {
+            reason: 'resize-pending',
+            ts: Date.now(),
+            details: {
+              dims: `${window.innerWidth}x${window.innerHeight}`,
+              dpr,
+              screen: screenSize,
+            }
+          }
+          localStorage.setItem('app_debug_refresh', JSON.stringify(payload))
+        } catch {}
         const w: any = window
         if (typeof w.triggerAppResetForce === 'function') {
           w.triggerAppResetForce('resize-pending')
@@ -1498,6 +1539,154 @@ const patentServices = [
       }
     } catch {}
   }, [showQuotePage])
+
+  // If the tab was resized while hidden (backgrounded), force-refresh when it becomes visible again
+  useEffect(() => {
+    const RESET_ON_RESIZE = process.env.NEXT_PUBLIC_RESET_ON_RESIZE === '1'
+    const RESET_ON_FOCUS = process.env.NEXT_PUBLIC_RESET_ON_FOCUS === '1'
+    const FORCE_REFRESH_ON_FOCUS_MS = Number(process.env.NEXT_PUBLIC_FORCE_REFRESH_ON_FOCUS_MS || '0') || 0
+    const winFlag = (typeof window !== 'undefined') && ((window as any).RESET_ON_RESIZE === true)
+    if (!RESET_ON_RESIZE && !winFlag && !RESET_ON_FOCUS && FORCE_REFRESH_ON_FOCUS_MS <= 0) return
+
+    const updateDims = () => {
+      try { localStorage.setItem('app_last_seen_dims', `${window.innerWidth}x${window.innerHeight}`) } catch {}
+    }
+    const onVisChange = () => {
+      try {
+        if (document.hidden) {
+          // Capture dims at the moment we got hidden
+          localStorage.setItem('app_prev_dims_on_hide', `${window.innerWidth}x${window.innerHeight}`)
+          localStorage.setItem('app_prev_dpr_on_hide', String((window as any).devicePixelRatio || 1))
+          try {
+            const scr = (window as any).screen
+            if (scr && typeof scr.width === 'number' && typeof scr.height === 'number') {
+              localStorage.setItem('app_prev_screen_on_hide', `${scr.width}x${scr.height}`)
+            }
+          } catch {}
+          localStorage.setItem('app_hidden_at', String(Date.now()))
+          return
+        }
+        // Became visible
+        const marker = localStorage.getItem('app_refresh_on_focus') === '1'
+        const prev = localStorage.getItem('app_prev_dims_on_hide') || ''
+        const nowDims = `${window.innerWidth}x${window.innerHeight}`
+        const prevDpr = localStorage.getItem('app_prev_dpr_on_hide') || ''
+        const nowDpr = String((window as any).devicePixelRatio || 1)
+        const prevScreen = localStorage.getItem('app_prev_screen_on_hide') || ''
+        let nowScreen = ''
+        try {
+          const scr = (window as any).screen
+          if (scr && typeof scr.width === 'number' && typeof scr.height === 'number') {
+            nowScreen = `${scr.width}x${scr.height}`
+          }
+        } catch {}
+        const changedDims = !!prev && prev !== nowDims
+        const changedDpr = !!prevDpr && prevDpr !== nowDpr
+        const changedScreen = !!prevScreen && nowScreen && prevScreen !== nowScreen
+        const hiddenAt = Number(localStorage.getItem('app_hidden_at') || '0')
+        const hiddenDur = hiddenAt ? (Date.now() - hiddenAt) : 0
+        const longHidden = FORCE_REFRESH_ON_FOCUS_MS > 0 && hiddenDur >= FORCE_REFRESH_ON_FOCUS_MS
+        if (marker || changedDims || changedDpr || changedScreen || RESET_ON_FOCUS || longHidden) {
+          try {
+            const payload = {
+              reason: 'resize-hidden',
+              ts: Date.now(),
+              details: {
+                marker,
+                prevDims: prev || null,
+                nowDims,
+                prevDpr: prevDpr || null,
+                nowDpr,
+                prevScreen: prevScreen || null,
+                nowScreen: nowScreen || null,
+                hiddenDur,
+                longHidden,
+              }
+            }
+            localStorage.setItem('app_debug_refresh', JSON.stringify(payload))
+          } catch {}
+          localStorage.removeItem('app_refresh_on_focus')
+          localStorage.removeItem('app_prev_dims_on_hide')
+          localStorage.removeItem('app_prev_dpr_on_hide')
+          localStorage.removeItem('app_prev_screen_on_hide')
+          const w: any = window
+          if (typeof w.triggerAppResetForce === 'function') {
+            w.triggerAppResetForce('resize-hidden')
+            return
+          }
+          try { window.dispatchEvent(new CustomEvent('app:refresh', { detail: { force: true, reason: 'resize-hidden' } })) } catch {}
+          const now = Date.now()
+          localStorage.setItem('app_manual_refresh_ts', String(now))
+          window.location.reload()
+        }
+      } catch {}
+    }
+    document.addEventListener('visibilitychange', onVisChange)
+    window.addEventListener('resize', updateDims)
+    // seed current dims
+    updateDims()
+    return () => {
+      document.removeEventListener('visibilitychange', onVisChange)
+      window.removeEventListener('resize', updateDims)
+    }
+  }, [])
+
+  // Debug overlay: show why the last auto-refresh was triggered (if enabled)
+  useEffect(() => {
+    const DEBUG_REFRESH = process.env.NEXT_PUBLIC_DEBUG_REFRESH === '1'
+    const winDebug = (typeof window !== 'undefined') && ((window as any).DEBUG_REFRESH === true)
+    if (!DEBUG_REFRESH && !winDebug) return
+    try {
+      const raw = localStorage.getItem('app_debug_refresh')
+      if (!raw) return
+      const info = JSON.parse(raw)
+      // Keep it available only for this first visible load
+      localStorage.removeItem('app_debug_refresh')
+      const ts = info?.ts || Date.now()
+      if (Date.now() - ts > 15000) return // too old
+      const container = document.createElement('div')
+      container.style.position = 'fixed'
+      container.style.bottom = '12px'
+      container.style.left = '12px'
+      container.style.zIndex = '99999'
+      container.style.maxWidth = '320px'
+      container.style.background = 'rgba(17,24,39,0.95)'
+      container.style.color = '#f8fafc'
+      container.style.padding = '10px 12px'
+      container.style.borderRadius = '8px'
+      container.style.boxShadow = '0 6px 20px rgba(0,0,0,0.35)'
+      container.style.fontFamily = 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif'
+      container.style.fontSize = '12px'
+      const pre = document.createElement('pre')
+      pre.style.margin = '6px 0 0 0'
+      pre.style.whiteSpace = 'pre-wrap'
+      pre.style.wordBreak = 'break-word'
+      pre.textContent = JSON.stringify({ reason: info?.reason, details: info?.details }, null, 2)
+      const title = document.createElement('div')
+      title.style.fontWeight = '600'
+      title.style.display = 'flex'
+      title.style.alignItems = 'center'
+      title.style.justifyContent = 'space-between'
+      title.textContent = 'Auto refresh debug'
+      const close = document.createElement('button')
+      close.textContent = '×'
+      close.setAttribute('aria-label', 'Close')
+      close.style.marginLeft = '12px'
+      close.style.fontSize = '14px'
+      close.style.lineHeight = '1'
+      close.style.background = 'transparent'
+      close.style.color = '#e5e7eb'
+      close.style.border = 'none'
+      close.style.cursor = 'pointer'
+      close.onclick = () => { try { document.body.removeChild(container) } catch {} }
+      title.appendChild(close)
+      container.appendChild(title)
+      container.appendChild(pre)
+      document.body.appendChild(container)
+      // auto-hide
+      setTimeout(() => { try { document.body.removeChild(container) } catch {} }, 8000)
+    } catch {}
+  }, [])
 
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % bannerSlides.length)
@@ -2484,6 +2673,11 @@ useEffect(() => {
     }
   }
   const beforeUnload = (e: BeforeUnloadEvent) => {
+    try {
+      // Skip prompting if this is an intentional programmatic refresh
+      const suppress = (window as any).__suppressBeforeUnloadPrompt === true || sessionStorage.getItem('suppress_unload_prompt') === '1'
+      if (suppress) return
+    } catch {}
     e.preventDefault()
     e.returnValue = ''
     handleFocusViolation('before-unload')

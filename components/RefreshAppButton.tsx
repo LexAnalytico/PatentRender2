@@ -7,6 +7,12 @@ export default function RefreshAppButton() {
     const force = !!opts?.force;
     const reason = opts?.reason || 'unspecified';
     try {
+      // One-off suppression so beforeunload hooks (e.g., focus guard) don't prompt
+      try {
+        sessionStorage.setItem('suppress_unload_prompt', '1');
+        (window as any).__suppressBeforeUnloadPrompt = true;
+        window.dispatchEvent(new CustomEvent('app:prepare-refresh', { detail: { reason } }));
+      } catch {}
       // Structured debug for programmatic + manual paths
       const ts = new Date().toISOString();
       const last = Number(localStorage.getItem('app_manual_refresh_ts') || '0');
@@ -24,6 +30,11 @@ export default function RefreshAppButton() {
       return;
     } catch {}
     try {
+      try {
+        sessionStorage.setItem('suppress_unload_prompt', '1');
+        (window as any).__suppressBeforeUnloadPrompt = true;
+        window.dispatchEvent(new CustomEvent('app:prepare-refresh', { detail: { reason } }));
+      } catch {}
       const now = Date.now();
       const last = Number(localStorage.getItem('app_manual_refresh_ts') || '0');
       if (!force && now - last < 3000) return; // throttle (fallback path)
