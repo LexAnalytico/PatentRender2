@@ -497,13 +497,11 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
             return prev ? { ...prev, error: prev.error || msg } : prev
           })
         }, 15000)
-        // Proceed with DB upsert only in confirm mode
+        // Proceed with DB upsert only in confirm mode — but do it in the background
+        // and immediately hard-reset the app, mirroring the blue Reset button behavior.
         const { data: sessionRes } = await supabase.auth.getSession()
         const userId = sessionRes?.session?.user?.id || null
-        if (!userId) throw new Error('Not signed in')
-
-  const orderId = orderIdEffective
-        // Only mark as completed when user confirms; for normal saves we leave it unchanged
+        const orderId = orderIdEffective
         const payload: any = {
           user_id: userId,
           order_id: orderId,
@@ -511,42 +509,46 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           data: formValues,
           fields_filled_count: filledFields.length,
           fields_total: relevantFields.length,
+          // client meta for debugging
+          _client: 'FormClient.confirm',
+          _ts: Date.now(),
         }
-        // Completion semantics:
-        // - In confirm mode, mark as completed (we only upsert in confirm mode now)
-        payload.completed = true
-        const { error } = await supabase
-          .from('form_responses')
-          .upsert(payload, { onConflict: 'user_id,order_id,form_type' })
-        if (error) throw error
+        try {
+          const json = JSON.stringify(payload)
+          let sent = false
+          if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
+            try {
+              const blob = new Blob([json], { type: 'application/json' })
+              sent = (navigator as any).sendBeacon?.('/api/forms/confirm', blob) || false
+            } catch {}
+          }
+          if (!sent) {
+            // Fallback: keepalive fetch to survive page unload
+            try {
+              await fetch('/api/forms/confirm', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: json,
+                keepalive: true,
+              })
+            } catch {}
+          }
+        } catch {}
+        // Clear local draft to avoid stale reopen
+        try {
+          const { data: s } = await supabase.auth.getSession()
+          const uid = s?.session?.user?.id || null
+          const k = formDraftKey(uid, orderId ?? null, selectedType)
+          localStorage.removeItem(k)
+        } catch {}
+        // Immediately hard reset the app/UI – the DB write will complete in the background
+        try { (window as any).triggerAppResetForce?.('form-confirm') } catch {}
         finished = true
-        toast.toast?.({
-          title: 'Form Saved',
-          description: `Saved ${filledFields.length}/${relevantFields.length} fields (Completed).`,
-        })
-        try { onSaveLocal?.({ type: selectedType, orderId, values: formValues }) } catch {}
+        // Avoid further UI updates since we're reloading; still emit a small toast (best effort)
+        try { toast.toast?.({ title: 'Confirming…', description: 'Finalizing your submission' }) } catch {}
         setSaveSuccessTs(Date.now())
-  setSavedBannerState('visible')
-        setLastSaveDebug(prev => prev ? { ...prev, ended: Date.now(), payload: { ...prev.payload, saved: true, filled: filledFields.length, total: relevantFields.length } } : prev)
-
-        // If we are in confirm (review) mode, convert banner to 'confirmed' variant
-        if (confirmMode) {
-          try { toast.toast?.({ title: 'Thank you for confirming your details' }) } catch {}
-          setShowThankYouBanner(true)
-          setThankYouVariant('confirmed')
-          // Stay in confirm mode; do not toggle back to edit.
-          // Keep readOnly true implicitly via confirmMode.
-          try {
-            if (onConfirmComplete) onConfirmComplete()
-          } catch {}
-          // On final confirmation, clear the local draft cache for this key to avoid stale data on reopen
-          try {
-            const { data: s } = await supabase.auth.getSession()
-            const uid = s?.session?.user?.id || null
-            const k = formDraftKey(uid, orderId ?? null, selectedType)
-            localStorage.removeItem(k)
-          } catch {}
-        }
+        setSavedBannerState('visible')
+        setLastSaveDebug(prev => prev ? { ...prev, ended: Date.now(), payload: { ...prev.payload, saved: true, filled: filledFields.length, total: relevantFields.length, background: true } } : prev)
       } catch (e: any) {
         console.error('Save error', e)
         toast.toast?.({ title: 'Save failed', description: e?.message || 'Unable to save form', variant: 'destructive' })

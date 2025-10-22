@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "react"
 import { OrderChatPopup } from '@/components/OrderChatPopup'
 import { supabase } from '../lib/supabase';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
@@ -3017,7 +3017,7 @@ if (showQuotePage) {
                                 }
                               }
                               return (
-                                <>
+                                <Fragment key={bundle.paymentKey}>
                                   
                                   <tr key={bundle.paymentKey} className="bg-slate-50 divide-x divide-slate-300">
                                     {/* Order ID (internal) */}
@@ -3157,7 +3157,7 @@ if (showQuotePage) {
                                     </tr>
                                   ))}
 
-                                </>
+                                </Fragment>
                               )
                             })}
                           </tbody>
@@ -3392,8 +3392,8 @@ if (showQuotePage) {
                 <p className="text-base md:text-lg text-gray-600 max-w-3xl">Comprehensive patent services to protect your innovations and inventions.</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
-                {patentServices.map((service, index) => (
-                  <Card key={index} className="bg-white hover:shadow-lg transition-shadow">
+                {patentServices.map((service) => (
+                  <Card key={service.title} className="bg-white hover:shadow-lg transition-shadow">
                     <CardContent className="p-5 md:p-7">
                       <div className="flex items-start gap-3 justify-between">
                         <div className="p-2 md:p-3 bg-blue-100 rounded-full">
@@ -3713,8 +3713,8 @@ if (showQuotePage) {
             </p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {milestones.map((milestone, index) => (
-              <div key={index} className="text-center">
+            {milestones.map((milestone) => (
+              <div key={milestone.key} className="text-center">
                 <div className="text-4xl md:text-5xl font-bold text-blue-600 mb-2">
                   {counters[milestone.key as keyof typeof counters].toLocaleString()}+
                 </div>
