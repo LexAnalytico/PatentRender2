@@ -143,6 +143,14 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   // User-adjustable form text styling
   const [formFontSize, setFormFontSize] = useState<number>(12)
   const [formFontBold, setFormFontBold] = useState<boolean>(false)
+  // Auth readiness tick to re-run cache seed after session becomes available on fresh mounts
+  const [authReadyTick, setAuthReadyTick] = useState<number>(0)
+  useEffect(() => {
+    const sub = supabase.auth.onAuthStateChange((_event: any, _session: any) => {
+      try { setAuthReadyTick(t => t + 1) } catch {}
+    })
+    return () => { try { sub.data?.subscription?.unsubscribe() } catch {} }
+  }, [])
 
   // Load persisted preferences
   useEffect(() => {
@@ -456,6 +464,22 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         const startedAt = Date.now()
         setSaveStartedAt(startedAt)
         setLastSaveDebug({ started: startedAt, payload: { tentativeFields: filledFields.length } })
+
+        // If not in confirm mode, perform a local-only save (no DB upsert)
+        if (!confirmMode) {
+          finished = true
+          // Local-only acknowledgement (autosave already persisted draft to localStorage)
+          toast.toast?.({
+            title: 'Form Saved',
+            description: `Saved ${filledFields.length}/${relevantFields.length} fields locally.`,
+          })
+          try { onSaveLocal?.({ type: selectedType, orderId: orderIdEffective ?? null, values: formValues }) } catch {}
+          setSaveSuccessTs(Date.now())
+          setSavedBannerState('visible')
+          setLastSaveDebug(prev => prev ? { ...prev, ended: Date.now(), payload: { ...prev.payload, savedLocal: true, filled: filledFields.length, total: relevantFields.length } } : prev)
+          return
+        }
+
         // Timeout safeguard (e.g., hanging network/RLS). If not cleared in 15s, mark stalled and allow retry.
         timeoutId = setTimeout(() => {
           setSaveStall(true)
@@ -473,7 +497,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
             return prev ? { ...prev, error: prev.error || msg } : prev
           })
         }, 15000)
-  // finished flag now declared in outer scope for finally block
+        // Proceed with DB upsert only in confirm mode
         const { data: sessionRes } = await supabase.auth.getSession()
         const userId = sessionRes?.session?.user?.id || null
         if (!userId) throw new Error('Not signed in')
@@ -489,9 +513,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           fields_total: relevantFields.length,
         }
         // Completion semantics:
-        // - In confirm mode, mark as completed
-        // - In edit mode, explicitly clear completion to avoid stale 'completed=true' after Refill/Save
-        payload.completed = !!confirmMode
+        // - In confirm mode, mark as completed (we only upsert in confirm mode now)
+        payload.completed = true
         const { error } = await supabase
           .from('form_responses')
           .upsert(payload, { onConflict: 'user_id,order_id,form_type' })
@@ -499,7 +522,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         finished = true
         toast.toast?.({
           title: 'Form Saved',
-          description: `Saved ${filledFields.length}/${relevantFields.length} fields${payload.completed ? ' (Completed)' : ''}.`,
+          description: `Saved ${filledFields.length}/${relevantFields.length} fields (Completed).`,
         })
         try { onSaveLocal?.({ type: selectedType, orderId, values: formValues }) } catch {}
         setSaveSuccessTs(Date.now())
@@ -574,13 +597,41 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           if (mounted && lastParsed?.values) {
             setFormValues(lastParsed.values as Record<string,string>)
             setLastLoadMeta({ phase: 'cache-seed', orderId: orderIdEffective ?? null, type: selectedType, foundExact: false, fallbackUsed: true, ts: Date.now() })
+          } else if (!uid) {
+            // UID-less emergency fallback: scan keys to seed before auth session becomes available
+            try {
+              const suffix = `::${orderIdEffective ?? 'none'}::${selectedType || 'notype'}`
+              let seeded: Record<string,string> | null = null
+              if (typeof window !== 'undefined') {
+                const ls = window.localStorage
+                for (let i = 0; i < ls.length; i++) {
+                  const k = ls.key(i) || ''
+                  if (!k.startsWith(`form_draft_${FORM_CACHE_VER}::`)) continue
+                  if (!k.endsWith(suffix)) continue
+                  const v = ls.getItem(k)
+                  if (!v) continue
+                  try {
+                    const p = JSON.parse(v)
+                    if (p && p.values && typeof p.values === 'object' && hasNonEmpty(p.values)) {
+                      seeded = p.values as Record<string,string>
+                      break
+                    }
+                  } catch {}
+                }
+              }
+              if (mounted && seeded) {
+                setFormValues(seeded)
+                setLastLoadMeta({ phase: 'cache-seed', orderId: orderIdEffective ?? null, type: selectedType, foundExact: false, fallbackUsed: true, ts: Date.now() })
+                return
+              }
+            } catch {}
           }
         }
       } catch {}
     })()
     return () => { mounted = false }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedType, orderIdEffective])
+  }, [selectedType, orderIdEffective, authReadyTick])
 
   // Autosave draft to localStorage with a debounce; do not overwrite with empty forms
   const draftTimerRef = useRef<any>(null)

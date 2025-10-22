@@ -1291,8 +1291,123 @@ const patentServices = [
   }, [])
 
   const scrollToSection = (sectionId: string) => {
-    // If user is inside the dashboard (quote view), close it first then scroll after repaint
+    // If user is inside the dashboard (quote view), perform a hard reset, close it, then scroll after repaint
+    const RESET_ON_MAIN = process.env.NEXT_PUBLIC_RESET_ON_MAIN === '1'
+    const CART_RESET_ON_MAIN = process.env.NEXT_PUBLIC_CART_RESET_ON_MAIN === '1'
+    const FORCE_REFRESH_ON_MAIN = process.env.NEXT_PUBLIC_FORCE_REFRESH_ON_MAIN === '1'
+    const refreshNow = (reason?: string) => {
+      // eslint-disable-next-line no-console
+      console.debug('[AppRefresh] programmatic reset firing', {
+        reason: reason || 'unknown',
+        from: 'scrollToSection',
+        ts: new Date().toISOString(),
+      })
+      try {
+        const w = window as any
+        const force = reason === 'menu-scroll'
+        if (force && typeof w.triggerAppResetForce === 'function') {
+          // eslint-disable-next-line no-console
+          console.debug('[AppRefresh] using window.triggerAppResetForce()', { reason })
+          w.triggerAppResetForce(reason)
+          return
+        }
+        if (typeof w.triggerAppReset === 'function') {
+          // eslint-disable-next-line no-console
+          console.debug('[AppRefresh] using window.triggerAppReset()', { reason })
+          w.triggerAppReset()
+          return
+        }
+        // Fallback to event-based trigger if button is mounted but global fn not found yet
+        try {
+          // eslint-disable-next-line no-console
+          console.debug('[AppRefresh] dispatching app:refresh event (no global yet)', { reason, force })
+          window.dispatchEvent(new CustomEvent('app:refresh', { detail: { force, reason } }))
+        } catch {}
+        // Minimal retry: attempt global again shortly in case the button mounts right after
+        setTimeout(() => {
+          try {
+            const w2 = window as any
+            if (force && typeof w2.triggerAppResetForce === 'function') {
+              // eslint-disable-next-line no-console
+              console.debug('[AppRefresh] retry using window.triggerAppResetForce()', { reason })
+              w2.triggerAppResetForce(reason);
+              return
+            }
+            if (typeof w2.triggerAppReset === 'function') {
+              // eslint-disable-next-line no-console
+              console.debug('[AppRefresh] retry using window.triggerAppReset()', { reason })
+              w2.triggerAppReset();
+              return
+            }
+          } catch {}
+          // Final fallback: local throttled reload identical to the button
+          const now2 = Date.now()
+          const last2 = Number(localStorage.getItem('app_manual_refresh_ts') || '0')
+          if (now2 - last2 < 3000 && !force) return // throttle unless forced
+          localStorage.setItem('app_manual_refresh_ts', String(now2))
+          window.location.reload()
+        }, 100)
+        const now = Date.now()
+        const last = Number(localStorage.getItem('app_manual_refresh_ts') || '0')
+        if (now - last < 3000 && !force) return // throttle unless forced
+        localStorage.setItem('app_manual_refresh_ts', String(now))
+        window.location.reload()
+      } catch {
+        window.location.reload()
+      }
+    }
+    const hardResetLandingState = (reason: string, opts?: { clearCart?: boolean }) => {
+      try {
+        // Stop any focus guard activity and clear related timers/flags
+        try { stopFocusGuard('hard-reset:' + reason) } catch {}
+        try { setIsProcessingPayment(false) } catch {}
+        try { setPaymentInterrupted(false) } catch {}
+        try { setFocusViolationReason(null); setFocusViolationCount(0) } catch {}
+        try { if (paymentBlurTimerRef.current) clearTimeout(paymentBlurTimerRef.current) } catch {}
+        try { if (focusBlurTimerRef.current) clearTimeout(focusBlurTimerRef.current) } catch {}
+        try { if (focusVisibilityTimerRef.current) clearTimeout(focusVisibilityTimerRef.current) } catch {}
+        try { (suppressFocusGuardRef as any).current = false } catch {}
+        try { (lastExternalOpenRef as any).current = null } catch {}
+
+        // Reset embedded forms context and any checkout UI
+        try { setEmbeddedMultiForms(null); setSelectedFormOrderId(null as any); setSelectedFormType(null as any) } catch {}
+        try { setShowCheckoutThankYou(false) } catch {}
+
+        // Reset options panel and selections
+        try { setShowOptionsPanel(false); resetOptionsForm(); setSelectedServiceTitle(null); setSelectedServiceCategory(null) } catch {}
+
+        // Clear persisted selection keys so home re-computes cleanly
+        try { localStorage.removeItem(SELECTED_SERVICE_TITLE_KEY) } catch {}
+        try { localStorage.removeItem(SELECTED_SERVICE_CATEGORY_KEY) } catch {}
+        try { localStorage.removeItem(OPTIONS_FORM_KEY) } catch {}
+        // Optional: clear Safari refresh heuristics to avoid stale state
+        try { localStorage.removeItem('safari_refresh_ts'); localStorage.removeItem('safari_refresh_attempts') } catch {}
+
+        // Optionally clear cart to test Add button freshness
+        const winFlag = (typeof window !== 'undefined') && ((window as any).CART_RESET_ON_MAIN === true || (window as any).RESET_ON_MAIN === true)
+        if (opts?.clearCart || winFlag) {
+          try { clearCart() } catch {}
+        }
+      } catch {}
+    }
     if (showQuotePage) {
+      // eslint-disable-next-line no-console
+      console.debug('[AppRefresh] menu-scroll hardResetLandingState', {
+        RESET_ON_MAIN,
+        CART_RESET_ON_MAIN,
+        FORCE_REFRESH_ON_MAIN,
+        showQuotePage,
+        ts: new Date().toISOString(),
+      })
+      hardResetLandingState('menu-scroll', { clearCart: CART_RESET_ON_MAIN || RESET_ON_MAIN })
+      // Optionally perform a full page refresh (same as blue reset button) when returning to main via menu
+      const winForce = (typeof window !== 'undefined') && ((window as any).FORCE_REFRESH_ON_MAIN === true || (window as any).RESET_ON_MAIN === true)
+      if (FORCE_REFRESH_ON_MAIN || winForce) {
+        // eslint-disable-next-line no-console
+        console.debug('[AppRefresh] FORCE refresh on menu return', { winForce })
+        refreshNow('menu-scroll')
+        return
+      }
       setShowQuotePage(false)
       setQuoteView('services')
       setSelectedFormOrderId(null)
@@ -1306,6 +1421,83 @@ const patentServices = [
     const el = document.getElementById(sectionId)
     if (el) el.scrollIntoView({ behavior: 'smooth' })
   }
+
+  // Auto-invoke the reset button (full reload) when resizing on the main screen, behind a feature flag
+  useEffect(() => {
+    const RESET_ON_RESIZE = process.env.NEXT_PUBLIC_RESET_ON_RESIZE === '1'
+    const handler = () => {
+      const winFlag = (typeof window !== 'undefined') && ((window as any).RESET_ON_RESIZE === true)
+      if (!RESET_ON_RESIZE && !winFlag) return
+      // If we're inside the dashboard, set a pending marker to force-refresh when we return to landing
+      if (showQuotePage) {
+        try {
+          localStorage.setItem('app_refresh_on_main', '1')
+          // eslint-disable-next-line no-console
+          console.debug('[AppRefresh] resize in dashboard -> set pending refresh marker')
+        } catch {}
+        return
+      }
+      // eslint-disable-next-line no-console
+      console.debug('[AppRefresh] resize detected -> will trigger programmatic reset', {
+        RESET_ON_RESIZE,
+        winFlag,
+        showQuotePage,
+        ts: new Date().toISOString(),
+      })
+      // Debounce a bit so we refresh after the resize ends
+      try { if ((handler as any)._t) clearTimeout((handler as any)._t) } catch {}
+      ;(handler as any)._t = setTimeout(() => {
+        try {
+          const w = window as any
+          if (typeof w.triggerAppReset === 'function') {
+            // eslint-disable-next-line no-console
+            console.debug('[AppRefresh] resize -> using window.triggerAppReset()')
+            w.triggerAppReset();
+            return
+          }
+          // eslint-disable-next-line no-console
+          console.debug('[AppRefresh] resize -> dispatching app:refresh event (no global yet)')
+          try { window.dispatchEvent(new Event('app:refresh')) } catch {}
+        } catch {}
+        // Fallback if globals not available yet
+        const now = Date.now()
+        const last = Number(localStorage.getItem('app_manual_refresh_ts') || '0')
+        if (now - last < 3000) return
+        localStorage.setItem('app_manual_refresh_ts', String(now))
+        window.location.reload()
+      }, 350)
+    }
+    window.addEventListener('resize', handler)
+    return () => {
+      window.removeEventListener('resize', handler)
+      try { if ((handler as any)._t) clearTimeout((handler as any)._t) } catch {}
+    }
+  }, [showQuotePage])
+
+  // If a resize happened while in dashboard, force-refresh as soon as we return to landing
+  useEffect(() => {
+    if (showQuotePage) return
+    const RESET_ON_RESIZE = process.env.NEXT_PUBLIC_RESET_ON_RESIZE === '1'
+    const winFlag = (typeof window !== 'undefined') && ((window as any).RESET_ON_RESIZE === true)
+    if (!RESET_ON_RESIZE && !winFlag) return
+    try {
+      const pending = localStorage.getItem('app_refresh_on_main') === '1'
+      if (pending) {
+        // eslint-disable-next-line no-console
+        console.debug('[AppRefresh] returning to landing -> consuming pending refresh marker (forced)')
+        localStorage.removeItem('app_refresh_on_main')
+        const w: any = window
+        if (typeof w.triggerAppResetForce === 'function') {
+          w.triggerAppResetForce('resize-pending')
+          return
+        }
+        try { window.dispatchEvent(new CustomEvent('app:refresh', { detail: { force: true, reason: 'resize-pending' } })) } catch {}
+        const now = Date.now()
+        localStorage.setItem('app_manual_refresh_ts', String(now))
+        window.location.reload()
+      }
+    } catch {}
+  }, [showQuotePage])
 
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % bannerSlides.length)
@@ -1422,6 +1614,23 @@ const patentServices = [
       const detail = (e as CustomEvent).detail as { id?: string }
       const id = detail?.id
       if (!id) return
+      // If we're currently inside the dashboard and the force-refresh-on-main flag is enabled,
+      // trigger the same hard reload path as the manual blue button so state is completely fresh.
+      const FORCE_REFRESH_ON_MAIN = process.env.NEXT_PUBLIC_FORCE_REFRESH_ON_MAIN === '1'
+      const winForce = (typeof window !== 'undefined') && ((window as any).FORCE_REFRESH_ON_MAIN === true || (window as any).RESET_ON_MAIN === true)
+      if (showQuotePage && (FORCE_REFRESH_ON_MAIN || winForce)) {
+        try {
+          const w: any = window
+          if (typeof w.triggerAppResetForce === 'function') {
+            console.debug('[AppRefresh] nav:go-section -> triggerAppResetForce')
+            w.triggerAppResetForce('menu-scroll')
+            return
+          }
+          console.debug('[AppRefresh] nav:go-section -> dispatch app:refresh (forced)')
+          window.dispatchEvent(new CustomEvent('app:refresh', { detail: { force: true, reason: 'menu-scroll' } }))
+          return
+        } catch {}
+      }
       setShowQuotePage(false)
       setTimeout(() => {
         const el = document.getElementById(id)

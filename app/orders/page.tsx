@@ -3,15 +3,22 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { Suspense } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { supabase } from '@/lib/supabase'
 
 // Polling interval ms
 const POLL_INTERVAL = 1800
 const MAX_POLLS = 40 // ~72s
 let FLOW_DEBUG = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_PAYMENT_FLOW_DEBUG === '1'
+let BG_SYNC = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_FORM_BG_SYNC === '1'
 function flowLog(phase: string, msg: string, extra?: any) {
   if (!FLOW_DEBUG) return
   const ts = new Date().toISOString()
   try { console.debug(`[flow][orders-page][${phase}][${ts}] ${msg}`, extra || '') } catch {}
+}
+function syncLog(phase: string, msg: string, extra?: any) {
+  if (!BG_SYNC) return
+  const ts = new Date().toISOString()
+  try { console.debug(`[sync][orders-page][${phase}][${ts}] ${msg}`, extra || '') } catch {}
 }
 
 // Local cache for fast UI seed after tab-out/tab-in
@@ -59,6 +66,15 @@ function OrdersPageInner() {
           window.localStorage.setItem('ORDERS_FLOW_DEBUG', '1')
         }
       }
+
+      // Enable/disable background draft sync via URL/localStorage
+      const syncParam = search.get('syncDrafts') === '1'
+      const lsSync = typeof window !== 'undefined' ? window.localStorage.getItem('FORM_BG_SYNC') === '1' : false
+      if (syncParam || lsSync) {
+        BG_SYNC = true
+        if (syncParam) window.localStorage.setItem('FORM_BG_SYNC', '1')
+        syncLog('init', 'Background draft sync enabled', { syncParam, lsSync })
+      }
     } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -95,6 +111,88 @@ function OrdersPageInner() {
     if (orderIdParam) qs.push(`order_id=${encodeURIComponent(orderIdParam)}`)
     return '/api/order-status' + (qs.length ? `?${qs.join('&')}` : '')
   }
+
+  // Background draft sync: first-write baseline (no overwrite of existing rows)
+  const lastSyncRef = useRef<number>(0)
+  const syncingRef = useRef<boolean>(false)
+  const backgroundSyncDrafts = useCallback(async () => {
+    if (!BG_SYNC) return
+    if (syncingRef.current) return
+    const now = Date.now()
+    if (now - lastSyncRef.current < 10000) return // throttle 10s
+    syncingRef.current = true
+    lastSyncRef.current = now
+    try {
+      const { data: s } = await supabase.auth.getSession()
+      const uid = s?.session?.user?.id || null
+      if (!uid) { syncingRef.current = false; return }
+      const candidates: Array<{ key: string; orderId: number; type: string; payload: any }> = []
+      try {
+        if (typeof window === 'undefined') { syncingRef.current = false; return }
+        for (let i = 0; i < window.localStorage.length; i++) {
+          const k = window.localStorage.key(i) || ''
+          if (!k.startsWith('form_draft_v1::')) continue
+          const parts = k.split('::') // [form_draft_v1, uid|nouser, orderId|none, type|notype]
+          if (parts.length < 4) continue
+          const kUid = parts[1]
+          const kOrder = parts[2]
+          const kType = parts[3]
+          if (kUid !== uid) continue
+          if (kOrder === 'none') continue
+          if (!kType || kType === 'notype') continue
+          const orderNum = Number(kOrder)
+          if (!Number.isFinite(orderNum)) continue
+          const raw = window.localStorage.getItem(k)
+          if (!raw) continue
+          let parsed: any
+          try { parsed = JSON.parse(raw) } catch { continue }
+          if (!parsed || !parsed.values || typeof parsed.values !== 'object') continue
+          candidates.push({ key: k, orderId: orderNum, type: kType, payload: parsed })
+        }
+      } catch {}
+
+      const limited = candidates.slice(0, 8) // cap per cycle
+      for (const c of limited) {
+        try {
+          // Check if a row already exists; skip to avoid overwrite
+          const { data: existing, error: selErr } = await supabase
+            .from('form_responses')
+            .select('user_id, order_id, form_type, completed')
+            .eq('user_id', uid)
+            .eq('order_id', c.orderId)
+            .eq('form_type', c.type)
+            .maybeSingle()
+          if (selErr) { syncLog('select-error', 'Select error', { key: c.key, err: selErr.message }); continue }
+          if (existing) { syncLog('skip-exists', 'Row already exists, skipping', { key: c.key }); continue }
+
+          const dataJson = { ...c.payload.values, __draft_ts: c.payload.ts || Date.now() }
+          const ins = {
+            user_id: uid,
+            order_id: c.orderId,
+            form_type: c.type,
+            data: dataJson,
+            completed: false,
+          }
+          const { error: insErr } = await supabase
+            .from('form_responses')
+            .insert(ins)
+          if (insErr) {
+            // Ignore duplicate key violations if any race occurs
+            const code = (insErr as any)?.code || ''
+            if (code !== '23505') {
+              syncLog('insert-error', 'Insert error', { key: c.key, err: insErr.message })
+            }
+          } else {
+            syncLog('insert-ok', 'Inserted draft row', { key: c.key, orderId: c.orderId, type: c.type })
+          }
+        } catch (e: any) {
+          syncLog('sync-error', 'Unexpected sync error', { key: c.key, err: String(e?.message || e) })
+        }
+      }
+    } finally {
+      syncingRef.current = false
+    }
+  }, [])
 
   const poll = useCallback(async () => {
     try {
@@ -147,6 +245,8 @@ function OrdersPageInner() {
           flowLog('focus-cache', 'Rehydrated from cache on focus', { stage: parsed.value.stage, ready: parsed.value.ready })
         }
       } catch {}
+      // Kick background draft sync
+      backgroundSyncDrafts()
       // If we had stopped but not ready, resume and trigger an immediate poll
       if (stopped && !(status?.ready)) {
         setStopped(false)
@@ -170,6 +270,12 @@ function OrdersPageInner() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopped, status, razorpayOrderId, orderIdParam, poll])
+
+  // One-time background sync on mount
+  useEffect(() => {
+    backgroundSyncDrafts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleViewForms = () => {
     // Prefer a single order id if available; pass order_id + type for locking form
