@@ -62,7 +62,7 @@ type FormField = {
   pct_filing: string
   ps_cs: string
   fer_response: string
-  
+ 
 }
 
 const applicationTypes = [
@@ -73,7 +73,7 @@ const applicationTypes = [
   { key: "pct_filing", label: "PCT Filing" },
   { key: "ps_cs", label: "PS CS" },
   { key: "fer_response", label: "FER Response" },
-  
+ 
 ]
 
 // Fast lookup map for user-friendly labels
@@ -220,7 +220,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   const toast = toastHook ?? { toast: (opts: any) => { if (opts?.title) alert(`${opts.title}\n${opts?.description || ""}`) } }
   const searchParams = useSearchParams()
   const router = useRouter()
-  
+ 
   // ---- JSON cache helpers (localStorage) – mirrors main screen cache-first approach ----
   const FORM_CACHE_VER = 'v1'
   const formDraftKey = (uid: string | null, orderId: number | null, type: string | null | undefined) => `form_draft_${FORM_CACHE_VER}::${uid || 'nouser'}::${orderId ?? 'none'}::${type || 'notype'}`
@@ -229,7 +229,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     for (const v of Object.values(obj || {})) { if (typeof v === 'string' && v.trim() !== '') return true }
     return false
   }
-  
+ 
   const orderIdFromProps = orderIdProp ?? null
   const typeFromProps = typeProp ?? null
   // If the form is opened from an order (order_id in URL), lock the application type
@@ -418,12 +418,12 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         } catch {}
         return
       }
-    } catch {}
-    setReadOnly(true); setConfirmMode(true)
+    } catch {}    setReadOnly(true); setConfirmMode(true)
     // Show review banner (with submitted details) right after Submit
     setShowThankYouBanner(true)
     setThankYouVariant('review')
   }
+ 
   const exitConfirmModeToEdit = () => {
     setConfirmMode(false)
     setReadOnly(false)
@@ -441,6 +441,32 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         try { (el as any).focus?.() } catch {}
       }, 50)
     } catch {}
+  }
+
+  const advanceToNextForm = () => {
+    if (!selectedType) return
+    const idx = applicationTypes.findIndex(t => t.key === selectedType)
+    if (idx < 0) return
+    const next = applicationTypes[idx + 1]
+    if (!next) {
+      // Optional: if no "next", show a done message and keep read-only
+      try { toast.toast?.({ title: 'All forms completed', description: 'You\'ve reached the last form.' }) } catch {}
+      return
+    }
+    // Switch to next form and prepare edit mode
+    setSelectedType(next.key)
+    setConfirmMode(false)
+    setReadOnly(false)
+    setShowThankYouBanner(false)
+    setThankYouVariant(null)
+    // Reset field state for the next form
+    setFormValues({})
+    // Move focus to the top anchor after the next render
+    setTimeout(() => {
+      const el = formTopRef.current
+      try { el?.scrollIntoView({ behavior: 'smooth', block: 'start' }) } catch {}
+      try { (el as any)?.focus?.() } catch {}
+    }, 50)
   }
 
   const handleSave = () => {
@@ -540,14 +566,27 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           const uid = s?.session?.user?.id || null
           const k = formDraftKey(uid, orderId ?? null, selectedType)
           localStorage.removeItem(k)
-        } catch {}
-        // Immediately hard reset the app/UI – the DB write will complete in the background
-        try { (window as any).triggerAppResetForce?.('form-confirm') } catch {}
-        finished = true
-        // Avoid further UI updates since we're reloading; still emit a small toast (best effort)
-        try { toast.toast?.({ title: 'Confirming…', description: 'Finalizing your submission' }) } catch {}
+        } catch {}        finished = true
+
+        // Mark as confirmed and show a brief success
+        try { toast.toast?.({ title: 'Confirmed', description: 'Your details have been submitted.' }) } catch {}
         setSaveSuccessTs(Date.now())
         setSavedBannerState('visible')
+        setThankYouVariant('confirmed')
+        setShowThankYouBanner(true)
+        // Keep the current form read-only + confirmed
+        setReadOnly(true)
+        setConfirmMode(true)
+
+        // After a short delay, shift to next form (or let parent handle)
+        setTimeout(() => {
+          if (typeof onConfirmComplete === 'function') {
+            try { onConfirmComplete() } catch {}
+          } else {
+            advanceToNextForm()
+          }
+        }, 600)
+
         setLastSaveDebug(prev => prev ? { ...prev, ended: Date.now(), payload: { ...prev.payload, saved: true, filled: filledFields.length, total: relevantFields.length, background: true } } : prev)
       } catch (e: any) {
         console.error('Save error', e)
@@ -745,7 +784,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer) }
         }, [saveSuccessTs, readOnly])
 
-        
+       
 
         // Hide banner immediately when entering edit mode
         useEffect(() => {

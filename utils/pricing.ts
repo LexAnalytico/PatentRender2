@@ -310,4 +310,3 @@ export function computePriceFromRules(rules: PricingRule[], opts: SelectedOption
 
   return total
 }  
-

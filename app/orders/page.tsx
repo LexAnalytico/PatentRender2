@@ -142,7 +142,8 @@ function OrdersPageInner() {
   useEffect(() => {
     const DEBUG_REFRESH = process.env.NEXT_PUBLIC_DEBUG_REFRESH === '1'
     const winDebug = (typeof window !== 'undefined') && ((window as any).DEBUG_REFRESH === true)
-    if (!DEBUG_REFRESH && !winDebug) return
+    // Only show overlay when BOTH env flag and runtime flag are set
+    if (!(DEBUG_REFRESH && winDebug)) return
     try {
       const raw = localStorage.getItem('app_debug_refresh')
       if (!raw) return

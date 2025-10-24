@@ -84,8 +84,12 @@ const OptionsDialog: React.FC<OptionsDialogProps> = ({
     (selectedServiceTitle === 'First Examination Response' && (!optionsForm.searchType))
   )
 
+  // Optional non-modal mode to test overlay/pointer-events interactions without blocking the page
+  const nonModal = (process.env.NEXT_PUBLIC_DIALOG_NON_MODAL === '1') || (typeof window !== 'undefined' && (window as any).DIALOG_NON_MODAL === true)
+  const dialogRootProps = nonModal ? { modal: false as const } : {}
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange} {...dialogRootProps}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Options for: {selectedServiceTitle}</DialogTitle>

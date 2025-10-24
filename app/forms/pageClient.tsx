@@ -119,7 +119,8 @@ export default function ClientFormsPage() {
   useEffect(() => {
     const DEBUG_REFRESH = process.env.NEXT_PUBLIC_DEBUG_REFRESH === '1'
     const winDebug = (typeof window !== 'undefined') && ((window as any).DEBUG_REFRESH === true)
-    if (!DEBUG_REFRESH && !winDebug) return
+    // Show forms overlay only when BOTH are true
+    if (!(DEBUG_REFRESH && winDebug)) return
     try {
       const raw = localStorage.getItem('app_debug_refresh')
       if (!raw) return

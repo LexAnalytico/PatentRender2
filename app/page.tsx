@@ -228,6 +228,8 @@ const openFirstFormEmbedded = () => {
   const [showQuotePage, setShowQuotePage] = useState(false)
   // Inside the quote page, control which content shows in the main area
   const [quoteView, setQuoteView] = useState<'services' | 'orders' | 'profile' | 'forms'>('services')
+  // Persist last view so we can restore Orders after tab-out/in or hard reload
+  const LAST_VIEW_KEY = 'app:last_view'
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
   const [showPassword, setShowPassword] = useState(false)
@@ -577,6 +579,14 @@ const openFirstFormEmbedded = () => {
     setOrdersLoadError(null)
     return orders
   }, [])
+
+  // Persist last view whenever it changes
+  useEffect(() => {
+    try {
+      const val = showQuotePage ? `quote:${quoteView}` : 'home'
+      localStorage.setItem(LAST_VIEW_KEY, val)
+    } catch {}
+  }, [showQuotePage, quoteView])
 
   // Centralized navigation back to Orders view with prefetch before rendering Orders screen
   const goToOrders = () => {
@@ -1635,7 +1645,8 @@ const patentServices = [
   useEffect(() => {
     const DEBUG_REFRESH = process.env.NEXT_PUBLIC_DEBUG_REFRESH === '1'
     const winDebug = (typeof window !== 'undefined') && ((window as any).DEBUG_REFRESH === true)
-    if (!DEBUG_REFRESH && !winDebug) return
+    // Only show the overlay when BOTH flags are enabled explicitly
+    if (!(DEBUG_REFRESH && winDebug)) return
     try {
       const raw = localStorage.getItem('app_debug_refresh')
       if (!raw) return
@@ -1707,16 +1718,41 @@ const patentServices = [
     requestAnimationFrame(() => { try { window.scrollTo({ top: 0, behavior: 'smooth' }) } catch {} })
   }, [])
 
-  // Ensure direct loads to '/' always start in landing mode (never stuck in dashboard after hard refresh)
+  // On first mount, restore last view if saved (so Orders view comes back after reload)
+  useEffect(() => {
+    try {
+      const last = localStorage.getItem(LAST_VIEW_KEY)
+      if (last === 'quote:orders') {
+        setInitialQuoteView('orders')
+        setShowQuotePage(true)
+        return
+      }
+      if (last === 'quote:profile') {
+        setInitialQuoteView('profile')
+        setShowQuotePage(true)
+        return
+      }
+      if (last === 'quote:forms') {
+        setInitialQuoteView('forms')
+        setShowQuotePage(true)
+        return
+      }
+    } catch {}
+  }, [])
+
+  // Ensure direct loads to '/' default to landing ONLY if no saved quote view
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (window.location.pathname === '/') {
-      setShowQuotePage(false)
-      setInitialQuoteView('services')
-      setQuoteView('services')
-    }
+    if (window.location.pathname !== '/') return
+    try {
+      const last = localStorage.getItem(LAST_VIEW_KEY)
+      if (last && last.startsWith('quote:')) return
+    } catch {}
+    setShowQuotePage(false)
+    setInitialQuoteView('services')
+    setQuoteView('services')
   }, [])
-  
+ 
   const addToCart = (serviceName: string, category: string) => {
     const price = servicePricing[serviceName as keyof typeof servicePricing] || 0
     const newItem = {
@@ -1755,7 +1791,7 @@ const patentServices = [
   // Sidebar cart visibility (Orders/Profile screens): show only if there is at least one item and total > 0
   const cartTotal = getTotalPrice()
   const hasCartLineItems = cartItems.length > 0 && cartTotal > 0
-  
+ 
   // Ensure we persist the latest cart in case of abrupt navigations (e.g., OAuth redirects)
   useEffect(() => {
     const handler = () => {
@@ -1764,7 +1800,7 @@ const patentServices = [
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
   }, [cartItems])
-  
+ 
   // When user clicks a Navbar service link (/#section) from the Selected Services view,
   // auto-close the quote page and scroll to the requested section on the main page.
   useEffect(() => {
@@ -2027,7 +2063,7 @@ const patentServices = [
     }
     loadRules()
   }, [showOptionsPanel, selectedServiceTitle, visibilityTick])
-  
+ 
 
   // Helpers for turnaround pricing display in modal
 const formatINR = (n: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n)
@@ -2391,11 +2427,6 @@ useEffect(() => {
 
 //Google login
  
-
-
-
-
-   
 const handleAuth = async (e: React.FormEvent) => {
   e.preventDefault();
 
@@ -2897,7 +2928,7 @@ if (showQuotePage) {
                 >
                   Orders
                 </Button>
-                
+               
                 <Button
                   variant={quoteView === 'profile' ? undefined : 'outline'}
                   className={`w-full justify-start border border-black rounded-full ${quoteView === 'profile' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
@@ -3212,7 +3243,7 @@ if (showQuotePage) {
                               }
                               return (
                                 <Fragment key={bundle.paymentKey}>
-                                  
+                                 
                                   <tr key={bundle.paymentKey} className="bg-slate-50 divide-x divide-slate-300">
                                     {/* Order ID (internal) */}
                                     <td className="p-2">
@@ -3733,8 +3764,8 @@ if (showQuotePage) {
             <div className="space-y-2">
               <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={goToQuotePage}>
                 Go To Payments
-              </Button> 
-              
+              </Button>
+             
               <Button
                 variant="outline"
                 className="w-full bg-transparent"
@@ -3829,7 +3860,7 @@ if (showQuotePage) {
                   }
                 })()}
                 ferTotal={ferTotal}
-                
+               
               />
             )}
             <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
