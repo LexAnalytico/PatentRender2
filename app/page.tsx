@@ -314,6 +314,9 @@ const openFirstFormEmbedded = () => {
   const [invoicePreviewUrl, setInvoicePreviewUrl] = useState<string | null>(null)
   const [showInvoicePreview, setShowInvoicePreview] = useState(false)
   const [embeddedMultiForms, setEmbeddedMultiForms] = useState<{id:number,type:string}[] | null>(null)
+  // Resume notice shown when app returns to main after a long pause/reset
+  const [resumeNotice, setResumeNotice] = useState<null | { view: 'orders' | 'profile' | 'forms' }>(null)
+  // Note: auto-open/auto-dismiss disabled per user request
   // Cross-form snapshot to enable prefill across multiple forms (Option A implementation)
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<{ type: string; orderId: number | null; values: Record<string,string> } | null>(null)
   // Embedded Orders/Profile state when viewing within the quote view
@@ -346,6 +349,90 @@ const openFirstFormEmbedded = () => {
     bundles.sort((a,b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime())
     return bundles
   }, [embeddedOrders])
+
+  // When landing on main screen, only show resume notice if a refresh/reset actually occurred
+  // This is gated by a session flag set right before a programmatic reload.
+  useEffect(() => {
+    if (showQuotePage) { setResumeNotice(null); return }
+    try {
+      const shouldShow = sessionStorage.getItem('app_resume_notice') === '1'
+      if (!shouldShow) return
+      // one-shot: clear the flag
+      sessionStorage.removeItem('app_resume_notice')
+      const last = localStorage.getItem(LAST_VIEW_KEY) || ''
+      if (last.startsWith('quote:')) {
+        const v = last.split(':')[1] as any
+        if (v === 'orders' || v === 'profile' || v === 'forms') {
+          setResumeNotice({ view: v })
+        }
+      }
+    } catch {}
+  }, [showQuotePage])
+
+  const handleOpenLastView = useCallback(() => {
+    if (!resumeNotice) return
+    if (resumeNotice.view === 'orders') {
+      // Use centralized navigation that prefetches and handles session warm-up
+      try { goToOrders() } catch {
+        // Fallback to legacy path if something goes wrong
+        setInitialQuoteView('orders'); setShowQuotePage(true); setQuoteView('orders')
+        setTimeout(() => { try { setOrdersReloadKey(k => k + 1) } catch {} }, 50)
+      }
+    } else {
+      setInitialQuoteView(resumeNotice.view)
+      setShowQuotePage(true)
+      setQuoteView(resumeNotice.view)
+    }
+    setResumeNotice(null)
+  }, [resumeNotice, goToOrders])
+
+  // Lightweight user-facing notice when returning to main after long pause/reset
+  useEffect(() => {
+    if (!resumeNotice || showQuotePage) return
+    try {
+      const container = document.createElement('div')
+      container.style.position = 'fixed'
+      container.style.bottom = '16px'
+      container.style.right = '16px'
+      container.style.zIndex = '99999'
+      container.style.maxWidth = '360px'
+      container.style.background = 'rgba(17,24,39,0.96)'
+      container.style.color = '#f8fafc'
+      container.style.padding = '12px 14px'
+      container.style.borderRadius = '10px'
+      container.style.boxShadow = '0 6px 20px rgba(0,0,0,0.35)'
+      container.style.fontFamily = 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif'
+      container.style.fontSize = '13px'
+      const title = document.createElement('div')
+      title.style.fontWeight = '600'
+      title.style.marginBottom = '6px'
+      title.textContent = 'You were viewing the ' + (resumeNotice.view.charAt(0).toUpperCase() + resumeNotice.view.slice(1)) + ' screen'
+      const msg = document.createElement('div')
+      msg.style.opacity = '0.85'
+      msg.style.marginBottom = '8px'
+      msg.textContent = 'The app refreshed after a pause. You can reopen your last screen.'
+      const actions = document.createElement('div')
+      actions.style.display = 'flex'
+      actions.style.gap = '8px'
+      const openBtn = document.createElement('button')
+      openBtn.textContent = 'Reopen'
+      openBtn.style.background = '#2563eb'
+      openBtn.style.color = '#fff'
+      openBtn.style.border = 'none'
+      openBtn.style.padding = '6px 10px'
+      openBtn.style.borderRadius = '8px'
+      openBtn.style.cursor = 'pointer'
+  // Open immediately on click
+  openBtn.onclick = () => { try { handleOpenLastView() } finally { try { document.body.removeChild(container) } catch {} } }
+      actions.appendChild(openBtn)
+      container.appendChild(title)
+      container.appendChild(msg)
+      container.appendChild(actions)
+  document.body.appendChild(container)
+  // Clean up on unmount or when notice changes
+  return () => { try { document.body.removeChild(container) } catch {} }
+    } catch {}
+  }, [resumeNotice, showQuotePage, handleOpenLastView])
 
   // --- Status Logic Helpers ---
   // Heuristic: determine if core (required) form fields are filled, excluding upload or free-text comment style fields
@@ -585,11 +672,12 @@ const openFirstFormEmbedded = () => {
     try {
       const val = showQuotePage ? `quote:${quoteView}` : 'home'
       localStorage.setItem(LAST_VIEW_KEY, val)
+      debugLog('[ViewPersist] save', { val })
     } catch {}
   }, [showQuotePage, quoteView])
 
   // Centralized navigation back to Orders view with prefetch before rendering Orders screen
-  const goToOrders = () => {
+  function goToOrders() {
     // If already in orders view, keep legacy behavior (manual refresh by reload key)
     if (quoteView === 'orders') {
       // Single refresh only (removed second bump to prevent double reload)
@@ -1150,6 +1238,52 @@ useEffect(() => {
     loadBanners()
     return () => { cancelled = true }
   }, [])
+
+  // Soft recovery after idle when RESET_ON_FOCUS is disabled: rehydrate pricing/orders without hard reload
+  const SOFT_RECOVER_MS = useMemo(() => Number(process.env.NEXT_PUBLIC_SOFT_RECOVER_MS || '45000'), [])
+  useEffect(() => {
+    const RESET_ON_FOCUS = process.env.NEXT_PUBLIC_RESET_ON_FOCUS === '1'
+    if (RESET_ON_FOCUS) return // hard-refresh path handles recovery
+    const LAST_ACTIVE_KEY = 'app:last_active_ts'
+    const touch = (src: string) => { try { localStorage.setItem(LAST_ACTIVE_KEY, String(Date.now())) } catch {} }
+    const onAny = () => touch('any')
+    const onHideShow = () => touch('vis')
+    const onFocus = () => {
+      try {
+        const raw = localStorage.getItem(LAST_ACTIVE_KEY)
+        const last = raw ? Number(raw) : 0
+        const idle = last ? (Date.now() - last) : SOFT_RECOVER_MS + 1
+        if (idle >= SOFT_RECOVER_MS) {
+          // Main screen: ensure pricing/state rehydrates
+          if (!showQuotePage) {
+            setVisibilityTick(t => t + 1)
+            fetchPricing()
+          } else {
+            // Dashboard: nudge Orders/Profile views
+            if (quoteView === 'orders') {
+              setOrdersReloadKey(k => k + 1)
+            } else if (quoteView === 'profile' && !embeddedProfileLoading) {
+              try { refreshEmbeddedProfile() } catch {}
+            }
+          }
+        }
+      } catch {}
+      // Always update last active on focus
+      touch('focus')
+    }
+    // Seed
+    touch('mount')
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onHideShow)
+    window.addEventListener('pointerdown', onAny, true)
+    window.addEventListener('keydown', onAny, true)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onHideShow)
+      window.removeEventListener('pointerdown', onAny, true)
+      window.removeEventListener('keydown', onAny, true)
+    }
+  }, [showQuotePage, quoteView, SOFT_RECOVER_MS, fetchPricing, embeddedProfileLoading, refreshEmbeddedProfile])
 
 const patentServices = [
     {
@@ -1722,19 +1856,23 @@ const patentServices = [
   useEffect(() => {
     try {
       const last = localStorage.getItem(LAST_VIEW_KEY)
+      debugLog('[ViewPersist] mount-restore check', { last })
       if (last === 'quote:orders') {
         setInitialQuoteView('orders')
         setShowQuotePage(true)
+        debugLog('[ViewPersist] mount-restore -> orders')
         return
       }
       if (last === 'quote:profile') {
         setInitialQuoteView('profile')
         setShowQuotePage(true)
+        debugLog('[ViewPersist] mount-restore -> profile')
         return
       }
       if (last === 'quote:forms') {
         setInitialQuoteView('forms')
         setShowQuotePage(true)
+        debugLog('[ViewPersist] mount-restore -> forms')
         return
       }
     } catch {}
@@ -1752,6 +1890,43 @@ const patentServices = [
     setInitialQuoteView('services')
     setQuoteView('services')
   }, [])
+
+  // On visibility gain, if we somehow landed on Home but the saved view was Orders, auto-navigate back
+  useEffect(() => {
+    const handleVisRestore = () => {
+      try {
+        if (document.hidden) {
+          // Persist the current view on tab-out so we can restore accurately
+          const val = showQuotePage ? `quote:${quoteView}` : 'home'
+          localStorage.setItem(LAST_VIEW_KEY, val)
+          debugLog('[ViewPersist] tab-hide save', { val })
+          return
+        }
+        // Became visible
+        const last = localStorage.getItem(LAST_VIEW_KEY)
+        debugLog('[ViewPersist] visible', { last, showQuotePage, quoteView })
+        if (last === 'quote:orders') {
+          // Aggressive restore: immediately show dashboard Orders synchronously for zero flicker
+          setShowQuotePage(true)
+          setQuoteView('orders')
+          // Kick the full Orders navigation/prefetch on the next frame
+          try {
+            requestAnimationFrame(() => {
+              try { debugLog('[ViewPersist] visible -> goToOrders(rAF)'); goToOrders() } catch {}
+            })
+          } catch {}
+        }
+      } catch {}
+    }
+    document.addEventListener('visibilitychange', handleVisRestore)
+    window.addEventListener('focus', handleVisRestore)
+    window.addEventListener('pageshow', handleVisRestore)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisRestore)
+      window.removeEventListener('focus', handleVisRestore)
+      window.removeEventListener('pageshow', handleVisRestore)
+    }
+  }, [showQuotePage, quoteView])
  
   const addToCart = (serviceName: string, category: string) => {
     const price = servicePricing[serviceName as keyof typeof servicePricing] || 0
@@ -3040,43 +3215,6 @@ if (showQuotePage) {
             {quoteView === 'orders' && (
               <Card className="bg-white">
                 <CardContent className="p-4">
-                    {process.env.NEXT_PUBLIC_DEBUG === '1' && embeddedOrders && embeddedOrders.length > 0 && (
-                      <div className="mb-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            try {
-                              console.group('[Orders][Status Debug]')
-                              embeddedOrders.forEach((o: any) => {
-                                try {
-                                  // Force verbose evaluation per order
-                                  const core = formsCoreComplete(o, true)
-                                  const status = deriveOrderStatus(o)
-                                  console.log('Order', o.id, {
-                                    status,
-                                    coreComplete: core,
-                                    payment_status: o.payment_status,
-                                    payments: o.payments,
-                                    nestedPaymentStatus: o.payments?.payment_status,
-                                    nestedStatus: o.payments?.status,
-                                    form_values: o.form_values,
-                                    formResponsesLen: Array.isArray(o.formResponses) ? o.formResponses.length : null,
-                                  })
-                                } catch (inner) {
-                                  console.warn('Order debug failed', o?.id, inner)
-                                }
-                              })
-                              console.groupEnd()
-                            } catch (e) {
-                              console.error('Status debug failed', e)
-                            }
-                          }}
-                          className="text-xs px-2 py-1 border border-slate-300 rounded bg-slate-50 hover:bg-slate-100 text-slate-600"
-                        >
-                          Log Status Debug
-                        </button>
-                      </div>
-                    )}
                     {embeddedOrdersLoading && <div className="p-4 text-sm text-gray-500">Loading orders…</div>}
                     {!embeddedOrdersLoading && ordersLoadError && (
                       <div className="p-4 text-sm text-red-600 flex flex-col gap-2">

@@ -10,6 +10,8 @@ export default function RefreshAppButton() {
       // One-off suppression so beforeunload hooks (e.g., focus guard) don't prompt
       try {
         sessionStorage.setItem('suppress_unload_prompt', '1');
+        // Signal next load to show the resume notice (only after an intentional reset)
+        sessionStorage.setItem('app_resume_notice', '1');
         (window as any).__suppressBeforeUnloadPrompt = true;
         window.dispatchEvent(new CustomEvent('app:prepare-refresh', { detail: { reason } }));
       } catch {}
@@ -26,12 +28,15 @@ export default function RefreshAppButton() {
         return;
       }
       localStorage.setItem('app_manual_refresh_ts', String(now));
+      try { sessionStorage.setItem('app_resume_notice', '1'); } catch {}
       window.location.reload();
       return;
     } catch {}
     try {
       try {
         sessionStorage.setItem('suppress_unload_prompt', '1');
+        // Fallback path: also mark resume notice intent
+        sessionStorage.setItem('app_resume_notice', '1');
         (window as any).__suppressBeforeUnloadPrompt = true;
         window.dispatchEvent(new CustomEvent('app:prepare-refresh', { detail: { reason } }));
       } catch {}
@@ -39,6 +44,7 @@ export default function RefreshAppButton() {
       const last = Number(localStorage.getItem('app_manual_refresh_ts') || '0');
       if (!force && now - last < 3000) return; // throttle (fallback path)
       localStorage.setItem('app_manual_refresh_ts', String(now));
+      try { sessionStorage.setItem('app_resume_notice', '1'); } catch {}
       window.location.reload();
     } catch {
       window.location.reload();
