@@ -111,14 +111,40 @@ export async function fetchServicePricingRules(serviceId: number): Promise<Prici
   } catch {
     // ignore cache errors; fall through to direct fetch
   }
+  try {
+    const { data, error } = await supabase
+      .from('service_pricing_rules')
+      .select('id, service_id, application_type, key, unit, amount')
+      .eq('service_id', serviceId)
 
-  const { data, error } = await supabase
-    .from('service_pricing_rules')
-    .select('id, service_id, application_type, key, unit, amount')
-    .eq('service_id', serviceId)
+    if (error) throw new Error(error.message)
+    const rows = (data ?? []).map((r: any) => ({ ...r, amount: Number(r.amount) })) as PricingRule[]
+    if (rows.length > 0) return rows
+  } catch (e) {
+    // fall through to API fallback
+  }
 
-  if (error) throw new Error(error.message)
-  return (data ?? []).map((r: any) => ({ ...r, amount: Number(r.amount) })) as PricingRule[]
+  // Fallback: call server API (uses service role) to bypass RLS restrictions in production
+  try {
+    const res = await fetch(`/api/pricing-rules/${serviceId}`, { cache: 'no-store' })
+    if (res.ok) {
+      const json = await res.json()
+      const rules = Array.isArray(json.rules) ? json.rules as PricingRule[] : []
+      // Warm the local cache with all rules for this service (append-only)
+      if (isBrowser && rules.length > 0) {
+        try {
+          const existingRaw = window.localStorage.getItem(RULES_CACHE_KEY)
+          const existing: PricingRule[] = existingRaw ? JSON.parse(existingRaw) : []
+          const merged = [...existing, ...rules].filter((v, i, arr) => arr.findIndex(x => x.id === v.id) === i)
+          window.localStorage.setItem(RULES_CACHE_KEY, JSON.stringify(merged))
+          rulesCache = merged
+        } catch {}
+      }
+      return rules
+    }
+  } catch {}
+
+  return []
 }
 
 // ---- Patentrender (base pricing table) cache ----
@@ -155,38 +181,55 @@ export async function ensurePatentrenderCache(client = supabase): Promise<Patent
       }
     } catch {}
   }
-  const { data, error } = await client
-    .from('patentrender')
-    .select(
-      'patent_search, patent_application, patent_portfolio, first_examination, trademark_search, trademark_registration, trademark_monitoring, copyright_registration, dmca_services, copyright_licensing, design_registration, design_search, design_portfolio'
-    )
-    .maybeSingle()
-  if (error) {
-    console.error('[pricing] patentrender fetch failed', error)
+  try {
+    const { data, error } = await client
+      .from('patentrender')
+      .select(
+        'patent_search, patent_application, patent_portfolio, first_examination, trademark_search, trademark_registration, trademark_monitoring, copyright_registration, dmca_services, copyright_licensing, design_registration, design_search, design_portfolio'
+      )
+      .maybeSingle()
+    if (error) throw error
+    const normalized: PatentrenderRow | null = data
+      ? {
+          patent_search: Number(data.patent_search ?? 0),
+          patent_application: Number(data.patent_application ?? 0),
+          patent_portfolio: Number(data.patent_portfolio ?? 0),
+          first_examination: Number(data.first_examination ?? 0),
+          trademark_search: Number(data.trademark_search ?? 0),
+          trademark_registration: Number(data.trademark_registration ?? 0),
+          trademark_monitoring: Number(data.trademark_monitoring ?? 0),
+          copyright_registration: Number(data.copyright_registration ?? 0),
+          dmca_services: Number(data.dmca_services ?? 0),
+          copyright_licensing: Number(data.copyright_licensing ?? 0),
+          design_registration: Number(data.design_registration ?? 0),
+          design_search: Number(data.design_search ?? 0),
+          design_portfolio: Number(data.design_portfolio ?? 0),
+        }
+      : null
+    patentrenderCache = normalized
+    if (isBrowser && normalized) {
+      try { window.localStorage.setItem(PATENTRENDER_CACHE_KEY, JSON.stringify(normalized)) } catch {}
+    }
+    return normalized
+  } catch (e) {
+    // API fallback using server role (prevents RLS issues in production)
+    try {
+      const res = await fetch('/api/patentrender', { cache: 'no-store' })
+      if (res.ok) {
+        const json = await res.json()
+        const row = json?.row || null
+        if (row) {
+          patentrenderCache = row as PatentrenderRow
+          if (isBrowser) {
+            try { window.localStorage.setItem(PATENTRENDER_CACHE_KEY, JSON.stringify(patentrenderCache)) } catch {}
+          }
+          return patentrenderCache
+        }
+      }
+    } catch {}
+    console.error('[pricing] patentrender fetch failed (both client and api)')
     return null
   }
-  const normalized: PatentrenderRow | null = data
-    ? {
-        patent_search: Number(data.patent_search ?? 0),
-        patent_application: Number(data.patent_application ?? 0),
-        patent_portfolio: Number(data.patent_portfolio ?? 0),
-        first_examination: Number(data.first_examination ?? 0),
-        trademark_search: Number(data.trademark_search ?? 0),
-        trademark_registration: Number(data.trademark_registration ?? 0),
-        trademark_monitoring: Number(data.trademark_monitoring ?? 0),
-        copyright_registration: Number(data.copyright_registration ?? 0),
-        dmca_services: Number(data.dmca_services ?? 0),
-        copyright_licensing: Number(data.copyright_licensing ?? 0),
-        design_registration: Number(data.design_registration ?? 0),
-        design_search: Number(data.design_search ?? 0),
-        design_portfolio: Number(data.design_portfolio ?? 0),
-      }
-    : null
-  patentrenderCache = normalized
-  if (isBrowser && normalized) {
-    try { window.localStorage.setItem(PATENTRENDER_CACHE_KEY, JSON.stringify(normalized)) } catch {}
-  }
-  return normalized
 }
 export function computePriceFromRules(rules: PricingRule[], opts: SelectedOptions): number {
   const byKey = new Map<string, PricingRule>()

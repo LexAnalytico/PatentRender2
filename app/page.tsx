@@ -1963,11 +1963,39 @@ const patentServices = [
         const u = new URL(window.location.href)
         const hasAuthParams = u.searchParams.has('code') || u.searchParams.has('state') || u.searchParams.has('error') || u.searchParams.has('error_description')
         if (hasAuthParams) {
+          // Mark that we came back from an OAuth redirect so we can do a one-time hard refresh after sign-in completes
+          try { sessionStorage.setItem('app:oauthRefreshPending', '1') } catch {}
           // Allow a short delay for Supabase to exchange the code, then strip params without navigation
           setTimeout(() => {
             try {
               const clean = `${u.origin}${u.pathname}${u.hash || ''}`
               window.history.replaceState({}, '', clean)
+            } catch {}
+            // Focus refresh: after OAuth exchange completes, re-assert focus to the page content
+            try {
+              const focusMain = () => {
+                const heading = document.getElementById('page-heading') as HTMLElement | null
+                if (heading) {
+                  try { heading.focus() } catch {}
+                  return
+                }
+                const mainEl = document.querySelector('main[role="main"]') as HTMLElement | null
+                if (mainEl) {
+                  const prev = mainEl.getAttribute('tabindex')
+                  try { mainEl.setAttribute('tabindex', '-1') } catch {}
+                  try { mainEl.focus({ preventScroll: true } as any) } catch {}
+                  // restore original tabindex after focus
+                  setTimeout(() => {
+                    try {
+                      if (prev != null) mainEl.setAttribute('tabindex', prev)
+                      else mainEl.removeAttribute('tabindex')
+                    } catch {}
+                  }, 0)
+                }
+              }
+              // run now and on next frame for reliability
+              focusMain()
+              requestAnimationFrame(focusMain)
             } catch {}
           }, 300)
         }
@@ -2890,6 +2918,23 @@ useEffect(() => {
     setWantsCheckout(false)
   }
 }
+      // One-time hard refresh after OAuth sign-in completes, to fully stabilize UI state
+      try {
+        if (typeof window !== 'undefined') {
+          const pending = sessionStorage.getItem('app:oauthRefreshPending')
+          if (pending === '1') {
+            sessionStorage.removeItem('app:oauthRefreshPending')
+            try { sessionStorage.setItem('app:oauthRefreshedAt', String(Date.now())) } catch {}
+            // Compute a clean URL (no query string), preserve hash if any
+            const loc = window.location
+            const clean = `${loc.origin}${loc.pathname}${loc.hash || ''}`
+            // Small delay to ensure Supabase session is fully persisted before reload
+            setTimeout(() => {
+              try { window.location.replace(clean) } catch { window.location.href = clean }
+            }, 150)
+          }
+        }
+      } catch {}
       if (wantsCheckout) {
         setShowQuotePage(true)
         setWantsCheckout(false)

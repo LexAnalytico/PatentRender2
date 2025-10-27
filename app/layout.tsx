@@ -34,15 +34,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
 
-        <header style={{padding:12,borderBottom:'1px solid #eee'}}>
-          <nav>
-            <Link href="/" style={{marginRight:12}}>Main</Link>
-            <Link href="/orders">Orders</Link>
-          </nav>
-        </header>
+        { /* Removed legacy sub-navigation (Main / Orders) below brand header */ }
 
         <FocusProvider>
-          <main role="main" style={{minHeight:'60vh',padding:20}}>
+          <main role="main" style={{minHeight:'60vh',padding:0}}>
             {children}
           </main>
         </FocusProvider>
