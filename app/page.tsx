@@ -1957,6 +1957,22 @@ const patentServices = [
 
   // On first mount, restore last view if saved (so Orders view comes back after reload)
   useEffect(() => {
+    // Clean up Supabase OAuth params (?code, ?state, etc.) after OAuth redirects
+    try {
+      if (typeof window !== 'undefined') {
+        const u = new URL(window.location.href)
+        const hasAuthParams = u.searchParams.has('code') || u.searchParams.has('state') || u.searchParams.has('error') || u.searchParams.has('error_description')
+        if (hasAuthParams) {
+          // Allow a short delay for Supabase to exchange the code, then strip params without navigation
+          setTimeout(() => {
+            try {
+              const clean = `${u.origin}${u.pathname}${u.hash || ''}`
+              window.history.replaceState({}, '', clean)
+            } catch {}
+          }, 300)
+        }
+      }
+    } catch {}
     try {
       // Dev/ops controls to disable or clear last-view restore
       const DISABLE_LAST_VIEW = process.env.NEXT_PUBLIC_DISABLE_LAST_VIEW === '1'
@@ -2854,6 +2870,20 @@ useEffect(() => {
 
   // Prime Orders: ensure first entry to Orders sees a fresh load
   setOrdersReloadKey(k => k + 1)
+
+  // Strip OAuth query params once sign-in completes to keep URL clean
+  try {
+    if (typeof window !== 'undefined') {
+      const u = new URL(window.location.href)
+      if (u.search) {
+        const hasAuthParams = u.searchParams.has('code') || u.searchParams.has('state') || u.searchParams.has('error') || u.searchParams.has('error_description')
+        if (hasAuthParams) {
+          const clean = `${u.origin}${u.pathname}${u.hash || ''}`
+          window.history.replaceState({}, '', clean)
+        }
+      }
+    }
+  } catch {}
 
   if (wantsCheckout) {
     setShowQuotePage(true)
