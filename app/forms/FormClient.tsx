@@ -242,6 +242,80 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
     return orderIdProp != null ? orderIdProp : (urlNum != null && !Number.isNaN(urlNum) ? urlNum : null)
   })()
 
+  // Keep a lightweight snapshot of the current form context in localStorage so
+  // the Orders screen can show a brief "Last opened form" banner after a tab-in restore.
+  useEffect(() => {
+    try {
+      const ctx = {
+        orderId: orderIdEffective ?? null,
+        formType: selectedType || null,
+        formTypeLabel: getApplicationTypeLabel(selectedType) || (selectedType || ''),
+        ts: Date.now(),
+      }
+      localStorage.setItem('app:last_form_ctx_current', JSON.stringify(ctx))
+      // Also update multi-form buffer to support aggregated banner when multiple forms are open
+      try {
+        const rawBuf = localStorage.getItem('app:last_form_ctx_multi_buffer')
+        let arr: Array<{ orderId: number | null; formType: string | null; formTypeLabel?: string | null; ts?: number }> = []
+        if (rawBuf) {
+          try { const parsed = JSON.parse(rawBuf); if (Array.isArray(parsed)) arr = parsed } catch {}
+        }
+        const oid = orderIdEffective ?? null
+        // Replace or add entry for this orderId
+        const idx = arr.findIndex(e => e && ('orderId' in e) && e.orderId === oid)
+        const entry = { orderId: oid, formType: selectedType || null, formTypeLabel: getApplicationTypeLabel(selectedType) || (selectedType || ''), ts: Date.now() }
+        if (idx >= 0) arr[idx] = entry; else arr.push(entry)
+        // Trim to a reasonable size
+        if (arr.length > 50) arr = arr.slice(-50)
+        localStorage.setItem('app:last_form_ctx_multi_buffer', JSON.stringify(arr))
+      } catch {}
+    } catch {}
+  }, [selectedType, orderIdEffective])
+
+  // When the window blurs while on the Forms page, persist the current form context
+  // to a durable key that Orders will consume and show as a transient banner.
+  useEffect(() => {
+    const onBlur = () => {
+      try {
+        const raw = localStorage.getItem('app:last_form_ctx_current')
+        if (raw) {
+          localStorage.setItem('app:last_form_ctx', raw)
+          // Emit a tiny debug beacon for traceability
+          const payload = { event: 'forms:last-form-ctx-persisted', pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
+          if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
+            try { (navigator as any).sendBeacon('/api/debug-log', new Blob([JSON.stringify(payload)], { type: 'application/json' })) } catch {}
+          } else {
+            fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
+          }
+        }
+      } catch {}
+    }
+    window.addEventListener('blur', onBlur)
+    return () => window.removeEventListener('blur', onBlur)
+  }, [])
+
+  // Safety persist on visibility change: if the tab becomes hidden, persist the context as well
+  useEffect(() => {
+    const onVis = () => {
+      try {
+        if (typeof document !== 'undefined' && document.hidden) {
+          const raw = localStorage.getItem('app:last_form_ctx_current')
+          if (raw) {
+            localStorage.setItem('app:last_form_ctx', raw)
+            const payload = { event: 'forms:last-form-ctx-persisted-vis', pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
+            if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
+              try { (navigator as any).sendBeacon('/api/debug-log', new Blob([JSON.stringify(payload)], { type: 'application/json' })) } catch {}
+            } else {
+              fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
+            }
+          }
+        }
+      } catch {}
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [])
+
   useEffect(() => {
     const urlPricingKey = searchParams?.get('pricing_key') || ''
     const urlTypeRaw = searchParams?.get('type') || ''

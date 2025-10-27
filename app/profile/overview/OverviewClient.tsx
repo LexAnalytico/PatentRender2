@@ -114,7 +114,7 @@ export default function ProfileOverviewClient() {
             categories: categoriesMap.get(o.category_id) ?? null,
             payments: payment,
             // ensure order.type is present: prefer order.type, fallback to payment.type
-            type: o.type ?? (payment ? payment.type ?? null : null),
+            type: (o as any).type ?? (payment ? (payment as any).type ?? null : null),
           }
         })
 

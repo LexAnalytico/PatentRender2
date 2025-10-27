@@ -151,7 +151,7 @@ function Dropdown({ label, items, idPrefix, colorHover }: { label: string; items
           {items.map((service) => (
             <a
               key={service.title}
-              href={`#${idPrefix}-services`}
+              href={`/main#${idPrefix}-services`}
               className={`block px-4 py-2 text-sm text-gray-700 hover:bg-${colorHover}-50 hover:text-${colorHover}-600 transition-colors`}
             >
               {service.title}

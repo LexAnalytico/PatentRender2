@@ -23,6 +23,79 @@ export default function ClientFormsPage() {
     setPrefillApplyFn(() => (info.available ? info.apply : null))
   }, [])
 
+  // When in multi-form mode, persist an aggregated last-form context on tab-out
+  useEffect(() => {
+    if (!isMulti) return
+    const onBlur = () => {
+      try {
+        // Read buffer built by individual FormClient instances
+        const raw = localStorage.getItem('app:last_form_ctx_multi_buffer')
+        let arr: Array<{ orderId: number | null; formType: string | null; formTypeLabel?: string | null; ts?: number }> = []
+        if (raw) {
+          try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) arr = parsed } catch {}
+        }
+        // Keep only entries for forms on this page (by order id) and keep deterministic order by multiOrderIds
+        const byId = new Map<number, { orderId: number; formType: string | null; formTypeLabel?: string | null }>()
+        for (const e of arr) {
+          if (typeof e?.orderId === 'number' && multiOrderIds.includes(e.orderId)) {
+            byId.set(e.orderId, { orderId: e.orderId, formType: e.formType ?? null, formTypeLabel: e.formTypeLabel ?? null })
+          }
+        }
+        const multi = multiOrderIds.map(oid => {
+          const hit = byId.get(oid)
+          return hit || { orderId: oid, formType: null, formTypeLabel: null }
+        })
+        const payload = { multi, ts: Date.now() }
+        localStorage.setItem('app:last_form_ctx', JSON.stringify(payload))
+        // Debug beacon
+        try {
+          const dbg = { event: 'forms:last-form-ctx-multi-persisted', count: multi.length, ids: multi.map(x => x.orderId), pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
+          if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
+            try { (navigator as any).sendBeacon('/api/debug-log', new Blob([JSON.stringify(dbg)], { type: 'application/json' })) } catch {}
+          } else {
+            fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(dbg) }).catch(() => {})
+          }
+        } catch {}
+      } catch {}
+    }
+    window.addEventListener('blur', onBlur)
+    return () => window.removeEventListener('blur', onBlur)
+  }, [isMulti, multiOrderIds])
+
+  // Safety persist for multi on visibility change as well (when tab becomes hidden)
+  useEffect(() => {
+    if (!isMulti) return
+    const onVis = () => {
+      try {
+        if (typeof document !== 'undefined' && document.hidden) {
+          const raw = localStorage.getItem('app:last_form_ctx_multi_buffer')
+          let arr: Array<{ orderId: number | null; formType: string | null; formTypeLabel?: string | null; ts?: number }> = []
+          if (raw) {
+            try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) arr = parsed } catch {}
+          }
+          const byId = new Map<number, { orderId: number; formType: string | null; formTypeLabel?: string | null }>()
+          for (const e of arr) {
+            if (typeof e?.orderId === 'number' && multiOrderIds.includes(e.orderId)) {
+              byId.set(e.orderId, { orderId: e.orderId, formType: e.formType ?? null, formTypeLabel: e.formTypeLabel ?? null })
+            }
+          }
+          const multi = multiOrderIds.map(oid => byId.get(oid) || { orderId: oid, formType: null, formTypeLabel: null })
+          localStorage.setItem('app:last_form_ctx', JSON.stringify({ multi, ts: Date.now() }))
+          try {
+            const dbg = { event: 'forms:last-form-ctx-multi-persisted-vis', count: multi.length, ids: multi.map(x => x.orderId), pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
+            if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
+              try { (navigator as any).sendBeacon('/api/debug-log', new Blob([JSON.stringify(dbg)], { type: 'application/json' })) } catch {}
+            } else {
+              fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(dbg) }).catch(() => {})
+            }
+          } catch {}
+        }
+      } catch {}
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
+  }, [isMulti, multiOrderIds])
+
   // Resize/focus hard-refresh guard for Forms page (mirrors main page behavior)
   useEffect(() => {
     const RESET_ON_RESIZE = process.env.NEXT_PUBLIC_RESET_ON_RESIZE === '1'

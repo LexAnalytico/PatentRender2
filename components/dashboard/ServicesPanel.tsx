@@ -3,7 +3,7 @@
 import React from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ShoppingCart, FileText } from 'lucide-react'
+import { ShoppingCart, FileText, Loader2 } from 'lucide-react'
 
 export interface ServiceCartItem {
   id: string
@@ -19,6 +19,7 @@ interface ServicesPanelProps {
   onMakePayment: () => void
   onBrowseServices: () => void
   formatAmount: (n: number) => string
+  isProcessing?: boolean
 }
 
 function ServicesPanelComponent({
@@ -27,11 +28,64 @@ function ServicesPanelComponent({
   onMakePayment,
   onBrowseServices,
   formatAmount,
+  isProcessing = false,
 }: ServicesPanelProps) {
+  // Accessibility: move keyboard focus into the main content when this screen mounts
+  const headingRef = React.useRef<HTMLHeadingElement | null>(null)
+  const makePaymentRef = React.useRef<HTMLButtonElement | null>(null)
+
+  // Focus strategy:
+  // - If there are items in the cart, focus the primary action (Make Payment)
+  // - Otherwise, focus the main heading so screen reader and keyboard users land in context
+  React.useEffect(() => {
+    const focusPrimary = () => {
+      const hasItems = cartItems.length > 0
+      const target = hasItems ? makePaymentRef.current : headingRef.current
+      // Avoid stealing focus if the user is already interacting with something
+      const active = (typeof document !== 'undefined') ? (document.activeElement as HTMLElement | null) : null
+      const shouldMove = !active || active === document.body
+      if (target && shouldMove && typeof (target as any).focus === 'function') {
+        // Small delay to ensure the element is in the DOM and painted
+        setTimeout(() => { try { (target as any).focus({ preventScroll: true }) } catch {} }, 60)
+      }
+    }
+    focusPrimary()
+    // Re-run when cart empties or becomes non-empty (e.g., after remove/add)
+  }, [cartItems.length])
+
+  // When returning to the tab (visibilitychange) or window regains focus, re-assert focus if nothing is focused
+  React.useEffect(() => {
+    const reassert = () => {
+      try {
+        if (typeof document !== 'undefined' && document.hidden) return
+        const active = document.activeElement as HTMLElement | null
+        if (!active || active === document.body) {
+          const hasItems = cartItems.length > 0
+          const target = hasItems ? makePaymentRef.current : headingRef.current
+          if (target && typeof (target as any).focus === 'function') {
+            setTimeout(() => { try { (target as any).focus({ preventScroll: true }) } catch {} }, 40)
+          }
+        }
+      } catch {}
+    }
+    document.addEventListener('visibilitychange', reassert)
+    window.addEventListener('focus', reassert)
+    return () => {
+      document.removeEventListener('visibilitychange', reassert)
+      window.removeEventListener('focus', reassert)
+    }
+  }, [cartItems.length])
+
   return (
     <>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Your Selected Services</h1>
+        <h1
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-3xl font-bold text-gray-900 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded"
+        >
+          Your Selected Services
+        </h1>
         <p className="text-gray-600">Review your selected IP protection services and customize your quote</p>
       </div>
       <div className="space-y-6">
@@ -68,11 +122,38 @@ function ServicesPanelComponent({
         )}
       </div>
       <div className="flex flex-col items-center mt-8 space-y-3">
-        <Button className="w-full max-w-sm bg-blue-600 hover:bg-blue-700 text-white" onClick={onMakePayment} disabled={cartItems.length === 0}>
-          <FileText className="h-4 w-4 mr-2" />
-          Make Payment
+        {isProcessing && (
+          <p
+            role="status"
+            aria-live="polite"
+            className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded px-3 py-2 max-w-lg text-center leading-snug"
+          >
+            Connecting to Razorpay…
+          </p>
+        )}
+        <Button
+          ref={makePaymentRef}
+          type="button"
+          className="w-full max-w-sm bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-70 disabled:cursor-not-allowed"
+          onClick={onMakePayment}
+          disabled={cartItems.length === 0 || isProcessing}
+          aria-disabled={cartItems.length === 0 || isProcessing}
+          aria-busy={isProcessing}
+          aria-describedby="make-payment-note"
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Starting payment…
+            </>
+          ) : (
+            <>
+              <FileText className="h-4 w-4 mr-2" />
+              Make Payment
+            </>
+          )}
         </Button>
-        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 max-w-lg text-center leading-snug">
+        <p id="make-payment-note" className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 max-w-lg text-center leading-snug">
           Clicking on <span className="font-semibold">Make Payment</span> will open the secure Razorpay window. <strong>Do not switch tabs, minimize, or leave this screen until the payment is completed</strong> or you will be signed out and need to sign in again to retry.
         </p>
       </div>
@@ -90,6 +171,8 @@ function areEqual(prev: ServicesPanelProps, next: ServicesPanelProps) {
       return false
     }
   }
+  // Re-render if processing state changes so the button disables/enables and label updates
+  if ((prev.isProcessing ?? false) !== (next.isProcessing ?? false)) return false
   return true
 }
 

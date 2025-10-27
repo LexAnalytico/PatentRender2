@@ -118,7 +118,7 @@ export default function AdminDashboardPage() {
 				if (!refreshed) setExhaustedRetries(true)
 			}
 		})()
-		const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+		const { data: sub } = supabase.auth.onAuthStateChange((event: any, session: any) => {
 			if (cancelled) return
 			const mail = session?.user?.email || null
 			if (mail) setLastSessionMs(Date.now())

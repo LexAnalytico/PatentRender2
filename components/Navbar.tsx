@@ -57,14 +57,26 @@ export default function Navbar() {
   // Focus trap within the off-canvas panel
   useFocusTrap(mobileOpen, panelRef, triggerRef.current)
 
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '/'
+  // Use Next's pathname to reliably detect current route (SSR-safe)
+  const pathname = usePathname() || '/'
   const router = useRouter()
   const goSection = (id: string) => {
     try {
-      if (pathname === '/') {
+      // Treat both '/' and '/main' as the main dashboard. If already there, dispatch
+      // a client event to scroll. Otherwise, navigate to the dedicated Main route.
+      const onMain = pathname === '/main' || pathname === '/'
+      // Dev-telemetry: log menu click target to help debug routing
+      try {
+        fetch('/api/debug-log', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: 'menu-click', item: id, from: pathname, to: onMain ? 'scroll' : `/main#${id}` })
+        }).catch(() => {})
+      } catch {}
+      if (onMain) {
         window.dispatchEvent(new CustomEvent('nav:go-section', { detail: { id } }))
       } else {
-        router.push(`/#${id}`)
+        router.push(`/main#${id}`)
       }
     } catch {}
   }

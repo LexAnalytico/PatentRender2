@@ -362,7 +362,17 @@ const openFirstFormEmbedded = () => {
       const last = localStorage.getItem(LAST_VIEW_KEY) || ''
       if (last.startsWith('quote:')) {
         const v = last.split(':')[1] as any
-        if (v === 'orders' || v === 'profile' || v === 'forms') {
+        // If the last view was Orders (a dedicated page), restore it immediately instead
+        // of showing a resume notice so tab-in takes the user straight back to Orders.
+        if (v === 'orders') {
+          try {
+            // use the centralized navigation to prefetch and show orders
+            goToOrders()
+          } catch (e) {
+            // fallback to showing notice if navigation fails
+            setResumeNotice({ view: v })
+          }
+        } else if (v === 'profile' || v === 'forms') {
           setResumeNotice({ view: v })
         }
       }
@@ -644,6 +654,46 @@ const openFirstFormEmbedded = () => {
   const [ordersPrefetching, setOrdersPrefetching] = useState(false)
   const ordersPrefetchingRef = useRef(false)
 
+  // Embedded Orders: transient banner for last opened form(s) when returning from Forms
+  const [ordersLastFormBanner, setOrdersLastFormBanner] = useState<null | { single?: { orderId: number | null; formType: string | null; formTypeLabel?: string | null }; multi?: Array<{ orderId: number; formType: string | null; formTypeLabel?: string | null }> }>(null)
+  const [ordersBannerVisible, setOrdersBannerVisible] = useState(false)
+  useEffect(() => {
+    if (quoteView !== 'orders') return
+    const maybeShowBanner = () => {
+      try {
+        if (typeof document !== 'undefined' && document.hidden) return
+        const raw = localStorage.getItem('app:last_form_ctx')
+        if (!raw) return
+        const parsed = JSON.parse(raw)
+        const ts = typeof parsed?.ts === 'number' ? parsed.ts : 0
+        if (ts && Date.now() - ts > 24 * 60 * 60 * 1000) { localStorage.removeItem('app:last_form_ctx'); return }
+        if (parsed && Array.isArray(parsed.multi)) {
+          const multi = parsed.multi
+            .filter((e: any) => e && typeof e.orderId === 'number')
+            .map((e: any) => ({ orderId: e.orderId as number, formType: (e.formType ?? null) as string | null, formTypeLabel: (e.formTypeLabel ?? null) as string | null }))
+          if (multi.length === 0) { localStorage.removeItem('app:last_form_ctx'); return }
+          setOrdersLastFormBanner({ multi })
+        } else {
+          const ctx = parsed as { orderId: number | null; formType: string | null; formTypeLabel?: string | null }
+          setOrdersLastFormBanner({ single: { orderId: (ctx.orderId ?? null) as any, formType: (ctx.formType ?? null) as any, formTypeLabel: (ctx.formTypeLabel ?? null) as any } })
+        }
+        setOrdersBannerVisible(true)
+        // Only show once per restore
+        localStorage.removeItem('app:last_form_ctx')
+        const t = setTimeout(() => setOrdersBannerVisible(false), 6000)
+        return () => clearTimeout(t)
+      } catch {}
+    }
+    maybeShowBanner()
+    const onFocus = () => maybeShowBanner()
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', maybeShowBanner)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', maybeShowBanner)
+    }
+  }, [quoteView])
+
   // Prefetch helper now delegates to unified fetchOrdersMerged with short retries for user session
   const prefetchOrders = useCallback(async (): Promise<any[]> => {
     const resolveUserId = async () => {
@@ -667,12 +717,64 @@ const openFirstFormEmbedded = () => {
     return orders
   }, [])
 
-  // Persist last view whenever it changes
+  // Persist last view whenever it changes — landing page only
   useEffect(() => {
     try {
+      if (typeof window === 'undefined') return
+      // Only run this persister on the root landing route to avoid clobbering dedicated routes
+      if (window.location.pathname !== '/') return
       const val = showQuotePage ? `quote:${quoteView}` : 'home'
+      // In the dedicated-routes architecture, avoid persisting quote:* from the landing page.
+      if (val.startsWith('quote:')) {
+        // Dev beacon for visibility
+        try {
+          const pSkip = { event: 'last-view-save-skipped', reason: 'landing-skip-quote', next: val, pathname: window.location.pathname, ts: Date.now() }
+          if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+            try { navigator.sendBeacon('/api/debug-log', JSON.stringify(pSkip)) } catch {}
+          } else {
+            fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(pSkip) }).catch(() => {})
+          }
+        } catch {}
+        return
+      }
+      // Optional lock: if a recent post-restore home was set, skip writing quote:* briefly
+      if (val.startsWith('quote:')) {
+        try {
+          const lockTs = Number(localStorage.getItem('app:last_view_home_lock') || '0')
+          if (lockTs && Date.now() - lockTs < 5000) {
+            const pSkip = { event: 'last-view-save-skipped', reason: 'home-lock', next: val, pathname: window.location.pathname, ts: Date.now() }
+            if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+              try { navigator.sendBeacon('/api/debug-log', JSON.stringify(pSkip)) } catch {}
+            } else {
+              fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(pSkip) }).catch(() => {})
+            }
+            return
+          }
+        } catch {}
+      }
+      // Guard: do not overwrite an existing quote:* value with 'home' on initial mount
+      const prev = typeof window !== 'undefined' ? localStorage.getItem(LAST_VIEW_KEY) : null
+      if (val === 'home' && prev && prev.startsWith('quote:')) {
+        try {
+          const pSkip = { event: 'last-view-save-skipped', reason: 'preserve-quote', prev, next: val, pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
+          if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+            try { navigator.sendBeacon('/api/debug-log', JSON.stringify(pSkip)) } catch {}
+          } else {
+            fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(pSkip) }).catch(() => {})
+          }
+        } catch {}
+        return
+      }
       localStorage.setItem(LAST_VIEW_KEY, val)
       debugLog('[ViewPersist] save', { val })
+      try {
+        const p = { event: 'last-view-save', val, pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
+        if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+          try { navigator.sendBeacon('/api/debug-log', JSON.stringify(p)) } catch {}
+        } else {
+          fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
+        }
+      } catch {}
     } catch {}
   }, [showQuotePage, quoteView])
 
@@ -1855,6 +1957,24 @@ const patentServices = [
   // On first mount, restore last view if saved (so Orders view comes back after reload)
   useEffect(() => {
     try {
+      // Dev/ops controls to disable or clear last-view restore
+      const DISABLE_LAST_VIEW = process.env.NEXT_PUBLIC_DISABLE_LAST_VIEW === '1'
+      const search = (typeof window !== 'undefined') ? window.location.search : ''
+      const urlHasFresh = typeof search === 'string' && /(?:[?&])fresh=1\b/.test(search)
+      if (DISABLE_LAST_VIEW || urlHasFresh) {
+        try {
+          localStorage.removeItem(LAST_VIEW_KEY)
+          // Optionally clean the URL if fresh=1 was used
+          if (urlHasFresh && typeof window !== 'undefined') {
+            try {
+              const u = new URL(window.location.href)
+              u.searchParams.delete('fresh')
+              window.history.replaceState({}, '', u.toString())
+            } catch {}
+          }
+        } catch {}
+        return
+      }
       const last = localStorage.getItem(LAST_VIEW_KEY)
       debugLog('[ViewPersist] mount-restore check', { last })
       if (last === 'quote:orders') {
@@ -1869,10 +1989,24 @@ const patentServices = [
         debugLog('[ViewPersist] mount-restore -> profile')
         return
       }
-      if (last === 'quote:forms') {
-        setInitialQuoteView('forms')
+      if (last === 'quote:services') {
+        setInitialQuoteView('services')
         setShowQuotePage(true)
-        debugLog('[ViewPersist] mount-restore -> forms')
+        debugLog('[ViewPersist] mount-restore -> services')
+        return
+      }
+      // Forms should restore to Orders (requirement): treat saved forms as orders
+      if (last === 'quote:forms') {
+        try {
+          // Prefer dedicated Orders route so URL matches the screen
+          router.push('/orders')
+          try { navigator.sendBeacon('/api/debug-log', JSON.stringify({ event: 'mount-restore-forms->orders-route', ts: Date.now() })) } catch {}
+        } catch {
+          // Fallback to embedded Orders view if routing fails for any reason
+          setInitialQuoteView('orders')
+          setShowQuotePage(true)
+        }
+        debugLog('[ViewPersist] mount-restore -> forms mapped to orders')
         return
       }
     } catch {}
@@ -1895,26 +2029,160 @@ const patentServices = [
   useEffect(() => {
     const handleVisRestore = () => {
       try {
+        // Terminal/debug helper: post a small payload to server to record visibility events
+        try {
+          const lastSaved = typeof window !== 'undefined' ? localStorage.getItem(LAST_VIEW_KEY) : null
+          const p = {
+            event: 'visibility-restore',
+            pathname: typeof window !== 'undefined' ? window.location.pathname : null,
+            lastSaved,
+            showQuotePage: !!showQuotePage,
+            quoteView: showQuotePage ? quoteView : null,
+            ts: Date.now(),
+          }
+          console.debug('[ViewPersist][debug] visibility-restore', p)
+          if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+            try { navigator.sendBeacon('/api/debug-log', JSON.stringify(p)) } catch {}
+          } else {
+            fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
+          }
+        } catch {}
+
+        // Only run this restore logic when we're on the root landing path.
+        // If the user is on a dedicated route like /orders or /main, don't mutate view state.
+        if (typeof window !== 'undefined' && window.location.pathname !== '/') return
         if (document.hidden) {
           // Persist the current view on tab-out so we can restore accurately
-          const val = showQuotePage ? `quote:${quoteView}` : 'home'
-          localStorage.setItem(LAST_VIEW_KEY, val)
+          // Map forms -> orders so coming back lands on Orders instead of Forms
+          let val = showQuotePage ? `quote:${quoteView}` : 'home'
+          if (val === 'quote:forms') val = 'quote:orders'
+          // Guard: avoid clobbering a saved quote:* entry with 'home'
+          try {
+            const prev = localStorage.getItem(LAST_VIEW_KEY)
+            if (val === 'home' && prev && prev.startsWith('quote:')) {
+              const pSkip = { event: 'last-view-saved-on-hide-skipped', reason: 'preserve-quote', prev, next: val, pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
+              if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+                try { navigator.sendBeacon('/api/debug-log', JSON.stringify(pSkip)) } catch {}
+              } else {
+                fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(pSkip) }).catch(() => {})
+              }
+            } else {
+              localStorage.setItem(LAST_VIEW_KEY, val)
+            }
+          } catch { localStorage.setItem(LAST_VIEW_KEY, val) }
           debugLog('[ViewPersist] tab-hide save', { val })
+          try {
+            const p = { event: 'last-view-saved-on-hide', val, pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
+            if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+              try { navigator.sendBeacon('/api/debug-log', JSON.stringify(p)) } catch {}
+            } else {
+              fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
+            }
+          } catch {}
           return
         }
         // Became visible
         const last = localStorage.getItem(LAST_VIEW_KEY)
         debugLog('[ViewPersist] visible', { last, showQuotePage, quoteView })
-        if (last === 'quote:orders') {
-          // Aggressive restore: immediately show dashboard Orders synchronously for zero flicker
-          setShowQuotePage(true)
-          setQuoteView('orders')
-          // Kick the full Orders navigation/prefetch on the next frame
+  if (last === 'quote:orders') {
+          // Prefer dedicated /orders route on restore when available — navigate there so URL matches the screen
+          debugLog('[ViewPersist] restoring orders on visible (route)')
           try {
-            requestAnimationFrame(() => {
-              try { debugLog('[ViewPersist] visible -> goToOrders(rAF)'); goToOrders() } catch {}
-            })
+            const p = { event: 'rendering-saved-screen', lastSaved: last, pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
+            if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+              try { navigator.sendBeacon('/api/debug-log', JSON.stringify(p)) } catch {}
+            } else {
+              fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
+            }
           } catch {}
+
+          // If we're not already on /orders, navigate there. Otherwise fall back to embedded Orders behavior.
+          try {
+            if (typeof window !== 'undefined' && window.location.pathname !== '/orders') {
+              try {
+                // Use router.push so client-side navigation goes to dedicated Orders page
+                router.push('/orders')
+                try { navigator.sendBeacon('/api/debug-log', JSON.stringify({ event: 'route-push-orders', ts: Date.now() })) } catch {}
+              } catch (e) {
+                // Fallback to embedded behavior if router push fails
+                setShowQuotePage(true)
+                setQuoteView('orders')
+                requestAnimationFrame(() => { try { debugLog('[ViewPersist] visible -> goToOrders(rAF)'); goToOrders(); try { navigator.sendBeacon('/api/debug-log', JSON.stringify({ event: 'goToOrders-called', ts: Date.now() })) } catch {} } catch {} })
+              }
+            } else {
+              // already on /orders or server-side: show embedded orders
+              setShowQuotePage(true)
+              setQuoteView('orders')
+              try {
+                requestAnimationFrame(() => { try { debugLog('[ViewPersist] visible -> goToOrders(rAF)'); goToOrders(); try { navigator.sendBeacon('/api/debug-log', JSON.stringify({ event: 'goToOrders-called', ts: Date.now() })) } catch {} } catch {} })
+              } catch {}
+            }
+          } catch {}
+        } else if (last === 'quote:forms') {
+          // Requirement: restoring from Forms should land on Orders
+          debugLog('[ViewPersist] restoring forms -> orders on visible (route)')
+          try {
+            const p = { event: 'rendering-saved-screen', lastSaved: last, pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
+            if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+              try { navigator.sendBeacon('/api/debug-log', JSON.stringify(p)) } catch {}
+            } else {
+              fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
+            }
+          } catch {}
+
+          try {
+            if (typeof window !== 'undefined' && window.location.pathname !== '/orders') {
+              try {
+                router.push('/orders')
+                try { navigator.sendBeacon('/api/debug-log', JSON.stringify({ event: 'route-push-orders-from-forms', ts: Date.now() })) } catch {}
+              } catch (e) {
+                // Fallback to embedded Orders behavior if router push fails
+                setShowQuotePage(true)
+                setQuoteView('orders')
+                requestAnimationFrame(() => { try { debugLog('[ViewPersist] visible -> goToOrders(rAF)'); goToOrders(); try { navigator.sendBeacon('/api/debug-log', JSON.stringify({ event: 'goToOrders-called-from-forms', ts: Date.now() })) } catch {} } catch {} })
+              }
+            } else {
+              // already on /orders or server-side: show embedded orders
+              setShowQuotePage(true)
+              setQuoteView('orders')
+              try {
+                requestAnimationFrame(() => { try { debugLog('[ViewPersist] visible -> goToOrders(rAF)'); goToOrders(); try { navigator.sendBeacon('/api/debug-log', JSON.stringify({ event: 'goToOrders-called-from-forms', ts: Date.now() })) } catch {} } catch {} })
+              } catch {}
+            }
+          } catch {}
+        } else if (last === 'quote:profile') {
+          // Prefer dedicated /profile route on restore so URL matches the screen
+          debugLog('[ViewPersist] restoring profile on visible (route)')
+          try {
+            const p = { event: 'rendering-saved-screen', lastSaved: last, pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
+            if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+              try { navigator.sendBeacon('/api/debug-log', JSON.stringify(p)) } catch {}
+            } else {
+              fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
+            }
+          } catch {}
+
+          try {
+            if (typeof window !== 'undefined' && window.location.pathname !== '/profile') {
+              try {
+                router.push('/profile')
+                try { navigator.sendBeacon('/api/debug-log', JSON.stringify({ event: 'route-push-profile', ts: Date.now() })) } catch {}
+              } catch (e) {
+                // Fallback to embedded Profile behavior if router push fails
+                setShowQuotePage(true)
+                setQuoteView('profile')
+              }
+            } else {
+              // already on /profile or server-side: show embedded profile
+              setShowQuotePage(true)
+              setQuoteView('profile')
+            }
+          } catch {}
+        } else if (last === 'quote:services') {
+          // Restore Services (Make Payment) view inside the dashboard
+          debugLog('[ViewPersist] restoring services on visible')
+          setShowQuotePage(true)
+          setQuoteView('services')
         }
       } catch {}
     }
@@ -3190,6 +3458,7 @@ if (showQuotePage) {
                 onMakePayment={handlePayment}
                 onBrowseServices={() => setShowQuotePage(false)}
                 formatAmount={formatINR}
+                isProcessing={isProcessingPayment}
               />
             )}
 
@@ -3215,6 +3484,43 @@ if (showQuotePage) {
             {quoteView === 'orders' && (
               <Card className="bg-white">
                 <CardContent className="p-4">
+                    {ordersLastFormBanner && ordersBannerVisible && (
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        className="mt-1 mb-4 rounded-md border border-blue-200 bg-blue-50 text-blue-900 px-4 py-3 flex items-start gap-3"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 flex-shrink-0 text-blue-600" aria-hidden>
+                          <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25Zm.75 6.75a.75.75 0 0 0-1.5 0v5.25a.75.75 0 0 0 1.5 0V9Zm0 7.5a.75.75 0 1 0-1.5 0 .75.75 0 0 0 1.5 0Z" clipRule="evenodd" />
+                        </svg>
+                        <div className="min-w-0 flex-1 text-sm">
+                          <div className="font-medium">{ordersLastFormBanner.multi ? 'Last opened forms' : 'Last opened form'}</div>
+                          {ordersLastFormBanner.multi ? (
+                            <div className="text-blue-800 space-x-2 space-y-1">
+                              {ordersLastFormBanner.multi.map((e, i) => (
+                                <span key={e.orderId} className="inline-block">
+                                  #{e.orderId}{e.formTypeLabel || e.formType ? ` (${e.formTypeLabel || e.formType})` : ''}{i < (ordersLastFormBanner.multi!.length - 1) ? ',' : ''}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-blue-800">
+                              {(ordersLastFormBanner.single?.formTypeLabel || ordersLastFormBanner.single?.formType || 'Form')}{typeof ordersLastFormBanner.single?.orderId === 'number' ? ` · Order #${ordersLastFormBanner.single?.orderId}` : ''}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="Dismiss"
+                          onClick={() => setOrdersBannerVisible(false)}
+                          className="ml-2 rounded p-1 text-blue-700 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden>
+                            <path fillRule="evenodd" d="M6.225 4.811a.75.75 0 0 1 1.06 0L12 9.525l4.715-4.714a.75.75 0 1 1 1.06 1.06L13.06 10.586l4.715 4.714a.75.75 0 1 1-1.06 1.06L12 11.646l-4.715 4.714a.75.75 0 1 1-1.06-1.06l4.714-4.715-4.714-4.714a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
                     {embeddedOrdersLoading && <div className="p-4 text-sm text-gray-500">Loading orders…</div>}
                     {!embeddedOrdersLoading && ordersLoadError && (
                       <div className="p-4 text-sm text-red-600 flex flex-col gap-2">

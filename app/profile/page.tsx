@@ -783,6 +783,13 @@ function ProfilePageInner() {
     }
   }, [])
 
+  // Signal FocusProvider that the screen is ready to hide the restore overlay
+  useEffect(() => {
+    if (!loading) {
+      try { window.dispatchEvent(new Event('screen:ready')) } catch {}
+    }
+  }, [loading])
+
   // Keep auth state in sync while this page is mounted. This prevents transient
   // logout-like behavior when the auth session changes or during client-side
   // navigation; Navbar also listens but having a local listener here makes the
@@ -880,6 +887,8 @@ function ProfilePageInner() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Page heading for global FocusProvider to target */}
+        <h1 id="page-heading" tabIndex={-1} className="sr-only">Profile</h1>
         {/* State: Loading */}
         {loading && (
           <div className="animate-pulse grid grid-cols-1 lg:grid-cols-3 gap-6">
