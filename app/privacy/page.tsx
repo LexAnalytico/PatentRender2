@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { UserCircleIcon } from '@heroicons/react/24/outline'
@@ -37,6 +37,14 @@ export default function PrivacyPolicyPage() {
       element.scrollIntoView({ behavior: "smooth" })
     }
   }
+
+  // Accessibility: move focus to page heading on mount so keyboard users land correctly
+  useEffect(() => {
+    const h = document.getElementById('page-heading') as HTMLElement | null
+    if (h) {
+      try { h.focus() } catch {}
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-white">
@@ -108,7 +116,7 @@ export default function PrivacyPolicyPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="flex items-center justify-center mb-6">
             <Shield className="h-16 w-16 text-blue-300 mr-4" />
-            <h1 className="text-4xl md:text-5xl font-bold text-white">Privacy Policy</h1>
+            <h1 id="page-heading" tabIndex={-1} className="text-4xl md:text-5xl font-bold text-white">Privacy Policy</h1>
           </div>
           <p className="text-xl text-blue-100 mb-8 max-w-3xl mx-auto">
             Your privacy is our priority. Learn how we collect, use, protect, and manage your personal information 
