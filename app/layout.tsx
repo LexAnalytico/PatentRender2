@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <header style={{padding:12,borderBottom:'1px solid #eee'}}>
           <nav>
-            <Link href="/main" style={{marginRight:12}}>Main</Link>
+            <Link href="/" style={{marginRight:12}}>Main</Link>
             <Link href="/orders">Orders</Link>
           </nav>
         </header>

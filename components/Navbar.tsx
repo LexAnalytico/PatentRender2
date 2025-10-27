@@ -62,21 +62,21 @@ export default function Navbar() {
   const router = useRouter()
   const goSection = (id: string) => {
     try {
-      // Treat both '/' and '/main' as the main dashboard. If already there, dispatch
-      // a client event to scroll. Otherwise, navigate to the dedicated Main route.
-      const onMain = pathname === '/main' || pathname === '/'
+      // Treat only '/' as the main landing page. If already there, dispatch
+      // a client event to scroll. Otherwise, navigate to the root with hash.
+      const onMain = pathname === '/'
       // Dev-telemetry: log menu click target to help debug routing
       try {
         fetch('/api/debug-log', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ event: 'menu-click', item: id, from: pathname, to: onMain ? 'scroll' : `/main#${id}` })
+          body: JSON.stringify({ event: 'menu-click', item: id, from: pathname, to: onMain ? 'scroll' : `/#${id}` })
         }).catch(() => {})
       } catch {}
       if (onMain) {
         window.dispatchEvent(new CustomEvent('nav:go-section', { detail: { id } }))
       } else {
-        router.push(`/main#${id}`)
+        router.push(`/#${id}`)
       }
     } catch {}
   }

@@ -1654,8 +1654,9 @@ const patentServices = [
         refreshNow('menu-scroll')
         return
       }
-      setShowQuotePage(false)
-      setQuoteView('services')
+  setShowQuotePage(false)
+  // Return to landing screen; ensure a valid quoteView value is set for when dashboard is reopened
+  setQuoteView('services')
       setSelectedFormOrderId(null)
       setSelectedFormType(null)
       setTimeout(() => {

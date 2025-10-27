@@ -1,8 +1,6 @@
-"use client"
-
-import React from 'react'
-import MainScreen from '@/components/screens/MainScreen'
+import { redirect } from 'next/navigation'
 
 export default function MainPage() {
-  return <MainScreen />
+  // Consolidate to the root landing page; preserve hash-based section scroll
+  redirect('/')
 }
