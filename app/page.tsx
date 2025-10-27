@@ -2889,7 +2889,7 @@ const goToServices = () => {
 useEffect(() => {
   const { data: sub } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
   debugLog("[auth] event", { event, hasUser: !!session?.user })
-    if (event === "SIGNED_IN" && session?.user) {
+    if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
       upsertUserProfileFromSession()
       setShowAuthModal(false)
       if (event === "SIGNED_IN" && session?.user) {
@@ -2918,7 +2918,7 @@ useEffect(() => {
     setWantsCheckout(false)
   }
 }
-      // One-time hard refresh after OAuth sign-in completes, to fully stabilize UI state
+      // One-time hard refresh after OAuth sign-in completes (or initial session on redirect), to fully stabilize UI state
       try {
         if (typeof window !== 'undefined') {
           const pending = sessionStorage.getItem('app:oauthRefreshPending')
