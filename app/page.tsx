@@ -2922,10 +2922,24 @@ useEffect(() => {
       try {
         if (typeof window !== 'undefined') {
           const pending = sessionStorage.getItem('app:oauthRefreshPending')
-          if (pending === '1') {
-            sessionStorage.removeItem('app:oauthRefreshPending')
+          const lastRefreshed = Number(sessionStorage.getItem('app:oauthRefreshedAt') || '0')
+          const tooRecent = Date.now() - lastRefreshed < 5000
+
+          // Heuristic: some browsers may return without query params due to intermediate navigations.
+          // If we detect a new authenticated session and either the URL still has auth params
+          // OR the referrer was a Supabase auth domain, force a one-time hard refresh even if the flag wasn't set.
+          let needsHeuristic = false
+          try {
+            const u = new URL(window.location.href)
+            const hasAuthParams = u.searchParams.has('code') || u.searchParams.has('state') || u.searchParams.has('error') || u.searchParams.has('error_description')
+            const ref = document.referrer || ''
+            const fromSupabase = /\b.supabase\.co\b/.test(ref) || /supabase\.co/.test(ref)
+            needsHeuristic = !tooRecent && (hasAuthParams || fromSupabase)
+          } catch {}
+
+          if (pending === '1' || needsHeuristic) {
+            try { sessionStorage.removeItem('app:oauthRefreshPending') } catch {}
             try { sessionStorage.setItem('app:oauthRefreshedAt', String(Date.now())) } catch {}
-            // Compute a clean URL (no query string), preserve hash if any
             const loc = window.location
             const clean = `${loc.origin}${loc.pathname}${loc.hash || ''}`
             // Small delay to ensure Supabase session is fully persisted before reload

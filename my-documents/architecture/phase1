@@ -1,0 +1,110 @@
+LegalIP Pro (PatentRender2) — Architecture Overview (Phase 1)
+
+Summary
+- Stack: Next.js App Router (React 18, TypeScript) running on Vercel. Supabase for auth (Google OAuth) and Postgres database. Razorpay for payments.
+- UX pillars: Accessibility-first focus handling, stable post-OAuth landing, resilient pricing, and safe server fallbacks when client queries are blocked by RLS.
+
+High-level diagram (logical)
+
+	User Browser
+		 │
+		 ▼
+	Next.js (App Router) on Vercel
+		 ├─ UI layer (React components)
+		 │   ├─ Screens: Landing/Services, Orders, Profile, Forms, Privacy
+		 │   ├─ Shared UI: Navbar, Options Panel/Modal, Service Cart, Banners
+		 │   ├─ FocusProvider (accessibility + restore) and page headings (#page-heading)
+		 │   └─ Razorpay Module + FocusGuard (blur/visibility handling, spinner + note)
+		 │
+		 ├─ Client helpers
+		 │   ├─ utils/pricing.ts → fetch rules, ensure caches, compute prices
+		 │   ├─ View persistence via localStorage (app:last_view, pricing caches)
+		 │   └─ Auth listener (Supabase onAuthStateChange) + OAuth URL cleanup + one-time hard refresh
+		 │
+		 ├─ Route handlers (server-only)
+		 │   ├─ /api/pricing-rules/[serviceId] → service role reads pricing rules
+		 │   ├─ /api/patentrender → normalized base row (fees, defaults)
+		 │   └─ /api/debug-log → gated beacons (DEBUG_BEACONS=1)
+		 │
+		 └─ Supabase (external)
+				 ├─ Auth: Google OAuth
+				 └─ Postgres: service_pricing_rules, patentrender, users, orders (and related)
+
+Key responsibilities by area
+- Navigation and layout
+	- Root layout (app/layout.tsx): Loads Navbar, FocusProvider, global skip link, and the main container.
+	- Landing (app/page.tsx): Hybrid dashboard (Services/Orders/Profile/Forms) with section anchors and cart.
+	- Dedicated routes (/orders, /profile, /forms) used when restoring persisted views or explicit navigation.
+	- Menu links normalized to "#section" on the root path; legacy /main route removed/redirected.
+
+- Accessibility and focus management
+	- FocusProvider centralizes focus-on-mount and restore-on-visibility behavior.
+	- Every screen exposes a focusable heading with id="page-heading"; Privacy page adjusted accordingly.
+	- After OAuth redirect, the app strips ?code&state and performs a brief focus refresh; in OAuth paths we now force a one-time hard reload to fully stabilize UI.
+
+- Authentication (Supabase)
+	- Google OAuth flow. On return, ?code&state parameters are detected. We set a sessionStorage flag (app:oauthRefreshPending), clean the URL, and upon onAuthStateChange(SIGNED_IN or INITIAL_SESSION) trigger a one-time hard refresh to a clean URL.
+	- The listener also primes Orders (reload key), hides auth modal, and upserts a user profile row.
+
+- Pricing architecture
+	- Client attempts to fetch service_pricing_rules and patentrender via Supabase SDK.
+	- If blocked/empty (e.g., due to RLS), it falls back to server routes (/api/pricing-rules/[serviceId], /api/patentrender) that use the service role key, normalize results, and warm client caches.
+	- computePriceFromRules supports combined keys (search type + turnaround), filings, FER, optionals, NICE classes, and prior-use; professional_fee applied when no combined core rule is found.
+
+- Payments (Razorpay)
+	- On click, button enters inactive state with spinner and “Connecting to Razorpay…” microcopy.
+	- FocusGuard tolerates transient blur/visibility changes from embedded iframes and popups (tuned grace windows) to avoid false interruptions.
+
+- View persistence and restore
+	- localStorage key app:last_view tracks last logical screen.
+	- Special policy: Forms always restore to Orders for consistency.
+	- On tab visibility changes, the current view is persisted; on visibility gain or fresh loads, restores route and state accordingly.
+	- Orders banner: When returning from Forms, a transient banner summarizes mapped order(s) and auto-dismisses.
+
+- Observability and ops
+	- Debug beacons are gated by NEXT_PUBLIC_DEBUG_BEACONS (or similar), so production remains quiet by default.
+	- Environment guidance in README encourages disabling aggressive dev resets (RESET_ON_RESIZE, RESET_ON_FOCUS, FORCE_REFRESH_ON_MAIN, CART_RESET_ON_MAIN) for production stability.
+
+Data flows (simplified)
+1) OAuth sign-in
+	 - User clicks Google → Supabase redirect → app returns with ?code&state
+	 - app/page.tsx detects OAuth params: sets app:oauthRefreshPending=1, strips params, light focus refresh
+	 - onAuthStateChange(SIGNED_IN|INITIAL_SESSION) with session: perform one-time hard reload to clean URL → stable, hydrated landing
+
+2) Pricing
+	 - Services UI requests pricing via utils/pricing.ts
+	 - Client query attempt → if blocked/empty → server route fallback (service role) → response normalized and cached → compute total via computePriceFromRules
+
+3) Restore to Orders
+	 - On mount/visibility gain, app:last_view is read → if quote:orders, navigate to /orders
+	 - If Forms was last, map to Orders per policy.
+
+4) Payment
+	 - User clicks Make Payment → button disabled + spinner + microcopy → FocusGuard active
+	 - Razorpay opens (iframe/popup) → on success/failure → FocusGuard relaxed and UI resumes
+
+Security posture
+- Service role key is only used in server route handlers. Client-side respects RLS and avoids direct privileged reads.
+- URL parameters from OAuth are stripped for cleanliness; hard reload removes any dangling state.
+- Local caches store only non-sensitive data (e.g., pricing, last view).
+
+Primary modules and files
+- app/layout.tsx — Global layout, Navbar, FocusProvider, main container.
+- app/page.tsx — Landing/dashboard, auth and restore logic, OAuth cleanup + one-time hard refresh.
+- components/Navbar.tsx — Navigation and section scrolling on the root path.
+- components/FocusProvider.tsx — Centralized focus management and view persistence helpers.
+- utils/pricing.ts — Fetch rules/patentrender with server fallbacks; price computation.
+- app/api/pricing-rules/[serviceId]/route.ts — Server-side rules fetch.
+- app/api/patentrender/route.ts — Server-side base row fetch and normalization.
+
+Assumptions and constraints
+- Next.js App Router is used for pages and API routes. Some screens are embedded in the landing page for a cohesive UX.
+- Vercel is the primary runtime; environment variables control debugging and pricing fallbacks.
+- Accessibility is a core requirement; keyboard focus and skip links are implemented across screens.
+
+Phase-2 suggestions (next steps)
+- Add lightweight integration tests for auth redirect and pricing fallbacks.
+- Centralize ephemeral UI state using a small state container (zustand/recoil) if growth continues.
+- Server-first data for frequently used read paths to reduce client-side RLS friction.
+- Observability breadcrumbs (behind a flag) for OAuth and restore decisions.
+

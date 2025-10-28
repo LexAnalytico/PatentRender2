@@ -1,0 +1,137 @@
+LegalIP Pro — Phase 2 Architecture (Services: Trademark, Design, Copyright)
+
+Scope and priorities
+- Add three service modules with their own UI components and pricing rules: trademark, design, copyright.
+- Keep UX consistent with existing Patent services while improving performance and focus stability across tab in/out, resize, and OAuth redirects.
+- Maintain server-fallback data model (service role) with RLS-safe client paths.
+
+High-level module map (logical)
+
+	UI Shell (Navbar, Layout, FocusProvider, global Skip link)
+		 ├─ Landing/Hub (services tabs + hero + cart)
+		 │   ├─ Patent Services (existing)
+		 │   ├─ Trademark Services (new module)
+		 │   ├─ Design Services (new module)
+		 │   └─ Copyright Services (new module)
+		 │
+		 ├─ Shared Feature Slices (reused by all services)
+		 │   ├─ OptionsPanel / Modal
+		 │   ├─ Service Cart
+		 │   ├─ Orders screen
+		 │   ├─ Profile/Forms
+		 │   └─ Razorpay PaymentGuard (former FocusGuard)
+		 │
+		 ├─ Client helpers
+		 │   ├─ pricing/ (per-service fetch + compute, with server fallbacks)
+		 │   ├─ focus/ (hooks for mount/restore/resize)
+		 │   ├─ cache/ (keys, TTLs, schema)
+		 │   └─ analytics/ (Web Vitals + optional beacons)
+		 │
+		 └─ API routes (server-only)
+				 ├─ /api/pricing-rules/[serviceId]
+				 ├─ /api/patentrender (base numbers; extended to other bases if required)
+				 └─ /api/debug-log (gated)
+
+Key changes vs Phase 1
+1) Service modules as “feature slices”
+	 - Each module provides:
+		 - A ServicesList component (cards; section anchor on landing)
+		 - Options schema → typed config for computePriceFromRules
+		 - Optional module-specific panels (e.g., NICE classes for trademark)
+	 - File structure (suggested):
+		 - components/services/[service]/index.tsx (entry)
+		 - components/services/[service]/OptionsPanel.tsx
+		 - utils/pricing/[service].ts (fetch + compute mapping)
+		 - tests/pricing/[service].test.ts (unit tests for price combos)
+	 - Keep a single shared Service Cart to support cross-module combos.
+
+2) Pricing model generalization
+	 - Keep the existing pricing utils but parameterize by serviceId.
+	 - computePriceFromRules already supports combined keys (type + turnaround) and optionals; extend mapping for module-specific dimensions:
+		 - Trademark: NICE classes, prior use, wordmark/device mark toggles.
+		 - Design: number of designs, variants, drawings.
+		 - Copyright: work type, number of authors, expedition.
+	 - Server fallbacks remain via /api/pricing-rules/[serviceId]; cache warmers persist recent rules per service.
+	 - Introduce lightweight schema guards (zod/io-ts) to validate rule shapes at the boundary to avoid runtime surprises.
+
+3) Focus and restore hardening (tab in/out, resize)
+	 - Promote FocusProvider into a small Focus Kit:
+		 - useFocusHeading(): ensures #page-heading or main[role="main"] is focusable and focused on mount/restore.
+		 - useFocusRestore({ screenId }): persists and restores focus targets per screen/module.
+		 - useVisibilityRestore(): current logic for last view, extended to handle module tabs.
+		 - useResizeA11y(): throttled resize listener that reasserts focus only when geometry changes invalidate the focus target (e.g., collapsed panels).
+	 - Ensure all modals (OptionsPanel, auth) are true focus traps with aria-modal and RestoreFocus on close.
+	 - Maintain the one-time hard refresh after OAuth on SIGNED_IN or INITIAL_SESSION in production.
+
+4) Performance strategy
+	 - Code-split per module: lazy() import module bundles (trademark/design/copyright) and prefetch on hover/visibility.
+	 - Memoization: extract pure compute functions for price totals; memoize by options hash; debounce expensive recomputes.
+	 - React Server Components (RSC) where feasible for static/service content; keep interactive bits client-side.
+	 - Cache tiers:
+		 - In-memory (per session) for rules and base rows
+		 - localStorage with versioned keys for offline-ish reuse
+		 - SWR/react-query (optional) with stale-while-revalidate for smoothness
+	 - List rendering: virtualize long lists (orders/history) and paginate.
+	 - Web Vitals + custom marks: measure First Input Delay on landing, OptionsPanel open latency, Razorpay open time.
+
+5) PaymentGuard (formerly FocusGuard)
+	 - Wrap payment flows in a single component responsible for:
+		 - Spinner/microcopy state machine (idle → preparing → invoking → result)
+		 - Tolerant blur/visibility grace (configurable per environment)
+		 - Idempotency keys and at-most-once enforcement for create/order intents
+		 - Optional retry UI with safe reentry
+
+6) Routing and restore semantics
+	 - Persist last view at the module-tab granularity: quote:services:patent|trademark|design|copyright
+	 - On restore, prefer dedicated routes when they exist (/orders), otherwise anchor to landing section (/#trademark-services etc.).
+	 - Continue mapping forms → orders for consistency.
+
+7) UI/UX polish
+	 - Skeletons and optimistic UI for pricing and cart totals.
+	 - Clear empty states per module; contextual helper text.
+	 - ARIA live regions for transient banners (e.g., Orders banner after mapping from Forms).
+	 - Consistent button disabled/processing visuals across modules.
+
+Data and config
+- Keys and caches
+	- localStorage:
+		- app:last_view (now can be quote:services:<module>)
+		- pricing:<serviceId>:rules:v1
+		- pricing:patentrender:v1 (and equivalents per base table if added)
+	- Session flags:
+		- app:oauthRefreshPending (one-time hard reload)
+		- app:oauthRefreshedAt (debug)
+
+- Database
+	- Maintain service_pricing_rules with a service_id dimension to support all modules.
+	- If module-specific base tables are required (e.g., trademark_base), mirror the patentrender normalization pattern and add matching API routes.
+	- RLS continues to restrict direct client reads; server routes use service role.
+
+Observability and ops
+- Keep debug beacons gated by DEBUG_BEACONS to avoid noise.
+- Optional production telemetry (Sentry/LogRocket) can sample Razorpay failures and restore paths.
+- Add health pings for server routes and expose /api/_health when needed.
+
+Acceptance criteria (Phase 2)
+- Performance
+	- Landing TTI unchanged or better after adding modules (code-split verified by bundle analyzer).
+	- Opening each OptionsPanel under 200ms on mid-range devices (measured locally).
+	- Price recompute under 50ms for typical option sets (memoized path).
+- Focus/UX
+	- From any route, tab-out and tab-in restores the same screen and heading focus within 150ms.
+	- Resize events do not “lose” focus; the focused control stays focused or falls back to the heading.
+	- Modals trap focus and restore to the trigger on close.
+- Data
+	- When RLS blocks client rules, server fallback returns consistent results for all modules.
+	- Caches are versioned; invalidation does not leave stale totals.
+
+Roadmap follow-ups
+- Add a shared config registry for services (schema, compute adapters, display strings) to make new modules plug-and-play.
+- Provide a small test harness (vitest/jest) with golden tests per service for pricing edge cases.
+- Consider on-demand revalidation for any content pages and keep API responses cacheable with ETags.
+
+Phase-2 suggestions (next steps)
+- Add lightweight integration tests for auth redirect and pricing fallbacks.
+- Centralize ephemeral UI state using a small state container (zustand/recoil) if growth continues.
+- Server-first data for frequently used read paths to reduce client-side RLS friction.
+- Observability breadcrumbs (behind a flag) for OAuth and restore decisions.
