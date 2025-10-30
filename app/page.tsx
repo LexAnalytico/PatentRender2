@@ -1971,6 +1971,19 @@ const patentServices = [
               const clean = `${u.origin}${u.pathname}${u.hash || ''}`
               window.history.replaceState({}, '', clean)
             } catch {}
+            // Force a one-time hard reload after stripping OAuth params to ensure full, clean hydration
+            try {
+              const lastRefreshed = Number(sessionStorage.getItem('app:oauthRefreshedAt') || '0')
+              const tooRecent = Date.now() - lastRefreshed < 5000
+              if (!tooRecent) {
+                sessionStorage.setItem('app:oauthRefreshedAt', String(Date.now()))
+                const cleanNow = `${u.origin}${u.pathname}${u.hash || ''}`
+                setTimeout(() => {
+                  try { window.location.replace(cleanNow) } catch { window.location.href = cleanNow }
+                }, 120)
+                return // don't run focus refresh path below; page will reload
+              }
+            } catch {}
             // Focus refresh: after OAuth exchange completes, re-assert focus to the page content
             try {
               const focusMain = () => {
