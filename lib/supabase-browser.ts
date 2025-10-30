@@ -1,13 +1,10 @@
 "use client"
-import { createBrowserClient } from '@supabase/ssr'
+// Reuse the unified browser/client Supabase instance from lib/supabase,
+// which is persisted on globalThis to avoid multiple GoTrueClient instances.
+import { supabase } from '@/lib/supabase'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-// Factory to create a browser-side Supabase client (persists auth in cookies/localStorage)
 export function getSupabaseBrowser() {
-  return createBrowserClient(supabaseUrl, supabaseAnonKey)
+  return supabase
 }
 
-// Convenient singleton for standard client components
-export const supabaseBrowser = getSupabaseBrowser()
+export const supabaseBrowser = supabase
