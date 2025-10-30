@@ -24,9 +24,10 @@ export function useAuthProfile(): AuthProfile {
   const [wantsCheckout, setWantsCheckout] = useState(false)
 
   const upsertUserProfileFromSession = useCallback(async () => {
-    const { data, error } = await supabase.auth.getUser()
-    if (error || !data?.user) return
-    const u = data.user
+    // Prefer getSession to avoid transient nulls during hydration on Vercel
+    const { data: s } = await supabase.auth.getSession()
+    const u = s?.session?.user
+    if (!u) return
 
     const fullName = (u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || ""
     const given = (u.user_metadata?.given_name as string) || ""
@@ -54,14 +55,15 @@ export function useAuthProfile(): AuthProfile {
   }, [])
 
   const refreshDisplayName = useCallback(async () => {
-    const { data, error } = await supabase.auth.getUser()
-    if (error || !data?.user) {
+    // First, check for a live session; avoids getUser() returning null during initial hydration
+    const { data: s } = await supabase.auth.getSession()
+    if (!s?.session) {
       setDisplayName("")
       setUser(null)
       setIsAuthenticated(false)
       return
     }
-    const u = data.user
+    const u = s.session.user
     setUser(u)
     setIsAuthenticated(true)
 
@@ -93,14 +95,29 @@ export function useAuthProfile(): AuthProfile {
       try {
         const { data } = await supabase.auth.getSession()
         if (!active) return
-        setIsAuthenticated(!!data?.session)
+                setIsAuthenticated(!!data?.session)
         setUser(data?.session?.user ?? null)
         refreshDisplayName()
       } catch (e) {
         console.warn('[auth] getSession failed', e)
       }
     })()
+/*
+useEffect(() => {
+    let active = true
 
+    ;(async () => {
+      try {
+        const { data:s } = await supabase.auth.getSession()
+        if (!s?.session) {reset state; return} 
+           const u = s.session.user
+        setUser(s?.session?.user ?? null)
+        refreshDisplayName()
+      } catch (e) {
+        console.warn('[auth] getSession failed', e)
+      }
+    })()
+      */
     // Safari deferred logout completion
     ;(async () => {
       try {
@@ -122,7 +139,7 @@ export function useAuthProfile(): AuthProfile {
       const u = session?.user ?? null
       setIsAuthenticated(!!session)
       setUser(u)
-      if (event === "SIGNED_IN" && u) {
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && u) {
         await upsertUserProfileFromSession()
         await refreshDisplayName()
       }
