@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { UserCircleIcon } from '@heroicons/react/24/outline'
@@ -20,8 +20,6 @@ export default function PrivacyPolicyPage() {
   } = useAuthProfile()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
-  // Track whether a hard refresh is pending across event handlers
-  const refreshPendingRef = useRef(false)
   const toggleMenu = () => setIsOpen(o => !o)
   const adminEmails = useMemo(() => (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
     .split(',')
@@ -32,6 +30,8 @@ export default function PrivacyPolicyPage() {
   const primaryAdminEmail = adminEmails[0]
   const isPrimaryAdmin = !!(userEmail && userEmail.toLowerCase() === primaryAdminEmail)
   const lastUpdated = "January 15, 2024"
+  // Local overlay for refresh cycle
+  const [refreshing, setRefreshing] = useState(false)
 
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId)
@@ -48,48 +48,47 @@ export default function PrivacyPolicyPage() {
     }
   }, [])
 
-  // Hard refresh cycle: if user tabs out of Privacy and returns, force a full reload once
+  // Hard refresh on tab-out/tab-in to ensure a clean render similar to dedicated screens
   useEffect(() => {
-    const REFRESH_KEY = 'privacy:refresh_on_return'
-
-    const markPending = () => {
-      try { sessionStorage.setItem(REFRESH_KEY, '1') } catch {}
-      refreshPendingRef.current = true
+    const FLAG = 'privacy:refreshPending'
+    const onBlur = () => {
+      try { sessionStorage.setItem(FLAG, '1') } catch {}
     }
-    const clearPending = () => {
-      try { sessionStorage.removeItem(REFRESH_KEY) } catch {}
-      refreshPendingRef.current = false
-    }
-    const shouldRefresh = () => {
-      try { return refreshPendingRef.current || sessionStorage.getItem(REFRESH_KEY) === '1' } catch { return refreshPendingRef.current }
-    }
-    const hardReload = () => {
-      // Avoid showing our beforeunload prompt, if any, during intentional reload
-      try { (window as any).__suppressBeforeUnloadPrompt = true; sessionStorage.setItem('suppress_unload_prompt', '1') } catch {}
-      const href = window.location.href
-      // Use replace to avoid history entry; same URL keeps user on Privacy
-      try { window.location.replace(href) } catch { window.location.href = href }
-    }
-    const onBlur = () => { markPending() }
-    const onFocusOrVisible = () => {
-      if (!shouldRefresh()) return
-      clearPending()
-      // Small delay to allow browser to settle focus before reload
-      setTimeout(hardReload, 50)
+    const runRefreshIfNeeded = () => {
+      try {
+        if (typeof document !== 'undefined' && document.hidden) return
+        const pending = sessionStorage.getItem(FLAG) === '1'
+        if (!pending || refreshing) return
+        // one-shot
+        sessionStorage.removeItem(FLAG)
+        setRefreshing(true)
+        // small delay to allow overlay paint
+        setTimeout(() => {
+          try { window.location.replace(window.location.href) } catch { window.location.reload() }
+        }, 120)
+      } catch {}
     }
     window.addEventListener('blur', onBlur)
-    window.addEventListener('focus', onFocusOrVisible)
-    const onVis = () => { if (!document.hidden) onFocusOrVisible() }
-    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('focus', runRefreshIfNeeded)
+    document.addEventListener('visibilitychange', runRefreshIfNeeded)
     return () => {
       window.removeEventListener('blur', onBlur)
-      window.removeEventListener('focus', onFocusOrVisible)
-      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('focus', runRefreshIfNeeded)
+      document.removeEventListener('visibilitychange', runRefreshIfNeeded)
     }
-  }, [])
+  }, [refreshing])
 
   return (
     <div className="min-h-screen bg-white">
+      {refreshing && (
+        <div aria-hidden="true" style={{
+          position: 'fixed', inset: 0 as any, zIndex: 2147483000,
+          background: 'rgba(255,255,255,0.55)',
+          backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)',
+          transition: 'opacity 160ms ease',
+          pointerEvents: 'none'
+        }} />
+      )}
       {/* Simplified header replicated from landing page for consistent navigation */}
       <header className="bg-white shadow-md p-4 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex items-center justify-between">

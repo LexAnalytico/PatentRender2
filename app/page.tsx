@@ -4049,6 +4049,9 @@ if (showQuotePage) {
   />
 )}
 
+  {/* Hidden landing heading anchor for skip link and initial focus */}
+    <h1 id="page-heading" tabIndex={-1} className="sr-only">LegalIP Pro – Services</h1>
+
   {/* Header */}
       <header className="bg-white shadow-md p-4">
       <div className="hidden md:flex items-center space-x-6 justify-end w-full">

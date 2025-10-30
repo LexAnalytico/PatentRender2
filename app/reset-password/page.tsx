@@ -15,32 +15,19 @@ export default function ResetPassword() {
   // ✅ Check if user is logged in (Supabase sets session after email link click)
   useEffect(() => {
     const checkUser = async () => {
-      // Prefer getSession to avoid transient nulls during hydration
-      const { data: s } = await supabase.auth.getSession();
-      const u = s?.session?.user;
-      if (u) {
+      const { data, error } = await supabase.auth.getUser();
+
+      if (data?.user) {
         setUserAvailable(true);
       } else {
-        const { data, error } = await supabase.auth.getUser();
-        if (data?.user) setUserAvailable(true);
-        else {
-          console.warn("User session not found", error);
-          setUserAvailable(false);
-        }
+        console.warn("User session not found", error);
+        setUserAvailable(false);
       }
 
       setLoading(false);
     };
 
     checkUser();
-  }, []);
-
-  // ✅ Accessibility: move focus to page heading on mount
-  useEffect(() => {
-    const h = document.getElementById('page-heading') as HTMLElement | null;
-    if (h) {
-      try { h.focus(); } catch {}
-    }
   }, []);
 
   // ✅ Handle form submission
@@ -67,7 +54,7 @@ export default function ResetPassword() {
 
   return (
     <div style={{ padding: "2rem" }}>
-      <h2 id="page-heading" tabIndex={-1}>Reset Your Password</h2>
+      <h2>Reset Your Password</h2>
       <input
         type="password"
         placeholder="New Password"
