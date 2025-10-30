@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { UserCircleIcon } from '@heroicons/react/24/outline'
@@ -20,6 +20,8 @@ export default function PrivacyPolicyPage() {
   } = useAuthProfile()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
+  // Track whether a hard refresh is pending across event handlers
+  const refreshPendingRef = useRef(false)
   const toggleMenu = () => setIsOpen(o => !o)
   const adminEmails = useMemo(() => (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
     .split(',')
@@ -43,6 +45,46 @@ export default function PrivacyPolicyPage() {
     const h = document.getElementById('page-heading') as HTMLElement | null
     if (h) {
       try { h.focus() } catch {}
+    }
+  }, [])
+
+  // Hard refresh cycle: if user tabs out of Privacy and returns, force a full reload once
+  useEffect(() => {
+    const REFRESH_KEY = 'privacy:refresh_on_return'
+
+    const markPending = () => {
+      try { sessionStorage.setItem(REFRESH_KEY, '1') } catch {}
+      refreshPendingRef.current = true
+    }
+    const clearPending = () => {
+      try { sessionStorage.removeItem(REFRESH_KEY) } catch {}
+      refreshPendingRef.current = false
+    }
+    const shouldRefresh = () => {
+      try { return refreshPendingRef.current || sessionStorage.getItem(REFRESH_KEY) === '1' } catch { return refreshPendingRef.current }
+    }
+    const hardReload = () => {
+      // Avoid showing our beforeunload prompt, if any, during intentional reload
+      try { (window as any).__suppressBeforeUnloadPrompt = true; sessionStorage.setItem('suppress_unload_prompt', '1') } catch {}
+      const href = window.location.href
+      // Use replace to avoid history entry; same URL keeps user on Privacy
+      try { window.location.replace(href) } catch { window.location.href = href }
+    }
+    const onBlur = () => { markPending() }
+    const onFocusOrVisible = () => {
+      if (!shouldRefresh()) return
+      clearPending()
+      // Small delay to allow browser to settle focus before reload
+      setTimeout(hardReload, 50)
+    }
+    window.addEventListener('blur', onBlur)
+    window.addEventListener('focus', onFocusOrVisible)
+    const onVis = () => { if (!document.hidden) onFocusOrVisible() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('blur', onBlur)
+      window.removeEventListener('focus', onFocusOrVisible)
+      document.removeEventListener('visibilitychange', onVis)
     }
   }, [])
 
