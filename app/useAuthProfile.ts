@@ -64,11 +64,9 @@ export function useAuthProfile(): AuthProfile {
       })
     }
     if (!s?.session) {
-      setDisplayName("")
-      setUser(null)
-      setIsAuthenticated(false)
+      // Stickiness: avoid clearing UI on transient nulls (e.g., Vercel hydration/tab restore)
       if (process.env.NEXT_PUBLIC_DEBUG === '1') {
-        console.debug('[auth][refreshDisplayName] no session -> cleared displayName')
+        console.debug('[auth][refreshDisplayName] no session -> sticky no-op')
       }
       return
     }
@@ -165,9 +163,9 @@ useEffect(() => {
         await upsertUserProfileFromSession()
         await refreshDisplayName()
       }
-      if (!session) {
+      if (event === 'SIGNED_OUT') {
         if (process.env.NEXT_PUBLIC_DEBUG === '1') {
-          console.debug('[auth][onAuthStateChange] session null -> clearing displayName')
+          console.debug('[auth][onAuthStateChange] signed out -> clearing displayName')
         }
         setDisplayName("")
       }
