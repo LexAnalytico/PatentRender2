@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js'
 import { createBrowserClient } from '@supabase/ssr'
 
@@ -20,3 +21,5 @@ function getClient() {
 }
 
 export const supabase = getClient()
+
+

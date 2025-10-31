@@ -78,15 +78,6 @@ export function useAuthProfile(): AuthProfile {
 
     if (name) {
       setDisplayName(name)
-      // Debug beacon: display name resolved from metadata
-      try {
-        const p = { event: 'display-name-updated', source: 'metadata', name, email: u.email ?? null, ts: Date.now() }
-        if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-          navigator.sendBeacon('/api/debug-log', JSON.stringify(p))
-        } else {
-          fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
-        }
-      } catch {}
       return
     }
 
@@ -94,15 +85,6 @@ export function useAuthProfile(): AuthProfile {
     if (row) {
       const n = [row.first_name, row.last_name].filter(Boolean).join(" ") || (row.email?.split("@")[0] ?? "")
       setDisplayName(n)
-      // Debug beacon: display name resolved from DB
-      try {
-        const p = { event: 'display-name-updated', source: 'db', name: n, email: row.email ?? null, ts: Date.now() }
-        if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-          navigator.sendBeacon('/api/debug-log', JSON.stringify(p))
-        } else {
-          fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
-        }
-      } catch {}
     }
   }, [])
 
@@ -115,15 +97,6 @@ export function useAuthProfile(): AuthProfile {
         if (!active) return
                 setIsAuthenticated(!!data?.session)
         setUser(data?.session?.user ?? null)
-        // Debug beacon: initial session snapshot
-        try {
-          const p = { event: 'auth-init-session', hasSession: !!data?.session, userId: data?.session?.user?.id ?? null, ts: Date.now() }
-          if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-            navigator.sendBeacon('/api/debug-log', JSON.stringify(p))
-          } else {
-            fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
-          }
-        } catch {}
         refreshDisplayName()
       } catch (e) {
         console.warn('[auth] getSession failed', e)
@@ -166,15 +139,6 @@ useEffect(() => {
       const u = session?.user ?? null
       setIsAuthenticated(!!session)
       setUser(u)
-      // Debug beacon: auth state change
-      try {
-        const p = { event: 'auth-state-change', authEvent: event, hasSession: !!session, userId: u?.id ?? null, ts: Date.now() }
-        if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-          navigator.sendBeacon('/api/debug-log', JSON.stringify(p))
-        } else {
-          fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
-        }
-      } catch {}
       if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && u) {
         await upsertUserProfileFromSession()
         await refreshDisplayName()
@@ -201,15 +165,6 @@ useEffect(() => {
 
   const handleLogout = useCallback(async () => {
     const isSafari = typeof navigator !== 'undefined' && /safari/i.test(navigator.userAgent) && !/chrome|chromium|android/i.test(navigator.userAgent)
-    // Debug beacon: logout invoked
-    try {
-      const p = { event: 'logout-invoked', isSafari, ts: Date.now() }
-      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-        navigator.sendBeacon('/api/debug-log', JSON.stringify(p))
-      } else {
-        fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
-      }
-    } catch {}
     if (isSafari) {
       try { localStorage.setItem('pending_logout', '1') } catch {}
       // Immediate hard reload; signOut will be finalized on mount

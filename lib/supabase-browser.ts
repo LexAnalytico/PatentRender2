@@ -1,3 +1,4 @@
+
 "use client"
 import { createBrowserClient } from '@supabase/ssr'
 
@@ -11,3 +12,5 @@ export function getSupabaseBrowser() {
 
 // Convenient singleton for standard client components
 export const supabaseBrowser = getSupabaseBrowser()
+
+

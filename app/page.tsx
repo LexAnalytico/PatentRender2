@@ -857,6 +857,8 @@ const openFirstFormEmbedded = () => {
   const lastKnownUserIdRef = useRef<string | null>(null)
   // Flag that a previous orders load aborted due to missing user; triggers focus recovery reload
   const ordersAbortedNoUserRef = useRef<boolean>(false)
+  // Track loading state for Orders in a ref to avoid stale closures in timeouts
+  const embeddedOrdersLoadingRef = useRef<boolean>(false)
 
   // Session warm-up without continuous polling: one immediate fetch + short burst retries, then rely on auth listener.
   useEffect(() => {
@@ -905,8 +907,10 @@ const openFirstFormEmbedded = () => {
     if (!hadExisting) {
       setEmbeddedOrders([]) // show skeleton only when we had nothing
       setEmbeddedOrdersLoading(true)
+      embeddedOrdersLoadingRef.current = true
     } else {
       setEmbeddedOrdersLoading(true) // show inline spinner elsewhere if UI supports it
+      embeddedOrdersLoadingRef.current = true
     }
     setOrdersLoadError(null)
     try {
@@ -929,6 +933,7 @@ const openFirstFormEmbedded = () => {
           setEmbeddedOrders([])
           setOrdersLoadError('You are not signed in. Please sign in to view orders.')
           setEmbeddedOrdersLoading(false)
+          embeddedOrdersLoadingRef.current = false
           ordersAbortedNoUserRef.current = true
         }
         return
@@ -940,6 +945,7 @@ const openFirstFormEmbedded = () => {
           setEmbeddedOrders([])
           setOrdersLoadError('Failed to load orders. Please retry.')
           setEmbeddedOrdersLoading(false)
+          embeddedOrdersLoadingRef.current = false
         }
         return
       }
@@ -979,6 +985,7 @@ const openFirstFormEmbedded = () => {
           setEmbeddedOrders([])
           setOrdersLoadError(null) // empty but not error
           setEmbeddedOrdersLoading(false)
+          embeddedOrdersLoadingRef.current = false
         }
         console.debug('[Orders][load] early-return: zero orders')
         return
@@ -994,12 +1001,14 @@ const openFirstFormEmbedded = () => {
       if (active) {
         setEmbeddedOrders([])
         setOrdersLoadError('Unexpected error loading orders.')
-        setEmbeddedOrdersLoading(false)
+  setEmbeddedOrdersLoading(false)
+  embeddedOrdersLoadingRef.current = false
       }
       console.debug('[Orders][load] early-return: exception path')
     } finally {
       if (active) {
-        setEmbeddedOrdersLoading(false)
+  setEmbeddedOrdersLoading(false)
+  embeddedOrdersLoadingRef.current = false
         console.log("[Orders] Loading end")
       }
     }
@@ -1018,15 +1027,16 @@ if (quoteView === "orders") {
       if (active) loadOrders()
     })
     watchdog = setTimeout(() => {
-      if (active && embeddedOrdersLoading) {
+      if (active && embeddedOrdersLoadingRef.current) {
         console.warn('[Orders] Watchdog: still loading after timeout, forcing retry')
         loadOrders()
       }
     }, 4000)
     stuckTimer = setTimeout(() => {
-      if (active && embeddedOrdersLoading && Date.now() - loadStart > 6500) {
+      if (active && embeddedOrdersLoadingRef.current && Date.now() - loadStart > 6500) {
         console.warn('[Orders] Stuck load detected; surfacing error state')
         setEmbeddedOrdersLoading(false)
+        embeddedOrdersLoadingRef.current = false
         setOrdersLoadError('Orders request appears stuck. Please Retry.')
       }
     }, 6500)
@@ -1793,9 +1803,7 @@ const patentServices = [
     const RESET_ON_FOCUS = process.env.NEXT_PUBLIC_RESET_ON_FOCUS === '1'
     const FORCE_REFRESH_ON_FOCUS_MS = Number(process.env.NEXT_PUBLIC_FORCE_REFRESH_ON_FOCUS_MS || '0') || 0
     const winFlag = (typeof window !== 'undefined') && ((window as any).RESET_ON_RESIZE === true)
-    const winFocus = (typeof window !== 'undefined') && ((window as any).RESET_ON_FOCUS === true)
-    // If none of the features are enabled (including runtime winFocus) and no time-based force, skip wiring
-    if (!RESET_ON_RESIZE && !winFlag && !RESET_ON_FOCUS && !winFocus && FORCE_REFRESH_ON_FOCUS_MS <= 0) return
+    if (!RESET_ON_RESIZE && !winFlag && !RESET_ON_FOCUS && FORCE_REFRESH_ON_FOCUS_MS <= 0) return
 
     const updateDims = () => {
       try { localStorage.setItem('app_last_seen_dims', `${window.innerWidth}x${window.innerHeight}`) } catch {}
@@ -1835,10 +1843,7 @@ const patentServices = [
         const hiddenAt = Number(localStorage.getItem('app_hidden_at') || '0')
         const hiddenDur = hiddenAt ? (Date.now() - hiddenAt) : 0
         const longHidden = FORCE_REFRESH_ON_FOCUS_MS > 0 && hiddenDur >= FORCE_REFRESH_ON_FOCUS_MS
-        // Only force reload when there is a concrete reason (marker/changes/longHidden) or an explicit runtime flag.
-        // Avoid unconditional reloads on every focus which can cause session/UX flicker in production.
-        const shouldForce = marker || changedDims || changedDpr || changedScreen || longHidden || winFocus
-        if (shouldForce) {
+        if (marker || changedDims || changedDpr || changedScreen || RESET_ON_FOCUS || longHidden) {
           try {
             const payload = {
               reason: 'resize-hidden',
@@ -1853,19 +1858,9 @@ const patentServices = [
                 nowScreen: nowScreen || null,
                 hiddenDur,
                 longHidden,
-                winFocus,
               }
             }
             localStorage.setItem('app_debug_refresh', JSON.stringify(payload))
-          } catch {}
-          // Send a beacon for server-side inspection if enabled
-          try {
-            const p = { event: 'focus-visibility-reload', marker, changedDims, changedDpr, changedScreen, longHidden, winFocus, ts: Date.now() }
-            if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-              navigator.sendBeacon('/api/debug-log', JSON.stringify(p))
-            } else {
-              fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
-            }
           } catch {}
           localStorage.removeItem('app_refresh_on_focus')
           localStorage.removeItem('app_prev_dims_on_hide')
@@ -1994,26 +1989,7 @@ const patentServices = [
                 sessionStorage.setItem('app:oauthRefreshedAt', String(Date.now()))
                 const cleanNow = `${u.origin}${u.pathname}${u.hash || ''}`
                 setTimeout(() => {
-                  try {
-                    // Beacon which path is firing (param-clean)
-                    try {
-                      const p = { event: 'oauth-reload', path: 'param-clean', samePage: window.location.href === cleanNow, href: window.location.href, clean: cleanNow, ts: Date.now() }
-                      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-                        navigator.sendBeacon('/api/debug-log', JSON.stringify(p))
-                      } else {
-                        fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
-                      }
-                    } catch {}
-                    // If we're already at the clean URL, some browsers may no-op replace(). Force a true reload.
-                    if (window.location.href === cleanNow) {
-                      window.location.reload()
-                    } else {
-                      window.location.replace(cleanNow)
-                    }
-                  } catch {
-                    // Last resort navigation
-                    (window.location as any).href = cleanNow
-                  }
+                  try { window.location.replace(cleanNow) } catch { window.location.href = cleanNow }
                 }, 120)
                 return // don't run focus refresh path below; page will reload
               }
@@ -2991,24 +2967,7 @@ useEffect(() => {
             const clean = `${loc.origin}${loc.pathname}${loc.hash || ''}`
             // Small delay to ensure Supabase session is fully persisted before reload
             setTimeout(() => {
-              try {
-                // Beacon which path is firing (auth-listener)
-                try {
-                  const p = { event: 'oauth-reload', path: 'auth-listener', pending: true, samePage: window.location.href === clean, href: window.location.href, clean, ts: Date.now() }
-                  if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-                    navigator.sendBeacon('/api/debug-log', JSON.stringify(p))
-                  } else {
-                    fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
-                  }
-                } catch {}
-                if (window.location.href === clean) {
-                  window.location.reload()
-                } else {
-                  window.location.replace(clean)
-                }
-              } catch {
-                (window.location as any).href = clean
-              }
+              try { window.location.replace(clean) } catch { window.location.href = clean }
             }, 150)
           }
         }
