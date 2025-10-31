@@ -96,53 +96,8 @@ export default function PrivacyPolicyPage() {
             <Scale className="h-8 w-8 text-blue-600" />
             <span className="text-2xl font-bold text-gray-900">LegalIP Pro</span>
           </div>
-          <nav className="hidden md:flex items-center space-x-6">
-            <a href="/knowledge-hub" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium">Knowledge Hub</a>
-            <button
-              onClick={() => { if (isAdmin) router.push('/admin') }}
-              disabled={!isAdmin}
-              className={`px-3 py-2 text-sm font-medium rounded-md transition-colors border ${
-                isAdmin
-                  ? 'text-gray-700 hover:text-blue-600 border-transparent hover:border-blue-200'
-                  : 'text-gray-400 cursor-not-allowed border-gray-200 bg-gray-50'
-              }`}
-              title={isAdmin ? (isPrimaryAdmin ? 'Primary Admin: full access' : 'Secondary Admin: limited view') : 'Admins only'}
-              aria-disabled={!isAdmin}
-            >
-              {isPrimaryAdmin ? 'Admin Dashboard' : isAdmin ? 'My Admin View' : 'Admin Dashboard'}
-            </button>
-            {isAuthenticated && displayName && (
-              <span className="text-gray-700 text-sm max-w-[180px] truncate" title={displayName}>
-                Welcome, {displayName}
-              </span>
-            )}
-            <div className="relative">
-              <button onClick={toggleMenu} className="focus:outline-none">
-                <UserCircleIcon className="h-8 w-8 text-gray-700 hover:text-blue-600" />
-              </button>
-              {isOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white shadow-lg rounded-lg py-2 border border-gray-200 z-50">
-                  {isAuthenticated ? (
-                    <>
-                      <button
-                        className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
-                        onClick={() => { setIsOpen(false); router.push('/profile') }}
-                      >Profile</button>
-                      <button
-                        className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
-                        onClick={() => { setIsOpen(false); handleLogout() }}
-                      >Sign Out</button>
-                    </>
-                  ) : (
-                    <button
-                      className="block w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-100"
-                      onClick={() => { setIsOpen(false); handleGoogleLogin() }}
-                    >Sign In with Google</button>
-                  )}
-                </div>
-              )}
-            </div>
-          </nav>
+          {/* Per request: hide Knowledge Hub, Admin Dashboard, Welcome text, and profile icon on Privacy page */}
+          <nav className="hidden md:flex items-center space-x-6" aria-hidden="true" />
         </div>
       </header>
       

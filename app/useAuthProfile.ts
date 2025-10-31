@@ -57,10 +57,19 @@ export function useAuthProfile(): AuthProfile {
   const refreshDisplayName = useCallback(async () => {
     // First, check for a live session; avoids getUser() returning null during initial hydration
     const { data: s } = await supabase.auth.getSession()
+    if (process.env.NEXT_PUBLIC_DEBUG === '1') {
+      console.debug('[auth][refreshDisplayName] getSession', {
+        hasSession: !!s?.session,
+        uid: s?.session?.user?.id || null,
+      })
+    }
     if (!s?.session) {
       setDisplayName("")
       setUser(null)
       setIsAuthenticated(false)
+      if (process.env.NEXT_PUBLIC_DEBUG === '1') {
+        console.debug('[auth][refreshDisplayName] no session -> cleared displayName')
+      }
       return
     }
     const u = s.session.user
@@ -77,6 +86,9 @@ export function useAuthProfile(): AuthProfile {
     else if (u.email) name = u.email.split("@")[0]
 
     if (name) {
+      if (process.env.NEXT_PUBLIC_DEBUG === '1') {
+        console.debug('[auth][refreshDisplayName] computed name from metadata', { name })
+      }
       setDisplayName(name)
       return
     }
@@ -84,6 +96,9 @@ export function useAuthProfile(): AuthProfile {
     const { data: row } = await supabase.from("users").select("first_name,last_name,email").eq("id", u.id).maybeSingle()
     if (row) {
       const n = [row.first_name, row.last_name].filter(Boolean).join(" ") || (row.email?.split("@")[0] ?? "")
+      if (process.env.NEXT_PUBLIC_DEBUG === '1') {
+        console.debug('[auth][refreshDisplayName] computed name from users table', { name: n })
+      }
       setDisplayName(n)
     }
   }, [])
@@ -137,13 +152,25 @@ useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       if (!active) return
       const u = session?.user ?? null
+      if (process.env.NEXT_PUBLIC_DEBUG === '1') {
+        console.debug('[auth][onAuthStateChange]', {
+          event,
+          hasSession: !!session,
+          uid: u?.id || null,
+        })
+      }
       setIsAuthenticated(!!session)
       setUser(u)
       if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && u) {
         await upsertUserProfileFromSession()
         await refreshDisplayName()
       }
-      if (!session) setDisplayName("")
+      if (!session) {
+        if (process.env.NEXT_PUBLIC_DEBUG === '1') {
+          console.debug('[auth][onAuthStateChange] session null -> clearing displayName')
+        }
+        setDisplayName("")
+      }
     })
 
     return () => {
@@ -151,6 +178,34 @@ useEffect(() => {
       sub?.subscription?.unsubscribe()
     }
   }, [refreshDisplayName, upsertUserProfileFromSession])
+
+  // Debug: Log session snapshot on focus/visibility (no behavior change)
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_DEBUG !== '1') return
+    const logSnapshot = async (label: string) => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        console.debug('[auth][snapshot]', label, {
+          hasSession: !!data?.session,
+          uid: data?.session?.user?.id || null,
+          displayName,
+          isAuthenticated,
+        })
+      } catch (e) {
+        console.debug('[auth][snapshot] error', label, e)
+      }
+    }
+    const onFocus = () => logSnapshot('focus')
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') logSnapshot('visibility-visible')
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [displayName, isAuthenticated])
 
   const handleGoogleLogin = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
