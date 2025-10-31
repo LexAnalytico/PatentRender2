@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
 export type Order = { id: string | number; name?: string }
 export type OrdersScreenProps = {
@@ -19,7 +20,15 @@ export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenP
   const load = async () => {
     setLoading(true)
     try {
-      const res = await fetch(fetchUrl)
+      // Include Supabase access token so API can authenticate even if cookies are unavailable
+      let headers: Record<string, string> = {}
+      try {
+        const { data } = await supabase.auth.getSession()
+        const token = data?.session?.access_token
+        if (token) headers['Authorization'] = `Bearer ${token}`
+      } catch {}
+
+      const res = await fetch(fetchUrl, { headers })
       const data = await res.json()
       setOrders(Array.isArray(data) ? data : [])
     } catch (e) {
