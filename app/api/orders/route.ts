@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
 import { fetchOrdersMerged } from '@/lib/orders'
 
-// Route handler that uses first-party cookies to authenticate the user on the server.
-// This avoids 401s on Vercel when the tab is restored and the client calls /api/orders.
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-    // Use the authenticated session from cookies
-    const { data: { session } } = await supabase.auth.getSession()
-    const userId = session?.user?.id || null
+    // Use auth session to find user id (lightweight call)
+    const { data: { session }, error } = await supabase.auth.getSession()
+    if (error) return NextResponse.json({ error: 'AUTH_ERROR' }, { status: 401 })
+    const userId = session?.user?.id
     if (!userId) return NextResponse.json({ error: 'NO_SESSION' }, { status: 401 })
     const result = await fetchOrdersMerged(supabase as any, userId, { includeProfile: true, cacheMs: 0, force: true })
     return NextResponse.json(result.orders)
