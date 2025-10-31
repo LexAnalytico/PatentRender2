@@ -1979,7 +1979,17 @@ const patentServices = [
                 sessionStorage.setItem('app:oauthRefreshedAt', String(Date.now()))
                 const cleanNow = `${u.origin}${u.pathname}${u.hash || ''}`
                 setTimeout(() => {
-                  try { window.location.replace(cleanNow) } catch { window.location.href = cleanNow }
+                  try {
+                    // If we're already at the clean URL, some browsers may no-op replace(). Force a true reload.
+                    if (window.location.href === cleanNow) {
+                      window.location.reload()
+                    } else {
+                      window.location.replace(cleanNow)
+                    }
+                  } catch {
+                    // Last resort navigation
+                    (window.location as any).href = cleanNow
+                  }
                 }, 120)
                 return // don't run focus refresh path below; page will reload
               }
@@ -2957,7 +2967,15 @@ useEffect(() => {
             const clean = `${loc.origin}${loc.pathname}${loc.hash || ''}`
             // Small delay to ensure Supabase session is fully persisted before reload
             setTimeout(() => {
-              try { window.location.replace(clean) } catch { window.location.href = clean }
+              try {
+                if (window.location.href === clean) {
+                  window.location.reload()
+                } else {
+                  window.location.replace(clean)
+                }
+              } catch {
+                (window.location as any).href = clean
+              }
             }, 150)
           }
         }
