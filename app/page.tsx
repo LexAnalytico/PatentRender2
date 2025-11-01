@@ -365,6 +365,11 @@ const openFirstFormEmbedded = () => {
         // If the last view was Orders (a dedicated page), restore it immediately instead
         // of showing a resume notice so tab-in takes the user straight back to Orders.
         if (v === 'orders') {
+          // New policy: when hard-reset-on-blur is enabled, prefer returning to main instead of Orders
+          if (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') {
+            try { localStorage.setItem(LAST_VIEW_KEY, 'home') } catch {}
+            return
+          }
           try {
             // use the centralized navigation to prefetch and show orders
             goToOrders()
@@ -372,7 +377,11 @@ const openFirstFormEmbedded = () => {
             // fallback to showing notice if navigation fails
             setResumeNotice({ view: v })
           }
-        } else if (v === 'profile' || v === 'forms') {
+        } else if (v === 'profile' || v === 'forms' || v === 'services') {
+          if ((v === 'profile' || v === 'forms' || v === 'services') && process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') {
+            try { localStorage.setItem(LAST_VIEW_KEY, 'home') } catch {}
+            return
+          }
           setResumeNotice({ view: v })
         }
       }
@@ -1965,6 +1974,57 @@ const patentServices = [
     requestAnimationFrame(() => { try { window.scrollTo({ top: 0, behavior: 'smooth' }) } catch {} })
   }, [])
 
+  // --- Tab-out -> Tab-in policy for Orders, Profile & Forms (landing dashboard) ---
+  // If the dashboard is visible and the current view is Orders, Profile, or Forms, mark a flag so that on focus/return
+  // we go back to the main screen instead of keeping that view open. Controlled by env flag.
+  useEffect(() => {
+    const FORCE_RESET_ON_BLUR = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
+    if (!FORCE_RESET_ON_BLUR) return
+    const onBlur = () => {
+      try {
+        // Orders/Profile/Forms within dashboard
+        if (showQuotePage && (quoteView === 'orders' || quoteView === 'profile' || quoteView === 'forms')) {
+          localStorage.setItem('app:return_home_on_focus', '1')
+          // Also set last_view=home proactively to prevent restoring the dashboard view
+          try { localStorage.setItem('app:last_view', 'home') } catch {}
+          try {
+            if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+              navigator.sendBeacon('/api/debug-log', JSON.stringify({ event: 'dashboard-blur-set-home', view: quoteView, ts: Date.now() }))
+            }
+          } catch {}
+        }
+      } catch {}
+    }
+    window.addEventListener('blur', onBlur)
+    return () => window.removeEventListener('blur', onBlur)
+  }, [showQuotePage, quoteView])
+
+  // On focus/visibility/pageshow, consume the marker and return to the main screen.
+  useEffect(() => {
+    const FORCE_RESET_ON_BLUR = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
+    if (!FORCE_RESET_ON_BLUR) return
+    const maybeReturnHome = () => {
+      try {
+        const marker = localStorage.getItem('app:return_home_on_focus') === '1'
+        if (!marker) return
+        localStorage.removeItem('app:return_home_on_focus')
+        // If currently in Orders/Profile/Forms dashboard, close it; otherwise keep main as-is
+        if (showQuotePage && (quoteView === 'orders' || quoteView === 'profile' || quoteView === 'forms')) {
+          goHome()
+        }
+      } catch {}
+    }
+    const onVis = () => { if (document.visibilityState === 'visible') maybeReturnHome() }
+    window.addEventListener('focus', maybeReturnHome)
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('pageshow', maybeReturnHome)
+    return () => {
+      window.removeEventListener('focus', maybeReturnHome)
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('pageshow', maybeReturnHome)
+    }
+  }, [showQuotePage, quoteView, goHome])
+
   // On first mount, restore last view if saved (so Orders view comes back after reload)
   useEffect(() => {
     // Clean up Supabase OAuth params (?code, ?state, etc.) after OAuth redirects
@@ -2058,6 +2118,10 @@ const patentServices = [
         return
       }
       if (last === 'quote:services') {
+        if (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') {
+          try { localStorage.setItem(LAST_VIEW_KEY, 'home') } catch {}
+          return
+        }
         setInitialQuoteView('services')
         setShowQuotePage(true)
         debugLog('[ViewPersist] mount-restore -> services')
@@ -2065,6 +2129,10 @@ const patentServices = [
       }
       // Forms should restore to Orders (requirement): treat saved forms as orders
       if (last === 'quote:forms') {
+        if (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') {
+          try { localStorage.setItem(LAST_VIEW_KEY, 'home') } catch {}
+          return
+        }
         try {
           // Prefer dedicated Orders route so URL matches the screen
           router.push('/orders')
@@ -2187,7 +2255,11 @@ const patentServices = [
             }
           } catch {}
         } else if (last === 'quote:forms') {
-          // Requirement: restoring from Forms should land on Orders
+          // Requirement: restoring from Forms should land on Orders (unless forced reset policy is on)
+          if (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') {
+            try { localStorage.setItem(LAST_VIEW_KEY, 'home') } catch {}
+            return
+          }
           debugLog('[ViewPersist] restoring forms -> orders on visible (route)')
           try {
             const p = { event: 'rendering-saved-screen', lastSaved: last, pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
@@ -2248,6 +2320,10 @@ const patentServices = [
           } catch {}
         } else if (last === 'quote:services') {
           // Restore Services (Make Payment) view inside the dashboard
+          if (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') {
+            try { localStorage.setItem(LAST_VIEW_KEY, 'home') } catch {}
+            return
+          }
           debugLog('[ViewPersist] restoring services on visible')
           setShowQuotePage(true)
           setQuoteView('services')
@@ -3304,6 +3380,57 @@ useEffect(() => {
 
 // (FocusGuardOverlay & PaymentInterruptionBanner moved to CheckoutLayer component)
 // Razorpay JIT loader now centralized in lib/razorpay
+
+  // --- Tab-out -> Tab-in policy for Payment/Services (landing dashboard) ---
+  // When payment is in progress or the Services (checkout) view is open, on tab blur mark a flag to return home on focus.
+  // This mirrors the Orders/Profile policy, controlled by NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR=1.
+  useEffect(() => {
+    const FORCE_RESET_ON_BLUR = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
+    if (!FORCE_RESET_ON_BLUR) return
+    const onBlur = () => {
+      try {
+        if (isProcessingPayment || (showQuotePage && quoteView === 'services')) {
+          localStorage.setItem('app:return_home_on_focus', '1')
+          try { localStorage.setItem('app:last_view', 'home') } catch {}
+          try {
+            if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+              navigator.sendBeacon('/api/debug-log', JSON.stringify({ event: isProcessingPayment ? 'payment-blur-set-home' : 'services-blur-set-home', ts: Date.now() }))
+            }
+          } catch {}
+        }
+      } catch {}
+    }
+    window.addEventListener('blur', onBlur)
+    return () => window.removeEventListener('blur', onBlur)
+  }, [isProcessingPayment, showQuotePage, quoteView])
+
+  useEffect(() => {
+    const FORCE_RESET_ON_BLUR = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
+    if (!FORCE_RESET_ON_BLUR) return
+    const maybeReturnHome = () => {
+      try {
+        const marker = localStorage.getItem('app:return_home_on_focus') === '1'
+        if (!marker) return
+        localStorage.removeItem('app:return_home_on_focus')
+        if (isProcessingPayment || (showQuotePage && quoteView === 'services')) {
+          try { stopFocusGuard('return-home-on-focus') } catch {}
+          try { setIsProcessingPayment(false) } catch {}
+          try { setPaymentInterrupted(false) } catch {}
+          try { setShowCheckoutThankYou(false) } catch {}
+          goHome()
+        }
+      } catch {}
+    }
+    const onVis = () => { if (document.visibilityState === 'visible') maybeReturnHome() }
+    window.addEventListener('focus', maybeReturnHome)
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('pageshow', maybeReturnHome)
+    return () => {
+      window.removeEventListener('focus', maybeReturnHome)
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('pageshow', maybeReturnHome)
+    }
+  }, [isProcessingPayment, showQuotePage, quoteView, goHome, stopFocusGuard])
 
   const handlePayment = async () => {
     try {

@@ -97,7 +97,7 @@ export default function FocusProvider({ children }: { children: React.ReactNode 
             try {
               if (pathname && pathname.startsWith('/orders')) val = 'quote:orders'
               else if (pathname && pathname.startsWith('/profile')) val = 'quote:profile'
-              else if (pathname && pathname.startsWith('/forms')) val = 'quote:forms'
+              else if (pathname && pathname.startsWith('/forms')) val = (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') ? 'home' : 'quote:forms'
               else if (pathname === '/main' || pathname === '/') val = 'home'
               // Persist only when we resolved a value
               if (val) {
@@ -148,12 +148,19 @@ export default function FocusProvider({ children }: { children: React.ReactNode 
           if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
             const LAST_VIEW_KEY = 'app:last_view'
             let val: string | null = null
-            if (pathname && pathname.startsWith('/orders')) val = 'quote:orders'
-            else if (pathname && pathname.startsWith('/profile')) val = 'quote:profile'
+            if (pathname && pathname.startsWith('/orders')) {
+              // New policy: when hard-reset-on-blur is enabled, restore to main instead of Orders
+              const forceHome = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
+              val = forceHome ? 'home' : 'quote:orders'
+            }
+            else if (pathname && pathname.startsWith('/profile')) {
+              const forceHome = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
+              val = forceHome ? 'home' : 'quote:profile'
+            }
             else if (pathname && pathname.startsWith('/forms')) {
-              // Special policy: when tabbing out from Forms, we want the next restore to land on Orders
-              // so we persist quote:orders here (instead of quote:forms)
-              val = 'quote:orders'
+              const forceHome = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
+              // Under force policy: normalize to home. Otherwise: map forms -> orders as before.
+              val = forceHome ? 'home' : 'quote:orders'
             }
             // Only persist when we're on a dedicated quote route
             if (val) {
