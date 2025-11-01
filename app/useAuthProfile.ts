@@ -137,13 +137,21 @@ useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       if (!active) return
       const u = session?.user ?? null
-      setIsAuthenticated(!!session)
-      setUser(u)
-      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && u) {
+      // Only force signed-out state on explicit SIGNED_OUT; otherwise keep last known auth during transient nulls
+      if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false)
+        setUser(null)
+        setDisplayName('')
+        return
+      }
+      if (u) {
+        setIsAuthenticated(true)
+        setUser(u)
+      }
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && u) {
         await upsertUserProfileFromSession()
         await refreshDisplayName()
       }
-      if (!session) setDisplayName("")
     })
 
     return () => {
