@@ -95,11 +95,9 @@ export default function FocusProvider({ children }: { children: React.ReactNode 
             const LAST_VIEW_KEY = 'app:last_view'
             let val: string | null = null
             try {
-              const w: any = typeof window !== 'undefined' ? window : null
-              const FORCE_RESET_ON_BLUR = (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') || !!(w && (w.FORCE_HARD_RESET_ON_BLUR === true || w.FORCE_RESET_ON_BLUR === true))
               if (pathname && pathname.startsWith('/orders')) val = 'quote:orders'
               else if (pathname && pathname.startsWith('/profile')) val = 'quote:profile'
-              else if (pathname && pathname.startsWith('/forms')) val = FORCE_RESET_ON_BLUR ? 'home' : 'quote:forms'
+              else if (pathname && pathname.startsWith('/forms')) val = 'quote:forms'
               else if (pathname === '/main' || pathname === '/') val = 'home'
               // Persist only when we resolved a value
               if (val) {
@@ -150,22 +148,12 @@ export default function FocusProvider({ children }: { children: React.ReactNode 
           if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
             const LAST_VIEW_KEY = 'app:last_view'
             let val: string | null = null
-            if (pathname && pathname.startsWith('/orders')) {
-              // New policy: when hard-reset-on-blur is enabled, restore to main instead of Orders
-              const w: any = typeof window !== 'undefined' ? window : null
-              const forceHome = (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') || !!(w && (w.FORCE_HARD_RESET_ON_BLUR === true || w.FORCE_RESET_ON_BLUR === true))
-              val = forceHome ? 'home' : 'quote:orders'
-            }
-            else if (pathname && pathname.startsWith('/profile')) {
-              const w: any = typeof window !== 'undefined' ? window : null
-              const forceHome = (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') || !!(w && (w.FORCE_HARD_RESET_ON_BLUR === true || w.FORCE_RESET_ON_BLUR === true))
-              val = forceHome ? 'home' : 'quote:profile'
-            }
+            if (pathname && pathname.startsWith('/orders')) val = 'quote:orders'
+            else if (pathname && pathname.startsWith('/profile')) val = 'quote:profile'
             else if (pathname && pathname.startsWith('/forms')) {
-              const w: any = typeof window !== 'undefined' ? window : null
-              const forceHome = (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') || !!(w && (w.FORCE_HARD_RESET_ON_BLUR === true || w.FORCE_RESET_ON_BLUR === true))
-              // Under force policy: normalize to home. Otherwise: map forms -> orders as before.
-              val = forceHome ? 'home' : 'quote:orders'
+              // Special policy: when tabbing out from Forms, we want the next restore to land on Orders
+              // so we persist quote:orders here (instead of quote:forms)
+              val = 'quote:orders'
             }
             // Only persist when we're on a dedicated quote route
             if (val) {
@@ -182,12 +170,6 @@ export default function FocusProvider({ children }: { children: React.ReactNode 
           if (typeof window !== 'undefined' && pathname) {
             const isDedicated = pathname.startsWith('/orders') || pathname.startsWith('/profile') || pathname.startsWith('/forms')
             if (isDedicated) {
-              // Mark a return-home intent so landing page can perform the same hard refresh as the manual button on focus
-              try {
-                const w: any = window
-                const FORCE_RESET_ON_BLUR = (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') || !!(w && (w.FORCE_HARD_RESET_ON_BLUR === true || w.FORCE_RESET_ON_BLUR === true))
-                if (FORCE_RESET_ON_BLUR) localStorage.setItem('app:return_home_on_focus', '1')
-              } catch {}
               try { router.push('/main') } catch {}
             }
           }

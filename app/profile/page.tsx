@@ -15,7 +15,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from "@/components/ui/label"
 import pricingToForm from '../data/service-pricing-to-form.json'
 import CheckoutModal from "@/components/checkout-modal"
-import ProfilePanel from "@/components/panels/ProfilePanel"
 import {
   ArrowLeft,
   User,
@@ -517,9 +516,8 @@ function ProfilePageInner() {
         }
       }
 
-  // Fallback: latest payment group when no payment_id in URL (feature-flagged)
-  const AUTO_OPEN_THANKYOU = process.env.NEXT_PUBLIC_PROFILE_AUTO_OPEN_THANKYOU === '1'
-  if (AUTO_OPEN_THANKYOU && !highlightPaymentId && merged && Array.isArray(merged) && merged.length > 0 && !hasShownThankYou) {
+      // Fallback: latest payment group when no payment_id in URL
+      if (!highlightPaymentId && merged && Array.isArray(merged) && merged.length > 0 && !hasShownThankYou) {
         try {
           const groupsMap = new Map<string, any[]>()
           for (const r of merged as any[]) {
@@ -919,18 +917,306 @@ function ProfilePageInner() {
           </Card>
         )}
 
-        {/* State: Authenticated Dashboard (new ProfilePanel) */}
+        {/* State: Authenticated Dashboard */}
         {!loading && sessionEmail && (
-          <div className="max-w-3xl mx-auto">
-            <ProfilePanel
-              profile={editProfile}
-              isSaving={saving}
-              isAuthenticated={true}
-              loading={false}
-              onChange={(field, value) => setEditProfile(p => ({ ...p, [field]: value }))}
-              onSave={handleSaveProfile}
-              onBack={() => router.push('/')}
-            />
+          <div className="grid grid-cols-1 gap-6">
+            {/* Tabs and content (full width) */}
+            {/* Welcome card */}
+            <Card className="bg-white border shadow-sm">
+              <CardContent className="py-4">
+                <div className="flex items-center gap-3">
+                  <User className="h-5 w-5 text-blue-600" />
+                  <div className="text-sm text-gray-800">
+                    <span className="font-medium">Welcome{editProfile.first_name ? ", " : ""}</span>
+                    <span>{editProfile.first_name ?? displayName}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white border shadow-sm">
+              <CardHeader>
+                <CardTitle>Overview</CardTitle>
+                <CardDescription>Manage your account information and review recent activity</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs value={currentTab} onValueChange={(v) => setCurrentTab(v)} className="w-full">
+                  <TabsList className="mb-4">
+                    <TabsTrigger value="profile">Profile</TabsTrigger>
+                    <TabsTrigger value="orders">Orders</TabsTrigger>
+                  </TabsList>
+
+                  {/* Profile */}
+                  <TabsContent value="profile">
+                    <Card className="border">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Manage Profile</CardTitle>
+                        <CardDescription>Update your contact and company information</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">First Name</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.first_name ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, first_name: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">Last Name</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.last_name ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, last_name: e.target.value }))}
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <Label className="text-sm font-medium text-gray-700">Company</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.company ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, company: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">Phone</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.phone ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, phone: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">Address</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.address ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, address: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">City</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.city ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, city: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">State</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.state ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, state: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium text-gray-700">Country</Label>
+                            <Input
+                              className="mt-1"
+                              value={editProfile.country ?? ""}
+                              onChange={(e) => setEditProfile((p) => ({ ...p, country: e.target.value }))}
+                            />
+                          </div>
+                          <div className="md:col-span-2 flex justify-end">
+                            <Button onClick={handleSaveProfile} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
+                              {saving ? "Saving..." : "Save Profile"}
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  {/* Orders - Table view */}
+                  <TabsContent value="orders">
+                    <Card className="border">
+                      <CardHeader>
+                        <div className="flex items-center justify-between w-full">
+                          <div>
+                            <CardTitle>Orders</CardTitle>
+                            <CardDescription>Your payments and orders</CardDescription>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <div className="flex items-center gap-2">
+                              <Button onClick={downloadSelected} disabled={!selectedOrderId}>View / Edit Form</Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="mb-4 flex items-center gap-3">
+                          <Input placeholder="Search by category, service or amount" value={searchOrders} onChange={(e) => setSearchOrders((e.target as HTMLInputElement).value)} />
+                          <Select value={sortOrders} onValueChange={(v) => setSortOrders(v)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sort" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="date_desc">Date (newest)</SelectItem>
+                              <SelectItem value="date_asc">Date (oldest)</SelectItem>
+                              <SelectItem value="amount_desc">Amount (high → low)</SelectItem>
+                              <SelectItem value="amount_asc">Amount (low → high)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full table-auto border-collapse">
+                            <thead>
+                              <tr>
+                                <th className="p-2 text-left"></th>
+                                <th className="p-2 text-left">Category</th>
+                                <th className="p-2 text-left">Service</th>
+                                  {/* <th className="p-2 text-left">Type</th>*/}
+                                <th className="p-2 text-left">Status</th>
+                                <th className="p-2 text-left">Amount</th>
+                                  {/*<th className="p-2 text-left">Razorpay ID</th>*/}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                if (loadingUserOrders) return (<tr><td colSpan={7} className="p-4">Loading...</td></tr>)
+                                const items = filteredOrders(userOrders, searchOrders, sortOrders)
+                                if (!items || items.length === 0) return (<tr><td colSpan={7} className="p-4">No orders found</td></tr>)
+
+                                // Group by payment_id; items without payment_id are singletons
+                                const groupsMap = new Map<string, any[]>()
+                                for (const r of items as any[]) {
+                                  const key = r.payment_id ? String(r.payment_id) : `nopay-${r.id}`
+                                  if (!groupsMap.has(key)) groupsMap.set(key, [])
+                                  groupsMap.get(key)!.push(r)
+                                }
+
+                                // Build an array with sorting by payment date/amount similar to current sort
+                                const groups = Array.from(groupsMap.entries()).map(([key, rows]) => {
+                                  const payment = rows[0]?.payments ?? null
+                                  const paymentDate = payment?.payment_date ?? rows[0]?.created_at ?? null
+                                  const totalAmount = Number(payment?.total_amount ?? 0)
+                                  return { key, rows, payment, paymentDate, totalAmount }
+                                })
+
+                                const sortedGroups = groups.sort((a, b) => {
+                                  if (sortOrders === 'amount_desc') return (b.totalAmount || 0) - (a.totalAmount || 0)
+                                  if (sortOrders === 'amount_asc') return (a.totalAmount || 0) - (b.totalAmount || 0)
+                                  // default: date
+                                  const ad = new Date(a.paymentDate || 0).getTime()
+                                  const bd = new Date(b.paymentDate || 0).getTime()
+                                  return sortOrders === 'date_asc' ? (ad - bd) : (bd - ad)
+                                })
+
+                                return (
+                                  <>
+                                    {sortedGroups.map((g) => {
+                                      const multiple = g.rows.length > 1
+                                      if (!multiple) {
+                                        const r = g.rows[0]
+                                        return (
+                                          <tr key={r.id} className="border-t" data-order-id={r.id}>
+                                          <td className="p-2">
+                                            <input type="radio" name="order-select" checked={selectedOrderId === r.id} onChange={() => setSelectedOrderId(r.id)} />
+                                          </td>
+                                          <td className="p-2">{(r.categories as any)?.name ?? "N/A"}</td>
+                                          <td className="p-2">{(r.services as any)?.name ?? "N/A"}</td>
+                                          <td className="p-2">{orderStatuses[r.id] ?? "Not Started"}</td>
+                                          <td className="p-2">{(r.payments as any)?.total_amount ?? "N/A"}</td>
+                                        </tr>
+                                          )
+                                        }
+
+                                      // Consolidated row for multi-service payment
+                                      const isOpen = !!expandedPayments[g.key]
+                                      const uniqueCats = Array.from(new Set(g.rows.map((r:any) => (r.categories as any)?.name).filter(Boolean)))
+                                      const aggStatus = (() => {
+                                        // Completed if any completed; else Draft if any draft; else Not Started
+                                        const statuses = g.rows.map((r:any) => orderStatuses[r.id] ?? 'Not Started')
+                                        if (statuses.includes('Completed')) return 'Completed'
+                                        if (statuses.includes('Draft')) return 'Draft'
+                                        return 'Not Started'
+                                      })()
+                                      return (
+                                        <React.Fragment key={g.key}>
+                                          
+                                          <tr className="border-t bg-gray-50/60">
+                                            <td className="p-2 align-top">
+                                              <button
+                                                className="inline-flex items-center justify-center rounded border px-1.5 py-0.5 text-xs hover:bg-gray-100"
+                                                onClick={() => setExpandedPayments((p) => ({ ...p, [g.key]: !isOpen }))}
+                                                aria-label={isOpen ? 'Collapse' : 'Expand'}
+                                              >
+                                                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                              </button>
+                                            </td>
+                                            <td className="p-2 font-medium">
+                                              {uniqueCats.length === 1 ? uniqueCats[0] : `Multiple (${uniqueCats.length})`}
+                                            </td>
+                                            <td className="p-2 text-gray-700">Multiple ({g.rows.length})</td>
+                                            <td className="p-2">{aggStatus}</td>
+                                            <td className="p-2 font-medium">{g.payment?.total_amount ?? "N/A"}</td>
+                                          </tr>
+
+                                          
+                                      {isOpen && g.rows.map((r: any) => (
+                                        <tr key={r.id} className="border-t text-blue-700">
+                                          <td className="p-2 align-top">
+                                            <input
+                                              type="radio"
+                                              name="order-select"
+                                              checked={selectedOrderId === r.id}
+                                              onChange={() => setSelectedOrderId(r.id)}
+                                            />
+                                          </td>
+                                          <td className="p-2 pl-6">
+                                            <div className="text-sm">{(r.categories as any)?.name ?? "N/A"}</div>
+                                          </td>
+                                          <td className="p-2">
+                                            <div className="text-sm font-medium">{(r.services as any)?.name ?? "N/A"}</div>
+                                          </td>
+                                          <td className="p-2">
+                                            <div className="text-sm">{orderStatuses[r.id] ?? "Not Started"}</div>
+                                          </td>
+                                          <td className="p-2">
+                                            <div className="text-sm">{(r.payments as any)?.total_amount ?? "N/A"}</div>
+                                          </td>
+                                        </tr>
+                                      ))}
+
+                                        </React.Fragment>
+                                      )
+                                    })}
+                                  </>
+                                )
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    {/* Thank You modal after redirect with payment_id */}
+
+                    <CheckoutModal
+                    isOpen={showThankYou}
+                    onClose={handleCloseThankYou}
+                    payment={thankYouPayment}
+                    orders={thankYouOrders}
+                    onProceedSingle={(order?: any) => {
+                      if (order) {
+                        handleProceedSingle(order)
+                      } else if (thankYouOrders?.length === 1) {
+                        handleProceedSingle(thankYouOrders[0])
+                      }
+                    }}
+                  onProceedMultiple={handleProceedMultiple}
+                    
+                    />  
+                      
+                    
+                  </TabsContent>
+
+                </Tabs>
+              </CardContent>
+            </Card>
           </div>
         )}
       </main>

@@ -1,9 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { UserCircleIcon } from '@heroicons/react/24/outline'
+import { useMemo, useEffect, useState } from 'react'
 import { Footer } from "@/components/layout/Footer"
 import { Shield, Eye, Lock, Trash2, Download, Mail, Phone, Calendar, AlertCircle, Scale } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,9 +15,6 @@ export default function PrivacyPolicyPage() {
     handleGoogleLogin,
     handleLogout,
   } = useAuthProfile()
-  const router = useRouter()
-  const [isOpen, setIsOpen] = useState(false)
-  const toggleMenu = () => setIsOpen(o => !o)
   const adminEmails = useMemo(() => (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '')
     .split(',')
     .map(e => e.trim().toLowerCase())
@@ -89,23 +83,17 @@ export default function PrivacyPolicyPage() {
           pointerEvents: 'none'
         }} />
       )}
-      {/* Simplified header replicated from landing page for consistent navigation */}
+      {/* Minimal header for legal pages (brand only; hide menu controls) */}
       <header className="bg-white shadow-md p-4 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="max-w-7xl mx-auto flex items-center">
           <div className="flex items-center gap-2">
             <Scale className="h-8 w-8 text-blue-600" />
             <span className="text-2xl font-bold text-gray-900">LegalIP Pro</span>
           </div>
-          {/* Per request: hide Knowledge Hub, Admin Dashboard, Welcome text, and profile icon on Privacy page */}
-          <nav className="hidden md:flex items-center space-x-6" aria-hidden="true" />
         </div>
       </header>
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
-        <Link href="/" className="text-sm text-blue-600 hover:text-blue-700 underline inline-flex items-center">
-          <span className="mr-1">←</span> Back to Home
-        </Link>
-      </div>
+      {/* Back-to-home link intentionally hidden on privacy screen to reduce clutter */}
 
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 py-16">
