@@ -248,6 +248,38 @@ const openFirstFormEmbedded = () => {
     searchType: "",
   })
 
+  // Plan B: when enabled via env, if user tabs away from dashboard views (orders/profile/forms)
+  // set a one-shot marker and perform a hard reset to home on next focus/visibility.
+  const FORCE_HARD = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
+  useEffect(() => {
+    if (!FORCE_HARD) return
+    const isDashboardView = showQuotePage && (quoteView === 'orders' || quoteView === 'profile' || quoteView === 'forms')
+    if (!isDashboardView) return
+    const onBlur = () => {
+      try { localStorage.setItem('app_force_hard_reset', '1') } catch {}
+    }
+    const onMaybeReset = () => {
+      try {
+        if (document.hidden) return
+        const marker = localStorage.getItem('app_force_hard_reset') === '1'
+        if (!marker) return
+        localStorage.removeItem('app_force_hard_reset')
+        try { sessionStorage.setItem('app_resume_notice', '1') } catch {}
+        window.location.replace('/')
+      } catch {}
+    }
+    window.addEventListener('blur', onBlur)
+    window.addEventListener('focus', onMaybeReset)
+    document.addEventListener('visibilitychange', onMaybeReset)
+    window.addEventListener('pageshow', onMaybeReset)
+    return () => {
+      window.removeEventListener('blur', onBlur)
+      window.removeEventListener('focus', onMaybeReset)
+      document.removeEventListener('visibilitychange', onMaybeReset)
+      window.removeEventListener('pageshow', onMaybeReset)
+    }
+  }, [FORCE_HARD, showQuotePage, quoteView])
+
  
   const [activeServiceTab, setActiveServiceTab] = useState("patent") // State for active tab
  
