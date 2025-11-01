@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
+import { Button } from '@/components/ui/button'
 
 export type Order = { id: string | number; name?: string }
 export type OrdersScreenProps = {
@@ -9,14 +10,14 @@ export type OrdersScreenProps = {
 
 export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenProps) {
   const [orders, setOrders] = useState<Order[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   // Transient banner for last opened form (persisted by Forms on tab-out)
   type SingleCtx = { orderId: number | null; formType: string | null; formTypeLabel?: string | null }
   type MultiCtx = { multi: Array<{ orderId: number; formType: string | null; formTypeLabel?: string | null }>; ts?: number }
   const [banner, setBanner] = useState<null | { single?: SingleCtx; multi?: MultiCtx['multi'] }>(null)
   const [bannerVisible, setBannerVisible] = useState(false)
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true)
     try {
       const res = await fetch(fetchUrl)
@@ -28,15 +29,13 @@ export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenP
     } finally {
       setLoading(false)
     }
-  }
-
-  useEffect(() => {
-    load()
-    const onFocus = () => load()
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchUrl])
+
+  // Manual-only: do not auto-load on mount or focus
+  useEffect(() => {
+    // Emit screen ready immediately so FocusProvider overlay can clear
+    try { window.dispatchEvent(new Event('screen:ready')) } catch {}
+  }, [])
 
   // Read and display the last form context as a transient banner on mount/visibility
   useEffect(() => {
@@ -98,6 +97,11 @@ export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenP
   return (
     <div>
       <h1 id="page-heading" tabIndex={-1}>Orders</h1>
+      <div className="mb-3">
+        <Button variant="outline" onClick={load} disabled={loading}>
+          {loading ? 'Fetching orders…' : 'Fetch orders'}
+        </Button>
+      </div>
       {banner && bannerVisible && (
         <div
           role="status"

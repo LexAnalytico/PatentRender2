@@ -1315,6 +1315,77 @@ const handleFetchPrices = useCallback(async () => {
   }
 }, [manualFetchingPrices, fetchPricing])
 
+// Manual Profile/Orders fetchers for tab-out/in testing (no auto triggers)
+const [manualFetchingProfile, setManualFetchingProfile] = useState(false)
+const [manualFetchingOrders, setManualFetchingOrders] = useState(false)
+
+const handleFetchProfile = useCallback(async () => {
+  if (manualFetchingProfile) return
+  setManualFetchingProfile(true)
+  try {
+    const { data: s } = await supabase.auth.getSession()
+    const userId = s?.session?.user?.id || null
+    const email = s?.session?.user?.email || null
+    if (!userId) {
+      try { localStorage.setItem('manual:profile', JSON.stringify({ ts: Date.now(), error: 'not-signed-in' })) } catch {}
+      return
+    }
+    const { data: byId, error } = await supabase
+      .from('users')
+      .select('id, email, first_name, last_name, company, phone, address, city, state, country')
+      .eq('id', userId)
+      .maybeSingle()
+    if (error) {
+      try { localStorage.setItem('manual:profile', JSON.stringify({ ts: Date.now(), error: String(error.message || error) })) } catch {}
+    } else {
+      try { localStorage.setItem('manual:profile', JSON.stringify({ ts: Date.now(), userId, email, profile: byId || null })) } catch {}
+    }
+    // debug beacon
+    try {
+      const payload = { event: 'profile:manual-fetch', ts: Date.now(), userId: userId || null }
+      if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
+        try { (navigator as any).sendBeacon('/api/debug-log', new Blob([JSON.stringify(payload)], { type: 'application/json' })) } catch {}
+      } else {
+        fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
+      }
+    } catch {}
+  } finally {
+    setManualFetchingProfile(false)
+  }
+}, [manualFetchingProfile, supabase])
+
+const handleFetchOrders = useCallback(async () => {
+  if (manualFetchingOrders) return
+  setManualFetchingOrders(true)
+  try {
+    const { data: s } = await supabase.auth.getSession()
+    const userId = s?.session?.user?.id || null
+    if (!userId) {
+      try { localStorage.setItem('manual:orders', JSON.stringify({ ts: Date.now(), error: 'not-signed-in' })) } catch {}
+      return
+    }
+    const { orders: merged, error } = await fetchOrdersMerged(supabase, userId, { includeProfile: true, cacheMs: 0, force: true })
+    if (error) {
+      try { localStorage.setItem('manual:orders', JSON.stringify({ ts: Date.now(), error: String(error) })) } catch {}
+    } else {
+      // Store a trimmed snapshot to avoid huge payloads
+      const snapshot = Array.isArray(merged) ? merged.slice(0, 20) : []
+      try { localStorage.setItem('manual:orders', JSON.stringify({ ts: Date.now(), userId, count: Array.isArray(merged) ? merged.length : 0, sample: snapshot })) } catch {}
+    }
+    // debug beacon
+    try {
+      const payload = { event: 'orders:manual-fetch', ts: Date.now(), hasUser: !!userId }
+      if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
+        try { (navigator as any).sendBeacon('/api/debug-log', new Blob([JSON.stringify(payload)], { type: 'application/json' })) } catch {}
+      } else {
+        fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
+      }
+    } catch {}
+  } finally {
+    setManualFetchingOrders(false)
+  }
+}, [manualFetchingOrders, supabase])
+
 // Main screen (landing) focus/visibility/pageshow: do NOT auto-fetch; user clicks the button to fetch pricing
 useEffect(() => {
   // No-op: preserved hook for future behavior; currently we avoid auto-fetching on focus/pageshow.
@@ -4518,9 +4589,15 @@ if (showQuotePage) {
 
       {/* Footer */}
       {/* Floating Fetch Prices button (always visible on main screen) */}
-      <div style={{ position: 'fixed', right: 16, top: 72, zIndex: 1000 }}>
+      <div style={{ position: 'fixed', right: 16, top: 72, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <Button variant="outline" onClick={handleFetchPrices} disabled={manualFetchingPrices}>
           {manualFetchingPrices ? 'Fetching prices…' : 'Fetch prices'}
+        </Button>
+        <Button variant="outline" onClick={handleFetchProfile} disabled={manualFetchingProfile}>
+          {manualFetchingProfile ? 'Fetching profile…' : 'Fetch profile'}
+        </Button>
+        <Button variant="outline" onClick={handleFetchOrders} disabled={manualFetchingOrders}>
+          {manualFetchingOrders ? 'Fetching orders…' : 'Fetch orders'}
         </Button>
       </div>
 

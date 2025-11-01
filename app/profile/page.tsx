@@ -1,7 +1,7 @@
 "use client"
 
 import React, { Suspense, useEffect, useState } from "react"
-import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
+// (manual-only) removed onAuthStateChange usage, no supabase auth event types needed
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "../../lib/supabase"
@@ -62,13 +62,16 @@ interface Profile {
 function ProfilePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [loading, setLoading] = useState(true)
+  // Manual-only mode: do not auto-load on mount
+  const [loading, setLoading] = useState(false)
   const [sessionEmail, setSessionEmail] = useState<string | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [authChecked, setAuthChecked] = useState(false)
+  // Start as "checked" so we don't show a perpetual loading state; data loads only when user clicks
+  const [authChecked, setAuthChecked] = useState(true)
   const [userId, setUserId] = useState<string | null>(null)
   const [editProfile, setEditProfile] = useState<Profile>({} as Profile)
   const [saving, setSaving] = useState(false)
+  const [manualProfileLoading, setManualProfileLoading] = useState(false)
   const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({})
   const [userOrders, setUserOrders] = useState<any[]>([])
   const [loadingUserOrders, setLoadingUserOrders] = useState(false)
@@ -639,14 +642,9 @@ function ProfilePageInner() {
     window.open(url, '_blank')
   }
 
-  useEffect(() => {
-    if (currentTab === 'orders') {
-      loadUserOrders()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTab])
+  // Manual-only: do not auto-load orders when switching tabs
 
-  // pick up payment_id from query so we can auto-select after redirect
+  // pick up payment_id from query so we can auto-select after redirect (data will populate after manual fetch)
   useEffect(() => {
     const pid = searchParams?.get('payment_id') || null
     if (pid) {
@@ -661,12 +659,7 @@ function ProfilePageInner() {
     }
   }, [searchParams])
 
-  useEffect(() => {
-    if (currentTab !== 'orders') return
-    if (loadingUserOrders) return
-    loadUserOrders()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [highlightPaymentId, authChecked])
+  // Manual-only: do not auto-load orders based on URL or auth state; user triggers via button
   const orders = [
     {
       id: "TRX-10342",
@@ -716,30 +709,29 @@ function ProfilePageInner() {
     },
   ] as const
 
-  useEffect(() => {
-    let active = true
-    async function init() {
+  // Manual-only: moved automatic profile load to a user-triggered action
+  const manualFetchProfile = async () => {
+    try {
+      setManualProfileLoading(true)
       const { data, error } = await supabase.auth.getSession()
       if (error) {
         console.error("Error getting session:", error.message)
         setAuthChecked(true)
-        setLoading(false)
         return
       }
       const email = data.session?.user?.email ?? null
-      if (!active) return
       setSessionEmail(email)
 
-      const userId = data.session?.user?.id ?? null
-      setUserId(userId)
+      const uid = data.session?.user?.id ?? null
+      setUserId(uid)
 
-      if (email && userId) {
+      if (email && uid) {
         // 1) Try fetch by id
         let prof: Profile | null = null
         const { data: byId, error: errById } = await supabase
           .from("users")
           .select("id, email, first_name, last_name, company, phone, address, city, state, country")
-          .eq("id", userId)
+          .eq("id", uid)
           .maybeSingle()
 
         if (errById) {
@@ -774,14 +766,10 @@ function ProfilePageInner() {
       }
 
       setAuthChecked(true)
-      setLoading(false)
+    } finally {
+      setManualProfileLoading(false)
     }
-
-    init()
-    return () => {
-      active = false
-    }
-  }, [])
+  }
 
   // Signal FocusProvider that the screen is ready to hide the restore overlay
   useEffect(() => {
@@ -790,24 +778,7 @@ function ProfilePageInner() {
     }
   }, [loading])
 
-  // Keep auth state in sync while this page is mounted. This prevents transient
-  // logout-like behavior when the auth session changes or during client-side
-  // navigation; Navbar also listens but having a local listener here makes the
-  // page resilient and ensures dependent state (sessionEmail/userId) updates.
-  useEffect(() => {
-  const { data: listener } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
-      const email = session?.user?.email ?? null
-      const id = session?.user?.id ?? null
-      console.debug('ProfilePage onAuthStateChange', { event: _event, email, id })
-      setSessionEmail(email)
-      setUserId(id)
-      setAuthChecked(true)
-    })
-
-    return () => {
-      try { listener.subscription.unsubscribe() } catch (e) { /* ignore */ }
-    }
-  }, [])
+  // Manual-only: remove auth state listener to avoid any automatic Supabase triggers
 
   const displayName = profile
     ? [profile.first_name, profile.last_name].filter(Boolean).join(" ") || "Your Name"
@@ -948,11 +919,20 @@ function ProfilePageInner() {
 
                   {/* Profile */}
                   <TabsContent value="profile">
-                    <Card className="border">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-base">Manage Profile</CardTitle>
-                        <CardDescription>Update your contact and company information</CardDescription>
-                      </CardHeader>
+                              <Card className="border">
+                                <CardHeader className="pb-2">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                      <CardTitle className="text-base">Manage Profile</CardTitle>
+                                      <CardDescription>Update your contact and company information</CardDescription>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Button variant="outline" onClick={manualFetchProfile} disabled={manualProfileLoading}>
+                                        {manualProfileLoading ? "Fetching…" : "Fetch Profile"}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </CardHeader>
                       <CardContent>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
@@ -1041,6 +1021,9 @@ function ProfilePageInner() {
                           <div className="flex flex-col items-end gap-2">
                             <div className="flex items-center gap-2">
                               <Button onClick={downloadSelected} disabled={!selectedOrderId}>View / Edit Form</Button>
+                              <Button variant="outline" onClick={loadUserOrders} disabled={loadingUserOrders}>
+                                {loadingUserOrders ? "Loading…" : "Fetch orders"}
+                              </Button>
                             </div>
                           </div>
                         </div>
