@@ -3685,7 +3685,9 @@ if (showQuotePage) {
                 <Button
                   variant={quoteView === 'profile' ? undefined : 'outline'}
                   className={`w-full justify-start border border-black rounded-full ${quoteView === 'profile' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
-                  onClick={() => setQuoteView('profile')}
+                  onClick={() => {
+                    try { router.push('/profile') } catch { window.location.href = '/profile' }
+                  }}
                 >
                   Profile
                 </Button>
