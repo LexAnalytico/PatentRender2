@@ -15,20 +15,39 @@ export function Header() {
 
   // Read minimal header cache to avoid username flicker on focus/refresh
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('app:header_user_cache')
-      if (!raw) return
-      const obj = JSON.parse(raw)
-      if (!obj || obj.ver !== 1) return
-      const ttlMs = Number(process.env.NEXT_PUBLIC_HEADER_CACHE_TTL_MS || '600000')
-      const ts = Number(obj.ts || 0)
-      if (!ts || (Date.now() - ts) > ttlMs) {
-        try { localStorage.removeItem('app:header_user_cache') } catch {}
-        return
-      }
-      const nm = String(obj.name || obj.email || '').trim()
-      if (nm) setCachedName(nm)
-    } catch {}
+    const readCache = () => {
+      try {
+        const raw = localStorage.getItem('app:header_user_cache')
+        if (!raw) return
+        const obj = JSON.parse(raw)
+        if (!obj || obj.ver !== 1) return
+        const ttlMs = Number(process.env.NEXT_PUBLIC_HEADER_CACHE_TTL_MS || '600000')
+        const ts = Number(obj.ts || 0)
+        if (!ts || (Date.now() - ts) > ttlMs) {
+          try { localStorage.removeItem('app:header_user_cache') } catch {}
+          return
+        }
+        const nm = String(obj.name || obj.email || '').trim()
+        if (nm) setCachedName(nm)
+      } catch {}
+    }
+    // Initial read
+    readCache()
+    // Small delayed read to catch post-hydration cache writes
+    const t = setTimeout(readCache, 200)
+    // Refresh on focus/pageshow/visibility
+    const onFocus = () => readCache()
+    const onVis = () => { if (document.visibilityState === 'visible') readCache() }
+    const onPageShow = () => readCache()
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('pageshow', onPageShow)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('pageshow', onPageShow)
+    }
   }, [])
 
   const adminInfo = useMemo(() => {
