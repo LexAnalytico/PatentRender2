@@ -58,11 +58,12 @@ export function useAuthProfile(): AuthProfile {
     // First, check for a live session; avoids getUser() returning null during initial hydration
     const { data: s } = await supabase.auth.getSession()
     if (!s?.session) {
+      // During initial hydration, Supabase can briefly return null before restoring the session.
+      // Do NOT clear the header cache here; it serves as our immediate fallback for the greeting.
+      // Only clear cache on explicit sign-out paths or confirmed SIGNED_OUT events.
       setDisplayName("")
       setUser(null)
       setIsAuthenticated(false)
-      // Clear header cache when no session
-      try { localStorage.removeItem('app:header_user_cache') } catch {}
       return
     }
     const u = s.session.user
