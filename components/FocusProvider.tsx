@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react'
 export default function FocusProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const FORCE_HARD = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
   // track previous pathname for transition logging
   const prevRef = typeof window !== 'undefined' ? (window as any).__prev_pathname_ref__ ||= { current: pathname } : { current: pathname }
   // lightweight transition overlay state (shows a blur while restoring a screen)
@@ -171,11 +170,6 @@ export default function FocusProvider({ children }: { children: React.ReactNode 
           if (typeof window !== 'undefined' && pathname) {
             const isDedicated = pathname.startsWith('/orders') || pathname.startsWith('/profile') || pathname.startsWith('/forms')
             if (isDedicated) {
-              // Plan B: on Vercel (or when flag enabled), set a one-shot hard reset marker
-              // so that when the tab becomes visible again we reload to '/'.
-              if (FORCE_HARD) {
-                try { localStorage.setItem('app_force_hard_reset', '1') } catch {}
-              }
               try { router.push('/main') } catch {}
             }
           }
@@ -195,30 +189,6 @@ export default function FocusProvider({ children }: { children: React.ReactNode 
       window.removeEventListener('beforeunload', onBeforeUnload)
     }
   }, [pathname])
-
-  // If a hard-reset marker was set during blur, perform the reset on the next focus/visibility/pageshow
-  useEffect(() => {
-    const maybeHardReset = () => {
-      if (!FORCE_HARD) return
-      try {
-        if (typeof document !== 'undefined' && document.hidden) return
-        const marker = localStorage.getItem('app_force_hard_reset') === '1'
-        if (!marker) return
-        localStorage.removeItem('app_force_hard_reset')
-        try { sessionStorage.setItem('app_resume_notice', '1') } catch {}
-        // Hard navigate to root so app comes back to a known-good state
-        window.location.replace('/')
-      } catch {}
-    }
-    window.addEventListener('focus', maybeHardReset)
-    document.addEventListener('visibilitychange', maybeHardReset)
-    window.addEventListener('pageshow', maybeHardReset)
-    return () => {
-      window.removeEventListener('focus', maybeHardReset)
-      document.removeEventListener('visibilitychange', maybeHardReset)
-      window.removeEventListener('pageshow', maybeHardReset)
-    }
-  }, [FORCE_HARD])
 
   // On mount: expose a manual helper and dump once so you can see the current value in the terminal
   useEffect(() => {
