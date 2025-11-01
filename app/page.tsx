@@ -316,6 +316,17 @@ const openFirstFormEmbedded = () => {
   const [embeddedMultiForms, setEmbeddedMultiForms] = useState<{id:number,type:string}[] | null>(null)
   // Resume notice shown when app returns to main after a long pause/reset
   const [resumeNotice, setResumeNotice] = useState<null | { view: 'orders' | 'profile' | 'forms' }>(null)
+  // One-shot Thank You: helpers for consume markers
+  const getPaymentKey = useCallback((p: any | null) => {
+    if (!p) return null
+    return p.razorpay_payment_id || p.id || null
+  }, [])
+  const markThankYouConsumed = useCallback((pid: string | number | null) => {
+    if (!pid && checkoutPayment) pid = getPaymentKey(checkoutPayment)
+    if (!pid) return
+    try { localStorage.setItem(`thankyou_consumed_${pid}`, '1') } catch {}
+    setShowCheckoutThankYou(false)
+  }, [checkoutPayment, getPaymentKey])
   // Note: auto-open/auto-dismiss disabled per user request
   // Cross-form snapshot to enable prefill across multiple forms (Option A implementation)
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<{ type: string; orderId: number | null; values: Record<string,string> } | null>(null)
@@ -352,6 +363,38 @@ const openFirstFormEmbedded = () => {
 
   // When landing on main screen, only show resume notice if a refresh/reset actually occurred
   // This is gated by a session flag set right before a programmatic reload.
+  useEffect(() => {
+    // Ensure the payment thank-you modal never appears on non-Orders views
+    if (quoteView !== 'orders' && showCheckoutThankYou) {
+      setShowCheckoutThankYou(false)
+    }
+  }, [quoteView, showCheckoutThankYou])
+
+  // If current payment's thank-you was already consumed earlier, never reshow (e.g., Safari BFCache restore)
+  useEffect(() => {
+    const pid = getPaymentKey(checkoutPayment)
+    if (!pid) return
+    try {
+      const consumed = localStorage.getItem(`thankyou_consumed_${pid}`) === '1'
+      if (consumed && showCheckoutThankYou) setShowCheckoutThankYou(false)
+    } catch {}
+  }, [checkoutPayment, getPaymentKey, showCheckoutThankYou])
+
+  // Also hide the thank-you overlay on tab-in when currently viewing Profile or Services
+  useEffect(() => {
+    const hideOnFocus = () => {
+      if (document.visibilityState === 'hidden') return
+      if (quoteView !== 'orders' && showCheckoutThankYou) setShowCheckoutThankYou(false)
+    }
+    window.addEventListener('focus', hideOnFocus)
+    document.addEventListener('visibilitychange', hideOnFocus)
+    window.addEventListener('pageshow', hideOnFocus)
+    return () => {
+      window.removeEventListener('focus', hideOnFocus)
+      document.removeEventListener('visibilitychange', hideOnFocus)
+      window.removeEventListener('pageshow', hideOnFocus)
+    }
+  }, [quoteView, showCheckoutThankYou])
   useEffect(() => {
     if (showQuotePage) { setResumeNotice(null); return }
     try {
@@ -3348,7 +3391,14 @@ useEffect(() => {
             const persisted = verifyJson.persistedPayment ?? null
             const createdOrders = Array.isArray(verifyJson.createdOrdersClient) ? verifyJson.createdOrdersClient : (Array.isArray(verifyJson.createdOrders) ? verifyJson.createdOrders : [])
             setShowQuotePage(true); setQuoteView('orders'); setIsOpen(false)
-            setCheckoutPayment(persisted); setCheckoutOrders(createdOrders); setShowCheckoutThankYou(true); setOrdersReloadKey(k => k + 1); setCartItems([]); setIsProcessingPayment(false)
+            setCheckoutPayment(persisted); setCheckoutOrders(createdOrders);
+            // Only show Thank You if this payment wasn't consumed earlier
+            try {
+              const pid = (persisted?.razorpay_payment_id || persisted?.id || null)
+              const consumed = pid ? (localStorage.getItem(`thankyou_consumed_${pid}`) === '1') : false
+              if (!consumed) setShowCheckoutThankYou(true)
+            } catch { setShowCheckoutThankYou(true) }
+            setOrdersReloadKey(k => k + 1); setCartItems([]); setIsProcessingPayment(false)
             if (!createdOrders || createdOrders.length === 0) setQuoteView('orders')
           } catch (err) {
             console.error('Error verifying payment:', err)
@@ -3445,9 +3495,9 @@ if (showQuotePage) {
         showThankYou={showCheckoutThankYou}
         checkoutPayment={checkoutPayment}
         checkoutOrders={checkoutOrders}
-        onCloseThankYou={() => setShowCheckoutThankYou(false)}
-        onProceedSingle={openFormEmbedded}
-        onProceedMultiple={(orders) => { if (orders && orders.length > 0) openMultipleFormsEmbedded(orders) }}
+  onCloseThankYou={() => markThankYouConsumed(getPaymentKey(checkoutPayment))}
+  onProceedSingle={(o) => { markThankYouConsumed(getPaymentKey(checkoutPayment)); openFormEmbedded(o) }}
+  onProceedMultiple={(orders) => { markThankYouConsumed(getPaymentKey(checkoutPayment)); if (orders && orders.length > 0) openMultipleFormsEmbedded(orders) }}
         onSignInAgain={() => setShowAuthModal(true)}
       />
       {/* Header */}
