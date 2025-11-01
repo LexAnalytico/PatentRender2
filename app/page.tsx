@@ -1974,11 +1974,21 @@ const patentServices = [
     requestAnimationFrame(() => { try { window.scrollTo({ top: 0, behavior: 'smooth' }) } catch {} })
   }, [])
 
+  // Runtime-friendly flag reader so we can toggle via window.FORCE_HARD_RESET_ON_BLUR in prod if env is missing
+  const forceResetOnBlur = useCallback(() => {
+    if (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') return true
+    try {
+      const w: any = typeof window !== 'undefined' ? window : null
+      return !!(w && (w.FORCE_HARD_RESET_ON_BLUR === true || w.FORCE_RESET_ON_BLUR === true))
+    } catch {}
+    return false
+  }, [])
+
   // --- Tab-out -> Tab-in policy for Orders, Profile & Forms (landing dashboard) ---
   // If the dashboard is visible and the current view is Orders, Profile, or Forms, mark a flag so that on focus/return
   // we go back to the main screen instead of keeping that view open. Controlled by env flag.
   useEffect(() => {
-    const FORCE_RESET_ON_BLUR = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
+    const FORCE_RESET_ON_BLUR = forceResetOnBlur()
     if (!FORCE_RESET_ON_BLUR) return
     const onBlur = () => {
       try {
@@ -1997,11 +2007,11 @@ const patentServices = [
     }
     window.addEventListener('blur', onBlur)
     return () => window.removeEventListener('blur', onBlur)
-  }, [showQuotePage, quoteView])
+  }, [showQuotePage, quoteView, forceResetOnBlur])
 
   // On focus/visibility/pageshow, consume the marker and return to the main screen.
   useEffect(() => {
-    const FORCE_RESET_ON_BLUR = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
+    const FORCE_RESET_ON_BLUR = forceResetOnBlur()
     if (!FORCE_RESET_ON_BLUR) return
     const maybeReturnHome = () => {
       try {
@@ -2023,7 +2033,7 @@ const patentServices = [
       document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('pageshow', maybeReturnHome)
     }
-  }, [showQuotePage, quoteView, goHome])
+  }, [showQuotePage, quoteView, goHome, forceResetOnBlur])
 
   // On first mount, restore last view if saved (so Orders view comes back after reload)
   useEffect(() => {

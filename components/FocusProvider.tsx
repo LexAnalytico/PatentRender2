@@ -95,9 +95,11 @@ export default function FocusProvider({ children }: { children: React.ReactNode 
             const LAST_VIEW_KEY = 'app:last_view'
             let val: string | null = null
             try {
+              const w: any = typeof window !== 'undefined' ? window : null
+              const FORCE_RESET_ON_BLUR = (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') || !!(w && (w.FORCE_HARD_RESET_ON_BLUR === true || w.FORCE_RESET_ON_BLUR === true))
               if (pathname && pathname.startsWith('/orders')) val = 'quote:orders'
               else if (pathname && pathname.startsWith('/profile')) val = 'quote:profile'
-              else if (pathname && pathname.startsWith('/forms')) val = (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') ? 'home' : 'quote:forms'
+              else if (pathname && pathname.startsWith('/forms')) val = FORCE_RESET_ON_BLUR ? 'home' : 'quote:forms'
               else if (pathname === '/main' || pathname === '/') val = 'home'
               // Persist only when we resolved a value
               if (val) {
@@ -150,15 +152,18 @@ export default function FocusProvider({ children }: { children: React.ReactNode 
             let val: string | null = null
             if (pathname && pathname.startsWith('/orders')) {
               // New policy: when hard-reset-on-blur is enabled, restore to main instead of Orders
-              const forceHome = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
+              const w: any = typeof window !== 'undefined' ? window : null
+              const forceHome = (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') || !!(w && (w.FORCE_HARD_RESET_ON_BLUR === true || w.FORCE_RESET_ON_BLUR === true))
               val = forceHome ? 'home' : 'quote:orders'
             }
             else if (pathname && pathname.startsWith('/profile')) {
-              const forceHome = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
+              const w: any = typeof window !== 'undefined' ? window : null
+              const forceHome = (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') || !!(w && (w.FORCE_HARD_RESET_ON_BLUR === true || w.FORCE_RESET_ON_BLUR === true))
               val = forceHome ? 'home' : 'quote:profile'
             }
             else if (pathname && pathname.startsWith('/forms')) {
-              const forceHome = process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1'
+              const w: any = typeof window !== 'undefined' ? window : null
+              const forceHome = (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') || !!(w && (w.FORCE_HARD_RESET_ON_BLUR === true || w.FORCE_RESET_ON_BLUR === true))
               // Under force policy: normalize to home. Otherwise: map forms -> orders as before.
               val = forceHome ? 'home' : 'quote:orders'
             }
