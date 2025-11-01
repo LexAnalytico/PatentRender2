@@ -139,6 +139,8 @@ export default function Navbar() {
       } else {
         const snapshot = Array.isArray(orders) ? orders.slice(0, 20) : []
         try { localStorage.setItem('manual:orders', JSON.stringify({ ts: Date.now(), userId, count: Array.isArray(orders) ? orders.length : 0, sample: snapshot })) } catch {}
+        // Notify any listening components (e.g., OrdersScreen) that a manual orders snapshot is available
+        try { window.dispatchEvent(new CustomEvent('manual:orders:fetched', { detail: { sample: snapshot } })) } catch {}
       }
     } finally {
       setDoing(d => ({ ...d, orders: false }))
@@ -149,12 +151,18 @@ export default function Navbar() {
   return (
   <nav className="flex items-center justify-between p-4 shadow-md bg-white sticky top-0 z-[200]">
       {/* Left: Logo/Brand (non-clickable) */}
-      <div className="flex items-center gap-2 select-none" aria-label="LegalIP Pro" role="img">
+      <div className="flex items-center gap-3 select-none" aria-label="LegalIP Pro" role="img">
         <span className="text-xl font-semibold text-gray-900">LegalIP Pro</span>
+        {/* Desktop: Manual-only test buttons placed left near brand to avoid menu overlap */}
+        <div className="hidden md:flex items-center gap-2 ml-2">
+          <Button variant="outline" size="sm" onClick={handleFetchPricing} disabled={!!doing.pricing}>Fetch prices</Button>
+          <Button variant="outline" size="sm" onClick={handleFetchProfile} disabled={!!doing.profile}>Fetch profile</Button>
+          <Button variant="outline" size="sm" onClick={handleFetchOrders} disabled={!!doing.orders}>Fetch orders</Button>
+        </div>
       </div>
 
   {/* Right: Top links aligned in a row (desktop) */}
-  <div className="hidden md:flex items-center space-x-4">
+  <div className="hidden md:flex items-center space-x-4" style={{ alignItems: 'center' }}>
         {/* Patent Services with hover dropdown */}
         <div className="relative group z-[201]">
           <button type="button" onClick={() => goSection('patent-services')} className="text-gray-700 hover:text-blue-600 px-2 py-1 text-sm font-medium inline-flex items-center">
@@ -178,13 +186,6 @@ export default function Navbar() {
         <button type="button" onClick={() => goSection('copyright-services')} className="text-gray-700 hover:text-blue-600 px-2 py-1 text-sm font-medium">
           Copyright Services
         </button>
-
-        {/* Desktop: Manual-only test buttons before Knowledge Hub */}
-        <div className="flex items-center gap-2 pl-2">
-          <Button variant="outline" size="sm" onClick={handleFetchPricing} disabled={!!doing.pricing}>Fetch prices</Button>
-          <Button variant="outline" size="sm" onClick={handleFetchProfile} disabled={!!doing.profile}>Fetch profile</Button>
-          <Button variant="outline" size="sm" onClick={handleFetchOrders} disabled={!!doing.orders}>Fetch orders</Button>
-        </div>
 
         {/* Knowledge Hub link (desktop) */}
         <a href="/knowledge-hub" className="text-gray-700 hover:text-blue-600 px-2 py-1 text-sm font-medium">Knowledge Hub</a>

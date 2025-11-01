@@ -40,6 +40,21 @@ export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenP
     try { window.dispatchEvent(new Event('screen:ready')) } catch {}
   }, [])
 
+  // Listen for manual:orders:fetched events (dispatched by header buttons) and populate
+  useEffect(() => {
+    const onManual = (ev: any) => {
+      try {
+        const sample = ev?.detail?.sample
+        if (Array.isArray(sample)) {
+          setOrders(sample)
+          setHasFetched(true)
+        }
+      } catch {}
+    }
+    window.addEventListener('manual:orders:fetched', onManual as EventListener)
+    return () => window.removeEventListener('manual:orders:fetched', onManual as EventListener)
+  }, [])
+
   // On tab return, reset to a blank state (require manual fetch again)
   useEffect(() => {
     const resetBlank = () => {
