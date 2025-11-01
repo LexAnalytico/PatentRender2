@@ -61,6 +61,8 @@ export function useAuthProfile(): AuthProfile {
       setDisplayName("")
       setUser(null)
       setIsAuthenticated(false)
+      // Clear header cache when no session
+      try { localStorage.removeItem('app:header_user_cache') } catch {}
       return
     }
     const u = s.session.user
@@ -78,6 +80,18 @@ export function useAuthProfile(): AuthProfile {
 
     if (name) {
       setDisplayName(name)
+      // Write minimal header cache for instant header rendering on focus/refresh
+      try {
+        const cache = {
+          ver: 1,
+          ts: Date.now(),
+          uid: u.id,
+          email: (u.email || '').toLowerCase(),
+          name: String(name).trim().slice(0, 128),
+          avatarUrl: String(u.user_metadata?.avatar_url || '').slice(0, 1024),
+        }
+        localStorage.setItem('app:header_user_cache', JSON.stringify(cache))
+      } catch {}
       return
     }
 
@@ -85,6 +99,22 @@ export function useAuthProfile(): AuthProfile {
     if (row) {
       const n = [row.first_name, row.last_name].filter(Boolean).join(" ") || (row.email?.split("@")[0] ?? "")
       setDisplayName(n)
+      // Update cache from DB-backed display name
+      try {
+        const { data: s2 } = await supabase.auth.getSession()
+        const uid2 = s2?.session?.user?.id
+        if (uid2) {
+          const cache = {
+            ver: 1,
+            ts: Date.now(),
+            uid: uid2,
+            email: (row.email || '').toLowerCase(),
+            name: String(n).trim().slice(0, 128),
+            avatarUrl: '',
+          }
+          localStorage.setItem('app:header_user_cache', JSON.stringify(cache))
+        }
+      } catch {}
     }
   }, [])
 
@@ -125,6 +155,7 @@ useEffect(() => {
         if (marker === '1') {
           console.debug('[auth] processing pending Safari logout')
           localStorage.removeItem('pending_logout')
+          try { localStorage.removeItem('app:header_user_cache') } catch {}
           try { await supabase.auth.signOut() } catch (e) { console.warn('[auth] pending logout signOut error', e) }
           try { await supabase.auth.signOut({ scope: 'global' } as any) } catch {}
           setIsAuthenticated(false)
@@ -142,8 +173,23 @@ useEffect(() => {
       if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && u) {
         await upsertUserProfileFromSession()
         await refreshDisplayName()
+        // Ensure cache reflects latest auth user
+        try {
+          const cache = {
+            ver: 1,
+            ts: Date.now(),
+            uid: u.id,
+            email: (u.email || '').toLowerCase(),
+            name: String((u.user_metadata?.full_name || u.user_metadata?.name || u.email?.split('@')[0] || '')).trim().slice(0,128),
+            avatarUrl: String(u.user_metadata?.avatar_url || '').slice(0, 1024),
+          }
+          localStorage.setItem('app:header_user_cache', JSON.stringify(cache))
+        } catch {}
       }
-      if (!session) setDisplayName("")
+      if (!session) {
+        setDisplayName("")
+        try { localStorage.removeItem('app:header_user_cache') } catch {}
+      }
     })
 
     return () => {
@@ -167,6 +213,7 @@ useEffect(() => {
     const isSafari = typeof navigator !== 'undefined' && /safari/i.test(navigator.userAgent) && !/chrome|chromium|android/i.test(navigator.userAgent)
     if (isSafari) {
       try { localStorage.setItem('pending_logout', '1') } catch {}
+      try { localStorage.removeItem('app:header_user_cache') } catch {}
       // Immediate hard reload; signOut will be finalized on mount
       try { window.location.replace(window.location.origin + '/') } catch { window.location.href = '/' }
       return
@@ -177,6 +224,7 @@ useEffect(() => {
     setUser(null)
     setDisplayName('')
     setWantsCheckout(false)
+    try { localStorage.removeItem('app:header_user_cache') } catch {}
   }, [])
 
   return useMemo(

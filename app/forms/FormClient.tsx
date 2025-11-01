@@ -1,5 +1,7 @@
 "use client"
 
+// NOTE: This file must be a Client Component. The directive must be at the top.
+
 import { useEffect, useState, useRef, useMemo } from "react"
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent } from "@/components/ui/card"
@@ -16,6 +18,15 @@ import formData from "../data/forms-fields.json"
 import pricingToForm from '../data/service-pricing-to-form.json'
 import formCharLimits from '../data/form-char-limits.json'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+
+// Lightweight component to mark Form context as active while mounted
+function ActiveFormsMarker() {
+  useEffect(() => {
+    try { localStorage.setItem('app:forms_active', '1') } catch {}
+    return () => { try { localStorage.removeItem('app:forms_active') } catch {} }
+  }, [])
+  return null
+}
 
 // Attachment category prefixes (lightweight logical segregation)
 const ATTACH_PREFIX_DISCLOSURE = '[DISCLOSURE]'
@@ -431,6 +442,11 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
 
   const handleInputChange = (fieldTitle: string, value: string) => {
     if (readOnly) return
+    // Mark form as dirty once on first user edit in this session
+    try {
+      const already = localStorage.getItem('app:form_dirty') === '1'
+      if (!already) localStorage.setItem('app:form_dirty', '1')
+    } catch {}
     const limited = enforceLimit(fieldTitle, value)
     setFormValues((prev) => ({
       ...prev,
@@ -1379,6 +1395,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
 
   return (
     <div className="py-8 px-4 sm:px-6">
+      {/* Mark Forms as active while mounted, to enable soft return banner on tab-in */}
+      <ActiveFormsMarker />
       {/* Prefill banner removed; replaced by external header button in parent component */}
       <div className={styleTokens.outer}>
         <Card className="border-0 shadow-none">

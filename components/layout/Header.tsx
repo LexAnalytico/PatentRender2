@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Scale, ChevronDown, RefreshCcw } from "lucide-react"
 import { UserCircleIcon } from "@heroicons/react/24/outline"
@@ -11,6 +11,25 @@ export function Header() {
   const { isAuthenticated, user, displayName, handleGoogleLogin, handleLogout } = useAuthProfile()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [cachedName, setCachedName] = useState<string>("")
+
+  // Read minimal header cache to avoid username flicker on focus/refresh
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('app:header_user_cache')
+      if (!raw) return
+      const obj = JSON.parse(raw)
+      if (!obj || obj.ver !== 1) return
+      const ttlMs = Number(process.env.NEXT_PUBLIC_HEADER_CACHE_TTL_MS || '600000')
+      const ts = Number(obj.ts || 0)
+      if (!ts || (Date.now() - ts) > ttlMs) {
+        try { localStorage.removeItem('app:header_user_cache') } catch {}
+        return
+      }
+      const nm = String(obj.name || obj.email || '').trim()
+      if (nm) setCachedName(nm)
+    } catch {}
+  }, [])
 
   const adminInfo = useMemo(() => {
     const raw = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
@@ -82,8 +101,8 @@ export function Header() {
             </button>
 
             {/* Welcome text */}
-            {isAuthenticated && displayName && (
-              <span className="text-gray-700 text-sm max-w-[150px] truncate" title={displayName}>Welcome, {displayName}</span>
+            {(displayName || cachedName) && (
+              <span className="text-gray-700 text-sm max-w-[150px] truncate" title={displayName || cachedName}>Welcome, {displayName || cachedName}</span>
             )}
 
             {/* Profile / Auth menu */}

@@ -23,6 +23,7 @@ import { debugLog } from '@/lib/logger'
 import { useAuthProfile } from "@/app/useAuthProfile"
 import { useRouter } from 'next/navigation'
 import { useAutoRefreshOnFocus } from "@/components/AutoRefocus";
+import { useToast } from "@/components/hooks/use-toast"
 
 
 
@@ -84,6 +85,8 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 export default function LegalIPWebsite() {
   // Global chat popup state (applies to orders table status -> Require Info)
   const [chatOrderId, setChatOrderId] = useState<number | null>(null)
+  const toastHook = useToast?.()
+  const toastApi = toastHook ?? { toast: (opts: any) => { if (opts?.title) try { alert(`${opts.title}\n${opts?.description || ''}`) } catch {} } }
 
  function OrdersScreen() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -2046,6 +2049,42 @@ const patentServices = [
       window.removeEventListener('pageshow', maybeReturnHome)
     }
   }, [showQuotePage, quoteView, goHome, forceResetOnBlur])
+
+  // Soft return banner on focus/pageshow when returning from forms context
+  useEffect(() => {
+    const ENABLE = process.env.NEXT_PUBLIC_ENABLE_RETURN_BANNER === '1'
+    if (!ENABLE) return
+    const COOLDOWN = Number(process.env.NEXT_PUBLIC_RETURN_BANNER_COOLDOWN_MS || '15000')
+    const shouldShow = () => {
+      try {
+        const lastTs = Number(localStorage.getItem('app:last_return_banner_ts') || '0')
+        if (Date.now() - lastTs < COOLDOWN) return false
+        const active = localStorage.getItem('app:forms_active') === '1'
+        const dirty = localStorage.getItem('app:form_dirty') === '1'
+        const lastView = localStorage.getItem('app:last_view') || ''
+        const fromForms = active || dirty || lastView.startsWith('quote:forms')
+        return !!fromForms
+      } catch { return false }
+    }
+    const markShown = () => { try { localStorage.setItem('app:last_return_banner_ts', String(Date.now())) } catch {} }
+    const maybeToast = () => {
+      if (!shouldShow()) return
+      try {
+        toastApi.toast?.({
+          title: 'You switched away from the app',
+          description: 'Please review and save your form details to avoid losing changes.',
+        })
+        markShown()
+      } catch {}
+    }
+    const onFocus = () => { if (document.visibilityState === 'visible') maybeToast() }
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('pageshow', maybeToast)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('pageshow', maybeToast)
+    }
+  }, [toastApi])
 
   // On first mount, restore last view if saved (so Orders view comes back after reload)
   useEffect(() => {
