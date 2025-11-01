@@ -6,7 +6,6 @@ import RefreshAppButton from "@/components/RefreshAppButton";
 import AutoLogout from '@/components/AutoLogout'
 import PointerEventsReset from "@/components/PointerEventsReset";
 import OverlayInspector from "@/components/OverlayInspector";
-import AutoRedirectRoot from '@/components/AutoRedirectRoot'
 import FocusProvider from '@/components/FocusProvider'
 import "./globals.css";
 import { GeistSans } from "geist/font/sans"
@@ -30,7 +29,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AutoLogout />
         <PointerEventsReset />
         <OverlayInspector />
-  <AutoRedirectRoot />
 
         <a href="#page-heading" className="sr-only focus:not-sr-only" style={{position:'absolute',left:0,top:0,zIndex:1000}}>
           Skip to content

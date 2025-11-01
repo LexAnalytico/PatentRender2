@@ -171,17 +171,6 @@ export default function KnowledgeHubPage() {
               prosecution (office actions, responses). Strategy and scope matter—focus claims on core value.
             </p>
           </section>
-
-          {/* Troubleshooting / FAQ */}
-          <section id="troubleshooting" className="bg-white rounded-lg border p-6">
-            <h2 className="text-xl font-semibold mb-2">Troubleshooting</h2>
-            <div className="space-y-4 text-gray-700">
-              <div>
-                <p className="font-medium">Q: I’m testing the Vercel app. On one PC (Windows 11 + Chrome) I log in and my user name is displayed; tab out and back in and everything is fine. On macOS + Chrome, tab out and back in causes the user name to disappear. Is this a Chrome setting on macOS?</p>
-                <p className="mt-2">A: It’s not a Chrome setting. macOS Chrome can briefly report no session right after a tab-in or page restore. We adjusted the app to preserve your signed‑in header during that short window and rehydrate the name on focus/pageshow. If you still momentarily don’t see the name, wait a second or reopen the menu—the state will refresh. Sign Out remains available when truly signed in.</p>
-              </div>
-            </div>
-          </section>
         </div>
       </main>
     </div>

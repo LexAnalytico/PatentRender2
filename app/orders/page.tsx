@@ -1,8 +1,9 @@
-// Server redirect to ensure the full dashboard UI renders for Orders
-import { redirect } from 'next/navigation'
+"use client"
+
+import React from 'react'
+import OrdersScreen from '@/components/screens/OrdersScreen'
 
 export default function OrdersPage() {
-  // Always route Orders requests through landing so the rich sidebar/table UI loads
-  redirect('/?dashboard=orders')
+  return <OrdersScreen />
 }
 
