@@ -2018,8 +2018,20 @@ const patentServices = [
         const marker = localStorage.getItem('app:return_home_on_focus') === '1'
         if (!marker) return
         localStorage.removeItem('app:return_home_on_focus')
-        // If currently in Orders/Profile/Forms dashboard, close it; otherwise keep main as-is
+        // If currently in Orders/Profile/Forms dashboard, trigger the same hard refresh as the blue button
         if (showQuotePage && (quoteView === 'orders' || quoteView === 'profile' || quoteView === 'forms')) {
+          try {
+            // Prefer the global trigger exported by RefreshAppButton
+            const w: any = window
+            if (typeof w.triggerAppResetForce === 'function') {
+              w.triggerAppResetForce('return-home-on-focus')
+              return
+            }
+            // Or dispatch the event it listens to
+            window.dispatchEvent(new CustomEvent('app:refresh', { detail: { force: true, reason: 'return-home-on-focus' } }))
+            return
+          } catch {}
+          // Last resort fallback: soft close
           goHome()
         }
       } catch {}
@@ -3427,6 +3439,15 @@ useEffect(() => {
           try { setIsProcessingPayment(false) } catch {}
           try { setPaymentInterrupted(false) } catch {}
           try { setShowCheckoutThankYou(false) } catch {}
+          try {
+            const w: any = window
+            if (typeof w.triggerAppResetForce === 'function') {
+              w.triggerAppResetForce('return-home-on-focus')
+              return
+            }
+            window.dispatchEvent(new CustomEvent('app:refresh', { detail: { force: true, reason: 'return-home-on-focus' } }))
+            return
+          } catch {}
           goHome()
         }
       } catch {}

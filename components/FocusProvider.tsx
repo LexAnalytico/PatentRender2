@@ -182,6 +182,12 @@ export default function FocusProvider({ children }: { children: React.ReactNode 
           if (typeof window !== 'undefined' && pathname) {
             const isDedicated = pathname.startsWith('/orders') || pathname.startsWith('/profile') || pathname.startsWith('/forms')
             if (isDedicated) {
+              // Mark a return-home intent so landing page can perform the same hard refresh as the manual button on focus
+              try {
+                const w: any = window
+                const FORCE_RESET_ON_BLUR = (process.env.NEXT_PUBLIC_FORCE_HARD_RESET_ON_BLUR === '1') || !!(w && (w.FORCE_HARD_RESET_ON_BLUR === true || w.FORCE_RESET_ON_BLUR === true))
+                if (FORCE_RESET_ON_BLUR) localStorage.setItem('app:return_home_on_focus', '1')
+              } catch {}
               try { router.push('/main') } catch {}
             }
           }
