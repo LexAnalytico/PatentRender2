@@ -3492,7 +3492,7 @@ if (showQuotePage) {
         isProcessing={isProcessingPayment}
         paymentInterrupted={paymentInterrupted}
         focusGuardActive={focusGuardActive}
-        showThankYou={showCheckoutThankYou}
+        showThankYou={quoteView === 'orders' && showCheckoutThankYou}
         checkoutPayment={checkoutPayment}
         checkoutOrders={checkoutOrders}
   onCloseThankYou={() => markThankYouConsumed(getPaymentKey(checkoutPayment))}
