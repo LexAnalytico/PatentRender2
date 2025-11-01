@@ -75,6 +75,8 @@ function ProfilePageInner() {
   const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({})
   const [userOrders, setUserOrders] = useState<any[]>([])
   const [loadingUserOrders, setLoadingUserOrders] = useState(false)
+  const [hasFetchedProfile, setHasFetchedProfile] = useState(false)
+  const [hasFetchedOrders, setHasFetchedOrders] = useState(false)
   const [searchOrders, setSearchOrders] = useState<string>('')
   const [sortOrders, setSortOrders] = useState<string>('date_desc')
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
@@ -561,6 +563,7 @@ function ProfilePageInner() {
       console.error('Exception loading user orders', e)
     } finally {
       setLoadingUserOrders(false)
+      setHasFetchedOrders(true)
     }
   }
 
@@ -768,6 +771,7 @@ function ProfilePageInner() {
       setAuthChecked(true)
     } finally {
       setManualProfileLoading(false)
+      setHasFetchedProfile(true)
     }
   }
 
@@ -777,6 +781,36 @@ function ProfilePageInner() {
       try { window.dispatchEvent(new Event('screen:ready')) } catch {}
     }
   }, [loading])
+
+  // On tab return, reset to a blank state (no profile or orders visible until manual fetch)
+  useEffect(() => {
+    const resetBlank = () => {
+      try {
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+        setSessionEmail(null)
+        setUserId(null)
+        setProfile(null)
+        setEditProfile({} as Profile)
+        setHasFetchedProfile(false)
+        setUserOrders([])
+        setOrderStatuses({})
+        setSelectedOrderId(null)
+        setExpandedPayments({})
+        setLoadingUserOrders(false)
+        setHasFetchedOrders(false)
+        setShowThankYou(false)
+        setHasShownThankYou(false)
+      } catch {}
+    }
+    const onFocus = () => resetBlank()
+    const onVis = () => { if (!document.hidden) resetBlank() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [])
 
   // Manual-only: remove auth state listener to avoid any automatic Supabase triggers
 
@@ -868,8 +902,8 @@ function ProfilePageInner() {
           </div>
         )}
 
-        {/* State: Not authenticated */}
-        {!loading && authChecked && !sessionEmail && (
+        {/* State: Not authenticated (only after manual fetch attempt) */}
+        {!loading && hasFetchedProfile && authChecked && !sessionEmail && (
           <Card className="bg-white border shadow-sm">
             <CardHeader>
               <CardTitle>You're not signed in</CardTitle>
@@ -888,8 +922,8 @@ function ProfilePageInner() {
           </Card>
         )}
 
-        {/* State: Authenticated Dashboard */}
-        {!loading && sessionEmail && (
+        {/* Dashboard (always visible in manual-only mode; empty until you fetch) */}
+        {!loading && (
           <div className="grid grid-cols-1 gap-6">
             {/* Tabs and content (full width) */}
             {/* Welcome card */}
@@ -1062,6 +1096,7 @@ function ProfilePageInner() {
                               {(() => {
                                 if (loadingUserOrders) return (<tr><td colSpan={7} className="p-4">Loading...</td></tr>)
                                 const items = filteredOrders(userOrders, searchOrders, sortOrders)
+                                if (!hasFetchedOrders) return null
                                 if (!items || items.length === 0) return (<tr><td colSpan={7} className="p-4">No orders found</td></tr>)
 
                                 // Group by payment_id; items without payment_id are singletons

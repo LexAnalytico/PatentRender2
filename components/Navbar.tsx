@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { usePathname, useRouter } from 'next/navigation'
 import { supabase } from "@/lib/supabase";
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { useRef } from 'react';
 import { useFocusTrap } from '@/components/hooks/useFocusTrap';
+import { Button } from '@/components/ui/button'
+import { ensurePatentrenderCache } from '@/utils/pricing'
+import { fetchOrdersMerged } from '@/lib/orders'
 
 export default function Navbar() {
   const [user, setUser] = useState<any>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [doing, setDoing] = useState<{ pricing?: boolean; profile?: boolean; orders?: boolean }>({})
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -81,6 +85,66 @@ export default function Navbar() {
     } catch {}
   }
 
+  // Manual fetchers (header buttons)
+  const handleFetchPricing = useCallback(async () => {
+    if (doing.pricing) return
+    setDoing(d => ({ ...d, pricing: true }))
+    try {
+      await ensurePatentrenderCache()
+      try { localStorage.setItem('manual:pricing', JSON.stringify({ ts: Date.now(), ok: true })) } catch {}
+    } finally {
+      setDoing(d => ({ ...d, pricing: false }))
+    }
+  }, [doing.pricing])
+
+  const handleFetchProfile = useCallback(async () => {
+    if (doing.profile) return
+    setDoing(d => ({ ...d, profile: true }))
+    try {
+      const { data: s } = await supabase.auth.getSession()
+      const userId = s?.session?.user?.id || null
+      const email = s?.session?.user?.email || null
+      if (!userId) {
+        try { localStorage.setItem('manual:profile', JSON.stringify({ ts: Date.now(), error: 'not-signed-in' })) } catch {}
+        return
+      }
+      const { data: byId, error } = await supabase
+        .from('users')
+        .select('id, email, first_name, last_name, company, phone, address, city, state, country')
+        .eq('id', userId)
+        .maybeSingle()
+      if (error) {
+        try { localStorage.setItem('manual:profile', JSON.stringify({ ts: Date.now(), error: String(error.message || error) })) } catch {}
+      } else {
+        try { localStorage.setItem('manual:profile', JSON.stringify({ ts: Date.now(), userId, email, profile: byId || null })) } catch {}
+      }
+    } finally {
+      setDoing(d => ({ ...d, profile: false }))
+    }
+  }, [doing.profile])
+
+  const handleFetchOrders = useCallback(async () => {
+    if (doing.orders) return
+    setDoing(d => ({ ...d, orders: true }))
+    try {
+      const { data: s } = await supabase.auth.getSession()
+      const userId = s?.session?.user?.id || null
+      if (!userId) {
+        try { localStorage.setItem('manual:orders', JSON.stringify({ ts: Date.now(), error: 'not-signed-in' })) } catch {}
+        return
+      }
+      const { orders, error } = await fetchOrdersMerged(supabase as any, userId, { includeProfile: true, cacheMs: 0, force: true })
+      if (error) {
+        try { localStorage.setItem('manual:orders', JSON.stringify({ ts: Date.now(), error: String(error) })) } catch {}
+      } else {
+        const snapshot = Array.isArray(orders) ? orders.slice(0, 20) : []
+        try { localStorage.setItem('manual:orders', JSON.stringify({ ts: Date.now(), userId, count: Array.isArray(orders) ? orders.length : 0, sample: snapshot })) } catch {}
+      }
+    } finally {
+      setDoing(d => ({ ...d, orders: false }))
+    }
+  }, [doing.orders])
+
   // duplicate declaration removed (mobileOpen is declared at top of component)
   return (
   <nav className="flex items-center justify-between p-4 shadow-md bg-white sticky top-0 z-[200]">
@@ -114,6 +178,16 @@ export default function Navbar() {
         <button type="button" onClick={() => goSection('copyright-services')} className="text-gray-700 hover:text-blue-600 px-2 py-1 text-sm font-medium">
           Copyright Services
         </button>
+
+        {/* Desktop: Manual-only test buttons before Knowledge Hub */}
+        <div className="flex items-center gap-2 pl-2">
+          <Button variant="outline" size="sm" onClick={handleFetchPricing} disabled={!!doing.pricing}>Fetch prices</Button>
+          <Button variant="outline" size="sm" onClick={handleFetchProfile} disabled={!!doing.profile}>Fetch profile</Button>
+          <Button variant="outline" size="sm" onClick={handleFetchOrders} disabled={!!doing.orders}>Fetch orders</Button>
+        </div>
+
+        {/* Knowledge Hub link (desktop) */}
+        <a href="/knowledge-hub" className="text-gray-700 hover:text-blue-600 px-2 py-1 text-sm font-medium">Knowledge Hub</a>
       </div>
 
       {/* Mobile menu button */}
@@ -161,6 +235,11 @@ export default function Navbar() {
               <button type="button" onClick={() => { setMobileOpen(false); goSection('design-services') }} className="w-full text-left px-3 py-2 rounded hover:bg-blue-50">Design Services</button>
               <button type="button" onClick={() => { setMobileOpen(false); goSection('copyright-services') }} className="w-full text-left px-3 py-2 rounded hover:bg-blue-50">Copyright Services</button>
               <a href="/knowledge-hub" className="block w-full px-3 py-2 rounded hover:bg-gray-50">Knowledge Hub</a>
+              <div className="pt-2 flex flex-col gap-2">
+                <Button variant="outline" size="sm" onClick={() => { handleFetchPricing(); setMobileOpen(false) }} disabled={!!doing.pricing}>Fetch prices</Button>
+                <Button variant="outline" size="sm" onClick={() => { handleFetchProfile(); setMobileOpen(false) }} disabled={!!doing.profile}>Fetch profile</Button>
+                <Button variant="outline" size="sm" onClick={() => { handleFetchOrders(); setMobileOpen(false) }} disabled={!!doing.orders}>Fetch orders</Button>
+              </div>
             </nav>
           </div>
         </div>

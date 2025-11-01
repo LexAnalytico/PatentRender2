@@ -11,6 +11,7 @@ export type OrdersScreenProps = {
 export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenProps) {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(false)
+  const [hasFetched, setHasFetched] = useState(false)
   // Transient banner for last opened form (persisted by Forms on tab-out)
   type SingleCtx = { orderId: number | null; formType: string | null; formTypeLabel?: string | null }
   type MultiCtx = { multi: Array<{ orderId: number; formType: string | null; formTypeLabel?: string | null }>; ts?: number }
@@ -23,9 +24,11 @@ export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenP
       const res = await fetch(fetchUrl)
       const data = await res.json()
       setOrders(Array.isArray(data) ? data : [])
+      setHasFetched(true)
     } catch (e) {
       console.error('Failed to load orders', e)
       setOrders([])
+      setHasFetched(true)
     } finally {
       setLoading(false)
     }
@@ -35,6 +38,25 @@ export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenP
   useEffect(() => {
     // Emit screen ready immediately so FocusProvider overlay can clear
     try { window.dispatchEvent(new Event('screen:ready')) } catch {}
+  }, [])
+
+  // On tab return, reset to a blank state (require manual fetch again)
+  useEffect(() => {
+    const resetBlank = () => {
+      try {
+        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+        setOrders([])
+        setHasFetched(false)
+      } catch {}
+    }
+    const onFocus = () => resetBlank()
+    const onVis = () => { if (!document.hidden) resetBlank() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVis)
+    }
   }, [])
 
   // Read and display the last form context as a transient banner on mount/visibility
@@ -141,6 +163,8 @@ export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenP
       )}
       {loading ? (
         <p>Loading…</p>
+      ) : !hasFetched ? (
+        null
       ) : orders.length === 0 ? (
         <p>No orders found.</p>
       ) : (
