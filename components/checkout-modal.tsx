@@ -217,7 +217,15 @@ const openSingleOrderForm = (o: any) => {
                       <button
                         key={o.id}
                         className="group relative overflow-hidden rounded-lg border-2 border-blue-200 bg-white px-4 py-3 text-sm font-medium text-blue-700 transition-all duration-200 hover:border-blue-400 hover:bg-blue-50 hover:shadow-md hover:-translate-y-0.5"
-                        onClick={() => (onProceedSingle ? onProceedSingle(o) : openFormForOrder(o))}
+                        onClick={() => {
+                          try { onClose() } catch {}
+                          try {
+                            if (onProceedSingle) onProceedSingle(o)
+                            else openFormForOrder(o)
+                          } finally {
+                            try { window.dispatchEvent(new Event('screen:ready')) } catch {}
+                          }
+                        }}
                       >
                         <div className="flex items-center space-x-2">
                           <span>{(o.services as any)?.name || "Service"}</span>
@@ -235,7 +243,15 @@ const openSingleOrderForm = (o: any) => {
                   <div className="flex items-center justify-end">
                     <button
                       className="inline-flex items-center rounded bg-blue-600 px-5 py-2 text-white hover:bg-blue-700"
-                      onClick={() => onProceedMultiple ? onProceedMultiple(checkoutOrders) : openAllOrderFormsInTabs(checkoutOrders)}
+                      onClick={() => {
+                        try { onClose() } catch {}
+                        try {
+                          if (onProceedMultiple) onProceedMultiple(checkoutOrders)
+                          else openAllOrderFormsInTabs(checkoutOrders)
+                        } finally {
+                          try { window.dispatchEvent(new Event('screen:ready')) } catch {}
+                        }
+                      }}
                     >
                       Open Forms
                     </button>
@@ -258,9 +274,15 @@ const openSingleOrderForm = (o: any) => {
                   <div className="flex items-center justify-end gap-3">
                     <button
                       className="group inline-flex items-center space-x-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-3 text-white font-medium shadow-lg transition-all duration-200 hover:from-blue-700 hover:to-blue-800 hover:shadow-xl hover:-translate-y-0.5"
-                      onClick={() =>
-                        onProceedSingle ? onProceedSingle(checkoutOrders[0]) : openFormForOrder(checkoutOrders[0])
-                      }
+                      onClick={() => {
+                        try { onClose() } catch {}
+                        try {
+                          if (onProceedSingle) onProceedSingle(checkoutOrders[0])
+                          else openFormForOrder(checkoutOrders[0])
+                        } finally {
+                          try { window.dispatchEvent(new Event('screen:ready')) } catch {}
+                        }
+                      }}
                     >
                       <span>Proceed To Form</span>
                       <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

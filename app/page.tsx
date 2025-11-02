@@ -135,6 +135,8 @@ export default function LegalIPWebsite() {
       setShowQuotePage(true)
       setQuoteView('forms')
       setShowCheckoutThankYou(false)
+      // Let the shell know the screen is ready so any restore overlay clears
+      setTimeout(() => { try { window.dispatchEvent(new Event('screen:ready')) } catch {} }, 60)
     } catch (e) {
       console.error('[openFormEmbedded] error', e)
     }
@@ -153,6 +155,8 @@ export default function LegalIPWebsite() {
     setShowCheckoutThankYou(false)
     // close any leftover modal state if not already
     try { setIsOpen(false) } catch {}
+    // Signal readiness for overlay management
+    setTimeout(() => { try { window.dispatchEvent(new Event('screen:ready')) } catch {} }, 60)
   }
 const openFirstFormEmbedded = () => {
   if (!checkoutOrders || checkoutOrders.length === 0) return

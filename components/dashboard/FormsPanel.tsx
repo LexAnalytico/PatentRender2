@@ -41,6 +41,10 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
   embeddedOrders,
   checkoutOrders,
 }) => {
+  // On first mount, let the shell know the Forms view is ready (clears any blur overlay)
+  useEffect(() => {
+    try { window.dispatchEvent(new Event('screen:ready')) } catch {}
+  }, [])
   const [showFinalBanner, setShowFinalBanner] = useState(false)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [showFormsPreview, setShowFormsPreview] = useState(false)
