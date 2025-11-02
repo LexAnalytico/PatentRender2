@@ -2317,6 +2317,26 @@ const patentServices = [
       window.removeEventListener('pageshow', handleVisRestore)
     }
   }, [showQuotePage, quoteView])
+
+  // Stopgap: if authenticated but displayName is empty on the main screen, hop to Knowledge Hub and back
+  // to force a clean client navigation cycle that reliably resolves INITIAL_SESSION and name.
+  useEffect(() => {
+    const ENABLE = process.env.NEXT_PUBLIC_NAME_FIX_VIA_KH === '1'
+    if (!ENABLE) return
+    if (typeof window === 'undefined') return
+    if (window.location.pathname !== '/') return
+    if (!isAuthenticated) return
+    if (displayName) return
+    try {
+      const now = Date.now()
+      const last = Number(sessionStorage.getItem('app:name_fix_ts') || '0')
+      if (now - last < 15000) return // throttle to avoid loops
+      sessionStorage.setItem('app:name_fix_ts', String(now))
+      sessionStorage.setItem('app:return_to_main_after_kh', '1')
+      // Navigate to Knowledge Hub, then that page will send us back to patent services
+      try { router.push('/knowledge-hub') } catch { window.location.href = '/knowledge-hub' }
+    } catch {}
+  }, [isAuthenticated, displayName, router])
  
   const addToCart = (serviceName: string, category: string) => {
     const price = servicePricing[serviceName as keyof typeof servicePricing] || 0
