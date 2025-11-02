@@ -877,54 +877,6 @@ const openFirstFormEmbedded = () => {
     } catch {}
   }, [showQuotePage, quoteView])
 
-  // Plan B: if user returns to the main landing and the display name didn't rehydrate,
-  // automatically sign out so the user can sign back in cleanly. Disabled by default;
-  // enable by setting NEXT_PUBLIC_LOGOUT_IF_NAME_MISSING=1
-  useEffect(() => {
-    const ENABLE = process.env.NEXT_PUBLIC_LOGOUT_IF_NAME_MISSING === '1'
-    if (!ENABLE) return
-    const onRestore = () => {
-      try {
-        if (document.hidden) return
-        // Only consider the root landing screen (embedded dashboard off)
-        if (typeof window !== 'undefined' && window.location.pathname !== '/') return
-        if (showQuotePage) return
-        if (!isAuthenticated) return
-        // Throttle to avoid repeated sign-outs in rapid focus/visibility toggles
-        try {
-          const last = Number(sessionStorage.getItem('planb_logout_at') || '0')
-          if (Date.now() - last < 8000) return
-        } catch {}
-        // Give auth hook a brief grace period to populate displayName after focus
-        const t = setTimeout(() => {
-          try {
-            const missing = !displayName || displayName.trim() === ''
-            const visible = !document.hidden && document.hasFocus()
-            if (visible && isAuthenticated && missing) {
-              // eslint-disable-next-line no-console
-              console.debug('[PlanB] Logging out due to missing displayName after tab-in on main')
-              try { sessionStorage.setItem('planb_logout_at', String(Date.now())) } catch {}
-              // Direct sign-out here to avoid dependency ordering; then hard reload to reset UI
-              ;(async () => {
-                try { await supabase.auth.signOut() } catch (e) { console.warn('[PlanB] signOut error', e) }
-                try { window.location.replace('/') } catch { window.location.href = '/' }
-              })()
-            }
-          } catch {}
-        }, 700)
-        // Clear timer if we blur again quickly
-        const clearOnBlur = () => { try { clearTimeout(t) } catch {} }
-        window.addEventListener('blur', clearOnBlur, { once: true })
-      } catch {}
-    }
-    window.addEventListener('focus', onRestore)
-    document.addEventListener('visibilitychange', onRestore)
-    return () => {
-      window.removeEventListener('focus', onRestore)
-      document.removeEventListener('visibilitychange', onRestore)
-    }
-  }, [isAuthenticated, displayName, showQuotePage])
-
   // Centralized navigation back to Orders view with prefetch before rendering Orders screen
   function goToOrders() {
     // If already in orders view, keep legacy behavior (manual refresh by reload key)
