@@ -1277,7 +1277,7 @@ const fetchPricing = useCallback(async () => {
   }
 }, [PATENTRENDER_CACHE_KEY])
 
-// Initial pricing load on mount: seed from localStorage JSON ONLY (manual fetch button handles Supabase)
+// Initial pricing load on mount: seed from localStorage JSON, then fetch/cache
 useEffect(() => {
   // Seed from local JSON first for immediate UI
   try {
@@ -1292,104 +1292,30 @@ useEffect(() => {
       }
     }
   } catch {}
-  // Intentionally skip automatic Supabase fetch here (manual-only mode)
-}, [PATENTRENDER_CACHE_KEY])
+  // Then ensure cache and refresh state
+  fetchPricing()
+}, [fetchPricing, PATENTRENDER_CACHE_KEY])
 
-// Manual pricing refresh (button) — always visible on main screen
-const [manualFetchingPrices, setManualFetchingPrices] = useState(false)
-const handleFetchPrices = useCallback(async () => {
-  if (manualFetchingPrices) return
-  setManualFetchingPrices(true)
-  try {
-    await fetchPricing()
-    try {
-      const payload = { event: 'pricing:manual-fetch', ts: Date.now() }
-      if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
-        try { (navigator as any).sendBeacon('/api/debug-log', new Blob([JSON.stringify(payload)], { type: 'application/json' })) } catch {}
-      } else {
-        fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
-      }
-    } catch {}
-  } finally {
-    setManualFetchingPrices(false)
-  }
-}, [manualFetchingPrices, fetchPricing])
-
-// Manual Profile/Orders fetchers for tab-out/in testing (no auto triggers)
-const [manualFetchingProfile, setManualFetchingProfile] = useState(false)
-const [manualFetchingOrders, setManualFetchingOrders] = useState(false)
-
-const handleFetchProfile = useCallback(async () => {
-  if (manualFetchingProfile) return
-  setManualFetchingProfile(true)
-  try {
-    const { data: s } = await supabase.auth.getSession()
-    const userId = s?.session?.user?.id || null
-    const email = s?.session?.user?.email || null
-    if (!userId) {
-      try { localStorage.setItem('manual:profile', JSON.stringify({ ts: Date.now(), error: 'not-signed-in' })) } catch {}
-      return
-    }
-    const { data: byId, error } = await supabase
-      .from('users')
-      .select('id, email, first_name, last_name, company, phone, address, city, state, country')
-      .eq('id', userId)
-      .maybeSingle()
-    if (error) {
-      try { localStorage.setItem('manual:profile', JSON.stringify({ ts: Date.now(), error: String(error.message || error) })) } catch {}
-    } else {
-      try { localStorage.setItem('manual:profile', JSON.stringify({ ts: Date.now(), userId, email, profile: byId || null })) } catch {}
-    }
-    // debug beacon
-    try {
-      const payload = { event: 'profile:manual-fetch', ts: Date.now(), userId: userId || null }
-      if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
-        try { (navigator as any).sendBeacon('/api/debug-log', new Blob([JSON.stringify(payload)], { type: 'application/json' })) } catch {}
-      } else {
-        fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
-      }
-    } catch {}
-  } finally {
-    setManualFetchingProfile(false)
-  }
-}, [manualFetchingProfile, supabase])
-
-const handleFetchOrders = useCallback(async () => {
-  if (manualFetchingOrders) return
-  setManualFetchingOrders(true)
-  try {
-    const { data: s } = await supabase.auth.getSession()
-    const userId = s?.session?.user?.id || null
-    if (!userId) {
-      try { localStorage.setItem('manual:orders', JSON.stringify({ ts: Date.now(), error: 'not-signed-in' })) } catch {}
-      return
-    }
-    const { orders: merged, error } = await fetchOrdersMerged(supabase, userId, { includeProfile: true, cacheMs: 0, force: true })
-    if (error) {
-      try { localStorage.setItem('manual:orders', JSON.stringify({ ts: Date.now(), error: String(error) })) } catch {}
-    } else {
-      // Store a trimmed snapshot to avoid huge payloads
-      const snapshot = Array.isArray(merged) ? merged.slice(0, 20) : []
-      try { localStorage.setItem('manual:orders', JSON.stringify({ ts: Date.now(), userId, count: Array.isArray(merged) ? merged.length : 0, sample: snapshot })) } catch {}
-    }
-    // debug beacon
-    try {
-      const payload = { event: 'orders:manual-fetch', ts: Date.now(), hasUser: !!userId }
-      if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
-        try { (navigator as any).sendBeacon('/api/debug-log', new Blob([JSON.stringify(payload)], { type: 'application/json' })) } catch {}
-      } else {
-        fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
-      }
-    } catch {}
-  } finally {
-    setManualFetchingOrders(false)
-  }
-}, [manualFetchingOrders, supabase])
-
-// Main screen (landing) focus/visibility/pageshow: do NOT auto-fetch; user clicks the button to fetch pricing
+// Main screen (landing) focus/visibility/pageshow refresh: only when missing, mirroring Orders/Profile missing-only behavior
 useEffect(() => {
-  // No-op: preserved hook for future behavior; currently we avoid auto-fetching on focus/pageshow.
-}, [])
+  if (showQuotePage) return // only apply to main/landing screen
+  const handler = () => {
+    // Only act when tab is visible
+    if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return
+    const hasPricing = servicePricing && Object.keys(servicePricing).length > 0
+    if (!hasPricing && !pricingLoadInFlightRef.current) {
+      fetchPricing()
+    }
+  }
+  window.addEventListener('focus', handler)
+  document.addEventListener('visibilitychange', handler)
+  window.addEventListener('pageshow', handler)
+  return () => {
+    window.removeEventListener('focus', handler)
+    document.removeEventListener('visibilitychange', handler)
+    window.removeEventListener('pageshow', handler)
+  }
+}, [showQuotePage, servicePricing, fetchPricing])
 
 
   const [bannerSlides, setBannerSlides] = useState(staticBannerSlides)
@@ -1445,8 +1371,8 @@ useEffect(() => {
         if (idle >= SOFT_RECOVER_MS) {
           // Main screen: ensure pricing/state rehydrates
           if (!showQuotePage) {
-            // In manual-only mode, do not auto-fetch pricing on focus; just bump a visibility tick if needed
             setVisibilityTick(t => t + 1)
+            fetchPricing()
           } else {
             // Dashboard: nudge Orders/Profile views
             if (quoteView === 'orders') {
@@ -4588,7 +4514,6 @@ if (showQuotePage) {
       </section>
 
       {/* Footer */}
-
       <Footer />
 
       {/* Inline Quotation Preview Dialog */}

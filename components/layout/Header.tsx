@@ -1,82 +1,16 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Scale, ChevronDown, RefreshCcw } from "lucide-react"
 import { UserCircleIcon } from "@heroicons/react/24/outline"
 import { patentServices, trademarkServices, copyrightServices, designServices } from "@/constants/services"
 import { useAuthProfile } from "@/app/useAuthProfile"
-import { Button } from "@/components/ui/button"
-import { ensurePatentrenderCache } from "@/utils/pricing"
-import { supabase } from "@/lib/supabase"
-import { fetchOrdersMerged } from "@/lib/orders"
 
 export function Header() {
   const { isAuthenticated, user, displayName, handleGoogleLogin, handleLogout } = useAuthProfile()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [doing, setDoing] = useState<{ pricing?: boolean; profile?: boolean; orders?: boolean }>({})
-
-  // Manual fetch buttons available in the header for quick testing
-  const handleFetchPricing = useCallback(async () => {
-    if (doing.pricing) return
-    setDoing((d) => ({ ...d, pricing: true }))
-    try {
-      await ensurePatentrenderCache()
-      // Optional: write a small marker for debugging
-      try { localStorage.setItem('manual:pricing', JSON.stringify({ ts: Date.now(), ok: true })) } catch {}
-    } finally {
-      setDoing((d) => ({ ...d, pricing: false }))
-    }
-  }, [doing.pricing])
-
-  const handleFetchProfile = useCallback(async () => {
-    if (doing.profile) return
-    setDoing((d) => ({ ...d, profile: true }))
-    try {
-      const { data: s } = await supabase.auth.getSession()
-      const userId = s?.session?.user?.id || null
-      const email = s?.session?.user?.email || null
-      if (!userId) {
-        try { localStorage.setItem('manual:profile', JSON.stringify({ ts: Date.now(), error: 'not-signed-in' })) } catch {}
-        return
-      }
-      const { data: byId, error } = await supabase
-        .from('users')
-        .select('id, email, first_name, last_name, company, phone, address, city, state, country')
-        .eq('id', userId)
-        .maybeSingle()
-      if (error) {
-        try { localStorage.setItem('manual:profile', JSON.stringify({ ts: Date.now(), error: String(error.message || error) })) } catch {}
-      } else {
-        try { localStorage.setItem('manual:profile', JSON.stringify({ ts: Date.now(), userId, email, profile: byId || null })) } catch {}
-      }
-    } finally {
-      setDoing((d) => ({ ...d, profile: false }))
-    }
-  }, [doing.profile])
-
-  const handleFetchOrders = useCallback(async () => {
-    if (doing.orders) return
-    setDoing((d) => ({ ...d, orders: true }))
-    try {
-      const { data: s } = await supabase.auth.getSession()
-      const userId = s?.session?.user?.id || null
-      if (!userId) {
-        try { localStorage.setItem('manual:orders', JSON.stringify({ ts: Date.now(), error: 'not-signed-in' })) } catch {}
-        return
-      }
-      const { orders, error } = await fetchOrdersMerged(supabase as any, userId, { includeProfile: true, cacheMs: 0, force: true })
-      if (error) {
-        try { localStorage.setItem('manual:orders', JSON.stringify({ ts: Date.now(), error: String(error) })) } catch {}
-      } else {
-        const snapshot = Array.isArray(orders) ? orders.slice(0, 20) : []
-        try { localStorage.setItem('manual:orders', JSON.stringify({ ts: Date.now(), userId, count: Array.isArray(orders) ? orders.length : 0, sample: snapshot })) } catch {}
-      }
-    } finally {
-      setDoing((d) => ({ ...d, orders: false }))
-    }
-  }, [doing.orders])
 
   const adminInfo = useMemo(() => {
     const raw = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
@@ -108,13 +42,6 @@ export function Header() {
             <Dropdown label="Trademark Services" items={trademarkServices} idPrefix="trademark" colorHover="green" />
             <Dropdown label="Design Services" items={designServices} idPrefix="design" colorHover="orange" />
             <Dropdown label="Copyright Services" items={copyrightServices} idPrefix="copyright" colorHover="purple" />
-
-            {/* Manual-only test buttons */}
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={handleFetchPricing} disabled={!!doing.pricing}>Fetch pricing</Button>
-              <Button variant="outline" size="sm" onClick={handleFetchProfile} disabled={!!doing.profile}>Fetch profile</Button>
-              <Button variant="outline" size="sm" onClick={handleFetchOrders} disabled={!!doing.orders}>Fetch orders</Button>
-            </div>
 
             {/* Knowledge Hub link */}
             <a href="/knowledge-hub" className="text-gray-700 hover:text-blue-600 px-3 py-2 text-sm font-medium transition-colors">Knowledge Hub</a>

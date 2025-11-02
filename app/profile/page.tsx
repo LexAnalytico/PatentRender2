@@ -1,7 +1,7 @@
 "use client"
 
 import React, { Suspense, useEffect, useState } from "react"
-// (manual-only) removed onAuthStateChange usage, no supabase auth event types needed
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "../../lib/supabase"
@@ -62,21 +62,16 @@ interface Profile {
 function ProfilePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  // Manual-only mode: do not auto-load on mount
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [sessionEmail, setSessionEmail] = useState<string | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
-  // Start as "checked" so we don't show a perpetual loading state; data loads only when user clicks
-  const [authChecked, setAuthChecked] = useState(true)
+  const [authChecked, setAuthChecked] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [editProfile, setEditProfile] = useState<Profile>({} as Profile)
   const [saving, setSaving] = useState(false)
-  const [manualProfileLoading, setManualProfileLoading] = useState(false)
   const [expandedOrderIds, setExpandedOrderIds] = useState<Record<string, boolean>>({})
   const [userOrders, setUserOrders] = useState<any[]>([])
   const [loadingUserOrders, setLoadingUserOrders] = useState(false)
-  const [hasFetchedProfile, setHasFetchedProfile] = useState(false)
-  const [hasFetchedOrders, setHasFetchedOrders] = useState(false)
   const [searchOrders, setSearchOrders] = useState<string>('')
   const [sortOrders, setSortOrders] = useState<string>('date_desc')
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
@@ -563,7 +558,6 @@ function ProfilePageInner() {
       console.error('Exception loading user orders', e)
     } finally {
       setLoadingUserOrders(false)
-      setHasFetchedOrders(true)
     }
   }
 
@@ -645,9 +639,14 @@ function ProfilePageInner() {
     window.open(url, '_blank')
   }
 
-  // Manual-only: do not auto-load orders when switching tabs
+  useEffect(() => {
+    if (currentTab === 'orders') {
+      loadUserOrders()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTab])
 
-  // pick up payment_id from query so we can auto-select after redirect (data will populate after manual fetch)
+  // pick up payment_id from query so we can auto-select after redirect
   useEffect(() => {
     const pid = searchParams?.get('payment_id') || null
     if (pid) {
@@ -662,7 +661,12 @@ function ProfilePageInner() {
     }
   }, [searchParams])
 
-  // Manual-only: do not auto-load orders based on URL or auth state; user triggers via button
+  useEffect(() => {
+    if (currentTab !== 'orders') return
+    if (loadingUserOrders) return
+    loadUserOrders()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightPaymentId, authChecked])
   const orders = [
     {
       id: "TRX-10342",
@@ -712,29 +716,30 @@ function ProfilePageInner() {
     },
   ] as const
 
-  // Manual-only: moved automatic profile load to a user-triggered action
-  const manualFetchProfile = async () => {
-    try {
-      setManualProfileLoading(true)
+  useEffect(() => {
+    let active = true
+    async function init() {
       const { data, error } = await supabase.auth.getSession()
       if (error) {
         console.error("Error getting session:", error.message)
         setAuthChecked(true)
+        setLoading(false)
         return
       }
       const email = data.session?.user?.email ?? null
+      if (!active) return
       setSessionEmail(email)
 
-      const uid = data.session?.user?.id ?? null
-      setUserId(uid)
+      const userId = data.session?.user?.id ?? null
+      setUserId(userId)
 
-      if (email && uid) {
+      if (email && userId) {
         // 1) Try fetch by id
         let prof: Profile | null = null
         const { data: byId, error: errById } = await supabase
           .from("users")
           .select("id, email, first_name, last_name, company, phone, address, city, state, country")
-          .eq("id", uid)
+          .eq("id", userId)
           .maybeSingle()
 
         if (errById) {
@@ -769,11 +774,14 @@ function ProfilePageInner() {
       }
 
       setAuthChecked(true)
-    } finally {
-      setManualProfileLoading(false)
-      setHasFetchedProfile(true)
+      setLoading(false)
     }
-  }
+
+    init()
+    return () => {
+      active = false
+    }
+  }, [])
 
   // Signal FocusProvider that the screen is ready to hide the restore overlay
   useEffect(() => {
@@ -782,37 +790,24 @@ function ProfilePageInner() {
     }
   }, [loading])
 
-  // On tab return, reset to a blank state (no profile or orders visible until manual fetch)
+  // Keep auth state in sync while this page is mounted. This prevents transient
+  // logout-like behavior when the auth session changes or during client-side
+  // navigation; Navbar also listens but having a local listener here makes the
+  // page resilient and ensures dependent state (sessionEmail/userId) updates.
   useEffect(() => {
-    const resetBlank = () => {
-      try {
-        if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
-        setSessionEmail(null)
-        setUserId(null)
-        setProfile(null)
-        setEditProfile({} as Profile)
-        setHasFetchedProfile(false)
-        setUserOrders([])
-        setOrderStatuses({})
-        setSelectedOrderId(null)
-        setExpandedPayments({})
-        setLoadingUserOrders(false)
-        setHasFetchedOrders(false)
-        setShowThankYou(false)
-        setHasShownThankYou(false)
-      } catch {}
-    }
-    const onFocus = () => resetBlank()
-    const onVis = () => { if (!document.hidden) resetBlank() }
-    window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', onVis)
+  const { data: listener } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
+      const email = session?.user?.email ?? null
+      const id = session?.user?.id ?? null
+      console.debug('ProfilePage onAuthStateChange', { event: _event, email, id })
+      setSessionEmail(email)
+      setUserId(id)
+      setAuthChecked(true)
+    })
+
     return () => {
-      window.removeEventListener('focus', onFocus)
-      document.removeEventListener('visibilitychange', onVis)
+      try { listener.subscription.unsubscribe() } catch (e) { /* ignore */ }
     }
   }, [])
-
-  // Manual-only: remove auth state listener to avoid any automatic Supabase triggers
 
   const displayName = profile
     ? [profile.first_name, profile.last_name].filter(Boolean).join(" ") || "Your Name"
@@ -902,8 +897,8 @@ function ProfilePageInner() {
           </div>
         )}
 
-        {/* State: Not authenticated (only after manual fetch attempt) */}
-        {!loading && hasFetchedProfile && authChecked && !sessionEmail && (
+        {/* State: Not authenticated */}
+        {!loading && authChecked && !sessionEmail && (
           <Card className="bg-white border shadow-sm">
             <CardHeader>
               <CardTitle>You're not signed in</CardTitle>
@@ -922,8 +917,8 @@ function ProfilePageInner() {
           </Card>
         )}
 
-        {/* Dashboard (always visible in manual-only mode; empty until you fetch) */}
-        {!loading && (
+        {/* State: Authenticated Dashboard */}
+        {!loading && sessionEmail && (
           <div className="grid grid-cols-1 gap-6">
             {/* Tabs and content (full width) */}
             {/* Welcome card */}
@@ -953,20 +948,11 @@ function ProfilePageInner() {
 
                   {/* Profile */}
                   <TabsContent value="profile">
-                              <Card className="border">
-                                <CardHeader className="pb-2">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <div>
-                                      <CardTitle className="text-base">Manage Profile</CardTitle>
-                                      <CardDescription>Update your contact and company information</CardDescription>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                      <Button variant="outline" onClick={manualFetchProfile} disabled={manualProfileLoading}>
-                                        {manualProfileLoading ? "Fetching…" : "Fetch Profile"}
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </CardHeader>
+                    <Card className="border">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">Manage Profile</CardTitle>
+                        <CardDescription>Update your contact and company information</CardDescription>
+                      </CardHeader>
                       <CardContent>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
@@ -1055,9 +1041,6 @@ function ProfilePageInner() {
                           <div className="flex flex-col items-end gap-2">
                             <div className="flex items-center gap-2">
                               <Button onClick={downloadSelected} disabled={!selectedOrderId}>View / Edit Form</Button>
-                              <Button variant="outline" onClick={loadUserOrders} disabled={loadingUserOrders}>
-                                {loadingUserOrders ? "Loading…" : "Fetch orders"}
-                              </Button>
                             </div>
                           </div>
                         </div>
@@ -1096,7 +1079,6 @@ function ProfilePageInner() {
                               {(() => {
                                 if (loadingUserOrders) return (<tr><td colSpan={7} className="p-4">Loading...</td></tr>)
                                 const items = filteredOrders(userOrders, searchOrders, sortOrders)
-                                if (!hasFetchedOrders) return null
                                 if (!items || items.length === 0) return (<tr><td colSpan={7} className="p-4">No orders found</td></tr>)
 
                                 // Group by payment_id; items without payment_id are singletons
