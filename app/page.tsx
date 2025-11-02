@@ -2327,15 +2327,25 @@ const patentServices = [
     if (window.location.pathname !== '/') return
     if (!isAuthenticated) return
     if (displayName) return
-    try {
-      const now = Date.now()
-      const last = Number(sessionStorage.getItem('app:name_fix_ts') || '0')
-      if (now - last < 15000) return // throttle to avoid loops
-      sessionStorage.setItem('app:name_fix_ts', String(now))
-      sessionStorage.setItem('app:return_to_main_after_kh', '1')
-      // Navigate to Knowledge Hub, then that page will send us back to patent services
-      try { router.push('/knowledge-hub') } catch { window.location.href = '/knowledge-hub' }
-    } catch {}
+    // Avoid running immediately after OAuth redirects to prevent churn
+    const pending = sessionStorage.getItem('app:oauthRefreshPending') === '1'
+    const lastRefreshed = Number(sessionStorage.getItem('app:oauthRefreshedAt') || '0')
+    const tooRecent = Date.now() - lastRefreshed < 5000
+    if (pending || tooRecent) return
+    // Wait a short window to let displayName resolve naturally before hopping
+    const t = setTimeout(() => {
+      try {
+        if (!isAuthenticated) return
+        if (displayName) return
+        const now = Date.now()
+        const last = Number(sessionStorage.getItem('app:name_fix_ts') || '0')
+        if (now - last < 15000) return // throttle to avoid loops
+        sessionStorage.setItem('app:name_fix_ts', String(now))
+        sessionStorage.setItem('app:return_to_main_after_kh', '1')
+        try { router.push('/knowledge-hub') } catch { window.location.href = '/knowledge-hub' }
+      } catch {}
+    }, 1200)
+    return () => clearTimeout(t)
   }, [isAuthenticated, displayName, router])
  
   const addToCart = (serviceName: string, category: string) => {
