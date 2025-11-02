@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { fetchOrdersMerged } from '@/lib/orders'
+import { getSupabaseServer } from '@/lib/supabase-server'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
-    // Use auth session to find user id (lightweight call)
-    const { data: { session }, error } = await supabase.auth.getSession()
-    if (error) return NextResponse.json({ error: 'AUTH_ERROR' }, { status: 401 })
-    const userId = session?.user?.id
-    if (!userId) return NextResponse.json({ error: 'NO_SESSION' }, { status: 401 })
+    // Bind Supabase to request cookies so auth is available server-side
+    const supabase = getSupabaseServer()
+    const { data: userRes, error: userErr } = await supabase.auth.getUser()
+    if (userErr) {
+      return NextResponse.json({ error: 'AUTH_ERROR', detail: userErr.message }, { status: 401 })
+    }
+    const userId = userRes?.user?.id || null
+    if (!userId) {
+      return NextResponse.json({ error: 'NO_SESSION' }, { status: 401 })
+    }
     const result = await fetchOrdersMerged(supabase as any, userId, { includeProfile: true, cacheMs: 0, force: true })
     return NextResponse.json(result.orders)
   } catch (e: any) {

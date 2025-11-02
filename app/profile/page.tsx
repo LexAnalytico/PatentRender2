@@ -863,6 +863,18 @@ function ProfilePageInner() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Debug chip: show user id/email and a per-page debug id when enabled */}
+      {(() => {
+        const fromEnv = process.env.NEXT_PUBLIC_DEBUG_USER === '1'
+        const fromWin = typeof window !== 'undefined' && (window as any).DEBUG_USER === true
+        return fromEnv || fromWin
+      })() && (
+        <div className="fixed bottom-3 right-3 z-[9999] inline-flex items-center gap-2 rounded border px-2 py-1 text-xs text-gray-700 bg-white shadow">
+          <span className="font-medium">User</span>
+          <span className="text-gray-900">{sessionEmail || '—'}</span>
+          <span className="text-gray-400">({userId || 'no-id'})</span>
+        </div>
+      )}
       {/* Top Bar */}
       <header className="bg-white border-b sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">

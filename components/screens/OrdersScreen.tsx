@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
 export type Order = { id: string | number; name?: string }
 export type OrdersScreenProps = {
@@ -10,6 +11,9 @@ export type OrdersScreenProps = {
 export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenProps) {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [pageDebugId, setPageDebugId] = useState<string>('')
   // Transient banner for last opened form (persisted by Forms on tab-out)
   type SingleCtx = { orderId: number | null; formType: string | null; formTypeLabel?: string | null }
   type MultiCtx = { multi: Array<{ orderId: number; formType: string | null; formTypeLabel?: string | null }>; ts?: number }
@@ -32,6 +36,22 @@ export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenP
 
   useEffect(() => {
     load()
+    // Resolve current user for debug chips and logs
+    ;(async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        const email = data?.session?.user?.email ?? null
+        const id = data?.session?.user?.id ?? null
+        setUserEmail(email)
+        setUserId(id)
+        // Console trace for tab-in/out debugging
+        console.debug('[OrdersScreen][user]', { pageDebugId, id, email, visibility: typeof document !== 'undefined' ? document.visibilityState : 'unknown', hasFocus: typeof document !== 'undefined' ? document.hasFocus?.() : undefined })
+      } catch (e) {
+        console.debug('[OrdersScreen][user] resolve error', e)
+      }
+    })()
+    // Generate debug id after mount to avoid SSR/client hydration mismatch
+    try { if (!pageDebugId) setPageDebugId((globalThis as any).crypto?.randomUUID?.() || `dbg_${Math.random().toString(36).slice(2)}`) } catch { setPageDebugId(`dbg_${Date.now()}`) }
     const onFocus = () => load()
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
@@ -95,9 +115,44 @@ export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenP
     }
   }, [loading])
 
+  // Simple status helper (mirrors main page logic, condensed)
+  const deriveStatus = (o: any): string => {
+    try {
+      const paymentSucceeded = !!(
+        (o.payments && ((o.payments as any).payment_status === 'paid' || (o.payments as any).status === 'captured')) ||
+        o.payment_status === 'paid'
+      )
+      if (!paymentSucceeded) return 'Payment Pending'
+      const confirmed = !!o.form_confirmed
+      if (!confirmed) return 'Details Required'
+      const wf = (o.workflow_status || '').toLowerCase()
+      if (wf === 'completed') return 'Completed'
+      if (wf === 'require_info') return 'Details Required'
+      if (wf === 'in_progress') return 'In Progress'
+      const responsible = (o.responsible || o.assigned_to || '').trim()
+      if (responsible) return 'Assigned'
+      return 'Details Completed'
+    } catch {
+      return 'Payment Pending'
+    }
+  }
+
   return (
     <div>
       <h1 id="page-heading" tabIndex={-1}>Orders</h1>
+      {/* Debug chip: show user id/email and a per-page debug id when enabled */}
+      {useMemo(() => {
+        const fromEnv = process.env.NEXT_PUBLIC_DEBUG_USER === '1'
+        const fromWin = typeof window !== 'undefined' && (window as any).DEBUG_USER === true
+        return fromEnv || fromWin
+      }, []) && (
+        <div className="mt-2 mb-3 inline-flex items-center gap-2 rounded border px-2 py-1 text-xs text-gray-700 bg-gray-50">
+          <span className="font-medium">User</span>
+          <span className="text-gray-900">{userEmail || '—'}</span>
+          <span className="text-gray-400">({userId || 'no-id'})</span>
+          <span className="ml-2 text-gray-500">debug:{pageDebugId || '—'}</span>
+        </div>
+      )}
       {banner && bannerVisible && (
         <div
           role="status"
@@ -135,17 +190,34 @@ export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenP
           </button>
         </div>
       )}
-      {loading ? (
-        <p>Loading…</p>
-      ) : orders.length === 0 ? (
-        <p>No orders found.</p>
-      ) : (
-        <ul>
-          {orders.map((o) => (
-            <li key={String(o.id)}>{o.name ?? String(o.id)}</li>
-          ))}
-        </ul>
-      )}
+      <div className="overflow-x-auto mt-2">
+        <table className="w-full table-auto border-collapse">
+          <thead>
+            <tr>
+              <th className="p-2 text-left">Category</th>
+              <th className="p-2 text-left">Service</th>
+              <th className="p-2 text-left">Status</th>
+              <th className="p-2 text-left">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr><td className="p-2" colSpan={4}>Loading…</td></tr>
+            )}
+            {!loading && (!orders || orders.length === 0) && (
+              <tr><td className="p-2" colSpan={4}>No orders found.</td></tr>
+            )}
+            {!loading && orders && orders.length > 0 && orders.map((r: any) => (
+              <tr key={String(r.id)} className="border-t">
+                <td className="p-2">{r?.categories?.name ?? 'N/A'}</td>
+                <td className="p-2">{r?.services?.name ?? 'N/A'}</td>
+                <td className="p-2">{deriveStatus(r)}</td>
+                <td className="p-2">{r?.payments?.total_amount ?? 'N/A'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
