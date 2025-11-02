@@ -152,8 +152,6 @@ useEffect(() => {
     }
   }, [refreshDisplayName, upsertUserProfileFromSession])
 
-  
-
   const handleGoogleLogin = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -174,49 +172,12 @@ useEffect(() => {
       return
     }
     // Non-Safari normal path
-    try {
-      // Try local session first
-      await supabase.auth.signOut()
-    } catch (e) {
-      console.error('[logout] signOut (local) error', e)
-    }
-    try {
-      // Best-effort: also clear any global sessions (e.g., across tabs)
-      await supabase.auth.signOut({ scope: 'global' } as any)
-    } catch (e) {
-      // Some providers may not support global; ignore
-    }
+    try { await supabase.auth.signOut() } catch (e) { console.error('[logout] signOut error', e) }
     setIsAuthenticated(false)
     setUser(null)
     setDisplayName('')
     setWantsCheckout(false)
-    // Verify sign-out completed; if not, hard-redirect to root as a fallback
-    try {
-      setTimeout(async () => {
-        try {
-          const { data: s2 } = await supabase.auth.getSession()
-          if (s2?.session) {
-            // Still signed in – force a clean load to complete logout
-            try { window.location.replace('/') } catch { window.location.href = '/' }
-          }
-        } catch {}
-      }, 600)
-    } catch {}
   }, [])
-
-  // Optional: auto-logout if a stable session has no resolvable display name beyond a short window
-  useEffect(() => {
-    const FLAG = process.env.NEXT_PUBLIC_LOGOUT_IF_NAME_MISSING === '1'
-    if (!FLAG) return
-    if (!isAuthenticated) return
-    if (displayName) return
-    const t = setTimeout(() => {
-      if (FLAG && isAuthenticated && !displayName) {
-        try { handleLogout() } catch {}
-      }
-    }, 1800)
-    return () => clearTimeout(t)
-  }, [isAuthenticated, displayName, handleLogout])
 
   return useMemo(
     () => ({

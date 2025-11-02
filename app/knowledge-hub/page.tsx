@@ -1,7 +1,6 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -49,7 +48,6 @@ const articles = [
 ]
 
 export default function KnowledgeHubPage() {
-  const router = useRouter()
   const [currentTrending, setCurrentTrending] = useState(0)
   const trending = articles.slice(0, 4)
 
@@ -65,23 +63,6 @@ export default function KnowledgeHubPage() {
     const el = document.getElementById(slug)
     if (el) el.scrollIntoView({ behavior: "smooth" })
   }
-  
-  // Stopgap return: if main page requested a KH hop to repair name, return to patent services
-  useEffect(() => {
-    const ENABLE = process.env.NEXT_PUBLIC_NAME_FIX_VIA_KH === '1'
-    if (!ENABLE) return
-    try {
-      const flag = typeof window !== 'undefined' && sessionStorage.getItem('app:return_to_main_after_kh') === '1'
-      if (!flag) return
-      try { sessionStorage.removeItem('app:return_to_main_after_kh') } catch {}
-      const goBack = () => {
-        const target = '/#patent-services'
-        try { router.replace(target) } catch { window.location.href = target }
-      }
-      // Give the page a tick to mount, then return
-      setTimeout(goBack, 120)
-    } catch {}
-  }, [router])
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top Bar */}

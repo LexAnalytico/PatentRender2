@@ -2317,36 +2317,6 @@ const patentServices = [
       window.removeEventListener('pageshow', handleVisRestore)
     }
   }, [showQuotePage, quoteView])
-
-  // Stopgap: if authenticated but displayName is empty on the main screen, hop to Knowledge Hub and back
-  // to force a clean client navigation cycle that reliably resolves INITIAL_SESSION and name.
-  useEffect(() => {
-    const ENABLE = process.env.NEXT_PUBLIC_NAME_FIX_VIA_KH === '1'
-    if (!ENABLE) return
-    if (typeof window === 'undefined') return
-    if (window.location.pathname !== '/') return
-    if (!isAuthenticated) return
-    if (displayName) return
-    // Avoid running immediately after OAuth redirects to prevent churn
-    const pending = sessionStorage.getItem('app:oauthRefreshPending') === '1'
-    const lastRefreshed = Number(sessionStorage.getItem('app:oauthRefreshedAt') || '0')
-    const tooRecent = Date.now() - lastRefreshed < 5000
-    if (pending || tooRecent) return
-    // Wait a short window to let displayName resolve naturally before hopping
-    const t = setTimeout(() => {
-      try {
-        if (!isAuthenticated) return
-        if (displayName) return
-        const now = Date.now()
-        const last = Number(sessionStorage.getItem('app:name_fix_ts') || '0')
-        if (now - last < 15000) return // throttle to avoid loops
-        sessionStorage.setItem('app:name_fix_ts', String(now))
-        sessionStorage.setItem('app:return_to_main_after_kh', '1')
-        try { router.push('/knowledge-hub') } catch { window.location.href = '/knowledge-hub' }
-      } catch {}
-    }, 1200)
-    return () => clearTimeout(t)
-  }, [isAuthenticated, displayName, router])
  
   const addToCart = (serviceName: string, category: string) => {
     const price = servicePricing[serviceName as keyof typeof servicePricing] || 0
