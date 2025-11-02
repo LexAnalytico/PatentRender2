@@ -4588,18 +4588,6 @@ if (showQuotePage) {
       </section>
 
       {/* Footer */}
-      {/* Floating Fetch Prices button (always visible on main screen) */}
-      <div style={{ position: 'fixed', right: 16, top: 72, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <Button variant="outline" onClick={handleFetchPrices} disabled={manualFetchingPrices}>
-          {manualFetchingPrices ? 'Fetching prices…' : 'Fetch prices'}
-        </Button>
-        <Button variant="outline" onClick={handleFetchProfile} disabled={manualFetchingProfile}>
-          {manualFetchingProfile ? 'Fetching profile…' : 'Fetch profile'}
-        </Button>
-        <Button variant="outline" onClick={handleFetchOrders} disabled={manualFetchingOrders}>
-          {manualFetchingOrders ? 'Fetching orders…' : 'Fetch orders'}
-        </Button>
-      </div>
 
       <Footer />
 

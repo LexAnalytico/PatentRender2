@@ -131,6 +131,19 @@ export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenP
     }
   }, [loading])
 
+  // Simple helpers for display
+  const formatINR = (v: number | null | undefined) => {
+    try { return v != null ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(v)) : '—' } catch { return '—' }
+  }
+  const deriveStatus = (o: any): string => {
+    const wf = (o?.workflow_status || '').toLowerCase()
+    if (wf === 'require_info' || o?.require_info_message) return 'Details Required'
+    if (wf === 'completed' || wf === 'done') return 'Completed'
+    if (wf === 'in_progress' || wf === 'processing') return 'In Progress'
+    if (wf) return wf.replace(/_/g, ' ').replace(/\b\w/g, (m: string) => m.toUpperCase())
+    return 'N/A'
+  }
+
   return (
     <div>
       <h1 id="page-heading" tabIndex={-1}>Orders</h1>
@@ -176,18 +189,47 @@ export default function OrdersScreen({ fetchUrl = '/api/orders' }: OrdersScreenP
           </button>
         </div>
       )}
-      {loading ? (
-        <p>Loading…</p>
-      ) : !hasFetched ? (
-        null
-      ) : orders.length === 0 ? (
-        <p>No orders found.</p>
-      ) : (
-        <ul>
-          {orders.map((o) => (
-            <li key={String(o.id)}>{o.name ?? String(o.id)}</li>
-          ))}
-        </ul>
+      {/* Orders table: render only when data is available or we're loading after a fetch */}
+      {loading && (
+        <div className="mt-2 text-sm text-gray-500">Loading…</div>
+      )}
+      {!loading && hasFetched && orders.length === 0 && (
+        <div className="mt-2 text-sm text-gray-500">No orders found.</div>
+      )}
+      {!loading && hasFetched && orders.length > 0 && (
+        <div className="overflow-x-auto overscroll-x-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-300">
+          <table className="table-auto border border-slate-300 rounded-md overflow-hidden min-w-[980px]">
+            <thead className="border-b border-slate-300">
+              <tr className="text-left text-base text-slate-700 bg-blue-50/70 divide-x divide-slate-300">
+                <th className="px-3 py-2 font-semibold tracking-wide">Order ID</th>
+                <th className="px-3 py-2 font-semibold tracking-wide">Category</th>
+                <th className="px-3 py-2 font-semibold tracking-wide">Service</th>
+                <th className="px-3 py-2 font-semibold tracking-wide">Amount</th>
+                <th className="px-3 py-2 font-semibold tracking-wide whitespace-nowrap">Payment Mode</th>
+                <th className="px-3 py-2 font-semibold tracking-wide">Status</th>
+                <th className="px-3 py-2 font-semibold tracking-wide">Date</th>
+                <th className="px-3 py-2 font-semibold tracking-wide">Forms</th>
+                <th className="px-3 py-2 font-semibold tracking-wide whitespace-nowrap">Download Invoice</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-300">
+              {orders.map((o: any) => (
+                <tr key={String(o.id)} className="bg-white divide-x divide-slate-300">
+                  <td className="p-2">{o?.id ?? '—'}</td>
+                  <td className="p-2">{o?.categories?.name ?? 'N/A'}</td>
+                  <td className="p-2">{o?.services?.name ?? 'N/A'}</td>
+                  <td className="p-2">{formatINR(o?.amount)}</td>
+                  <td className="p-2">{o?.payments?.payment_method || '—'}</td>
+                  <td className="p-2">{deriveStatus(o)}</td>
+                  <td className="p-2">{o?.created_at ? new Date(o.created_at).toLocaleString() : 'N/A'}</td>
+                  {/* For now, keep actions minimal in manual test mode */}
+                  <td className="p-2 text-gray-400">—</td>
+                  <td className="p-2 text-gray-400">—</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )
