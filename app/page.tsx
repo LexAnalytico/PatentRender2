@@ -82,6 +82,75 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 
 
 export default function LegalIPWebsite() {
+  // ==== DEV DEBUG: enable with ?debug=1 or localStorage('app:debug') === '1' ====
+  const [debugEnabled, setDebugEnabled] = useState(false)
+  const [debugOpen, setDebugOpen] = useState(false)
+  const [debugSession, setDebugSession] = useState<Session | null>(null)
+  const [debugAuthEvents, setDebugAuthEvents] = useState<Array<{ t: number; event: AuthChangeEvent; hasSession: boolean; uid?: string | null }>>([])
+  const [debugFocusEvents, setDebugFocusEvents] = useState<Array<{ t: number; type: string; visible?: string }>>([])
+  const pushAuthEvent = useCallback((e: AuthChangeEvent, s: Session | null) => {
+    setDebugAuthEvents(prev => {
+      const next = [...prev, { t: Date.now(), event: e, hasSession: !!s, uid: s?.user?.id ?? null }]
+      return next.slice(-50)
+    })
+  }, [])
+  const pushFocus = useCallback((type: string) => {
+    setDebugFocusEvents(prev => {
+      const next = [...prev, { t: Date.now(), type, visible: typeof document !== 'undefined' ? document.visibilityState : undefined }]
+      return next.slice(-80)
+    })
+  }, [])
+  useEffect(() => {
+    // Determine debug mode
+    try {
+      const qs = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+      const byQuery = qs?.get('debug') === '1'
+      const byLS = typeof window !== 'undefined' ? localStorage.getItem('app:debug') === '1' : false
+      const byEnv = process.env.NEXT_PUBLIC_DEBUG === '1'
+      const enabled = !!(byQuery || byLS || byEnv)
+      setDebugEnabled(enabled)
+      setDebugOpen(enabled)
+    } catch {}
+  }, [])
+  useEffect(() => {
+    if (!debugEnabled) return
+    let mounted = true
+    // initial session snapshot
+    ;(async () => {
+      try {
+        const { data } = await supabase.auth.getSession()
+        if (mounted) setDebugSession(data?.session ?? null)
+      } catch {}
+    })()
+    // auth change listener (additive, no behavior changes)
+    const { data: sub } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+      console.debug('[debug][auth] event', { event, hasSession: !!session, uid: session?.user?.id })
+      pushAuthEvent(event, session)
+      setDebugSession(session)
+    })
+    // focus/visibility listeners
+    const onFocus = () => { console.debug('[debug][focus] window focus'); pushFocus('focus') }
+    const onBlur = () => { console.debug('[debug][focus] window blur'); pushFocus('blur') }
+    const onVis = () => { console.debug('[debug][focus] visibility', document.visibilityState); pushFocus('visibility:' + (document.visibilityState || '')) }
+    try { window.addEventListener('focus', onFocus) } catch {}
+    try { window.addEventListener('blur', onBlur) } catch {}
+    try { document.addEventListener('visibilitychange', onVis) } catch {}
+    return () => {
+      mounted = false
+      sub?.subscription?.unsubscribe()
+      try { window.removeEventListener('focus', onFocus) } catch {}
+      try { window.removeEventListener('blur', onBlur) } catch {}
+      try { document.removeEventListener('visibilitychange', onVis) } catch {}
+    }
+  }, [debugEnabled, pushAuthEvent, pushFocus])
+
+  // Small helper to mask sensitive strings but keep ends for identification
+  const mask = (v?: string | null, keep: number = 6) => {
+    if (!v) return ''
+    if (v.length <= keep * 2) return v.replace(/./g, '•')
+    return v.slice(0, keep) + '…' + v.slice(-keep)
+  }
+
   // Page/session debug id used to correlate console traces across tab-in/out
   const debugIdRef = useRef<string>('')
   if (!debugIdRef.current) {
@@ -3037,6 +3106,7 @@ const handleAuth = async (e: React.FormEvent) => {
 };
 
   const handleLogout = async () => {
+    console.debug('[ui] Sign Out clicked')
     try {
       await hookLogout()
       // Ensure session is cleared
@@ -4012,6 +4082,86 @@ if (showQuotePage) {
         </div>
       </div>
     )}
+    {/* Debug toggle and panel within dashboard view */}
+    {debugEnabled && (
+      <button
+        type="button"
+        onClick={() => setDebugOpen(o => !o)}
+        className="fixed left-3 bottom-3 z-[999] px-2 py-1 rounded text-xs bg-black/70 text-white hover:bg-black"
+        title="Toggle debug panel"
+      >{debugOpen ? 'Hide Debug' : 'Show Debug'}</button>
+    )}
+    {debugEnabled && debugOpen && (
+      <div className="fixed left-3 bottom-12 z-[999] max-w-[94vw] md:max-w-[520px] bg-white/95 backdrop-blur border border-slate-300 rounded shadow-xl p-3 text-xs text-slate-800 overflow-auto max-h-[70vh]">
+        <div className="font-semibold text-slate-900 mb-2 flex items-center justify-between">
+          <span>Dev Debug</span>
+          <button className="px-2 py-1 bg-slate-100 rounded hover:bg-slate-200" onClick={() => {
+            try { localStorage.setItem('app:debug', debugEnabled ? '1' : '0') } catch {}
+            setDebugOpen(false)
+          }}>Persist</button>
+        </div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+          <div>isAuthenticated</div><div className="font-mono">{String(isAuthenticated)}</div>
+          <div>displayName</div><div className="font-mono truncate" title={displayName}>{displayName || '—'}</div>
+          <div>user.email</div><div className="font-mono truncate" title={user?.email || ''}>{user?.email || '—'}</div>
+          <div>user.id</div><div className="font-mono truncate" title={user?.id || ''}>{user?.id || '—'}</div>
+          <div>quoteView</div><div className="font-mono">{String(quoteView)}</div>
+          <div>showQuotePage</div><div className="font-mono">{String(showQuotePage)}</div>
+          <div>wantsCheckout</div><div className="font-mono">{String(wantsCheckout)}</div>
+        </div>
+        <hr className="my-2" />
+        <div className="mb-1 font-semibold">Session</div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+          <div>access_token</div><div className="font-mono truncate" title={debugSession?.access_token || ''}>{mask(debugSession?.access_token)}</div>
+          <div>refresh_token</div><div className="font-mono truncate" title={(debugSession as any)?.refresh_token || ''}>{mask((debugSession as any)?.refresh_token)}</div>
+          <div>expires_at</div><div className="font-mono">{debugSession?.expires_at ? new Date((debugSession.expires_at||0) * 1000).toLocaleString() : '—'}</div>
+          <div>expires_in</div><div className="font-mono">{(debugSession as any)?.expires_in ?? '—'}</div>
+          <div>token_type</div><div className="font-mono">{(debugSession as any)?.token_type ?? '—'}</div>
+        </div>
+        <div className="mt-2 flex gap-2">
+          <button className="px-2 py-1 bg-slate-100 rounded hover:bg-slate-200" onClick={() => {
+            const payload = {
+              session: debugSession,
+              user,
+              isAuthenticated,
+              wantsCheckout,
+              quoteView,
+              ts: new Date().toISOString(),
+              ua: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+            }
+            try { navigator.clipboard.writeText(JSON.stringify(payload, null, 2)) } catch {}
+          }}>Copy session JSON</button>
+          <button className="px-2 py-1 bg-red-50 text-red-700 rounded hover:bg-red-100" onClick={() => {
+            console.warn('[debug] Full session', debugSession)
+            alert('Full session logged to console (open DevTools).')
+          }}>Log full session</button>
+        </div>
+        <hr className="my-2" />
+        <div className="mb-1 font-semibold">Auth events (latest first)</div>
+        <ol className="list-decimal pl-4 space-y-0.5 max-h-40 overflow-auto">
+          {[...debugAuthEvents].reverse().map((e, i) => (
+            <li key={i} className="font-mono truncate" title={`${new Date(e.t).toLocaleTimeString()} ${e.event} uid=${e.uid || ''}`}>
+              {new Date(e.t).toLocaleTimeString()} · {e.event} · session={String(e.hasSession)} · uid={e.uid || '—'}
+            </li>
+          ))}
+        </ol>
+        <div className="mt-2 mb-1 font-semibold">Focus/visibility</div>
+        <ol className="list-decimal pl-4 space-y-0.5 max-h-32 overflow-auto">
+          {[...debugFocusEvents].reverse().map((e, i) => (
+            <li key={i} className="font-mono truncate">
+              {new Date(e.t).toLocaleTimeString()} · {e.type}{e.visible ? ` (${e.visible})` : ''}
+            </li>
+          ))}
+        </ol>
+        <hr className="my-2" />
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+          <div>visibility</div><div className="font-mono">{typeof document !== 'undefined' ? document.visibilityState : '—'}</div>
+          <div>hasFocus</div><div className="font-mono">{typeof document !== 'undefined' ? String(document.hasFocus()) : '—'}</div>
+          <div>userAgent</div><div className="font-mono truncate" title={typeof navigator !== 'undefined' ? navigator.userAgent : ''}>{typeof navigator !== 'undefined' ? navigator.userAgent : '—'}</div>
+        </div>
+        <div className="mt-2 text-[10px] text-slate-500">Tokens are masked here. Only click “Log full session” if you’re on a safe machine.</div>
+      </div>
+    )}
     </>
   );
  }
@@ -4268,6 +4418,87 @@ if (showQuotePage) {
           <div className="flex-1 overflow-y-auto pr-2">
             {cartItems.length === 0 ? (
               <div className="text-center py-8">
+      {/* Debug toggle button */}
+      {debugEnabled && (
+        <button
+          type="button"
+          onClick={() => setDebugOpen(o => !o)}
+          className="fixed left-3 bottom-3 z-[999] px-2 py-1 rounded text-xs bg-black/70 text-white hover:bg-black"
+          title="Toggle debug panel"
+        >{debugOpen ? 'Hide Debug' : 'Show Debug'}</button>
+      )}
+      {/* Debug panel */}
+      {debugEnabled && debugOpen && (
+        <div className="fixed left-3 bottom-12 z-[999] max-w-[94vw] md:max-w-[520px] bg-white/95 backdrop-blur border border-slate-300 rounded shadow-xl p-3 text-xs text-slate-800 overflow-auto max-h-[70vh]">
+          <div className="font-semibold text-slate-900 mb-2 flex items-center justify-between">
+            <span>Dev Debug</span>
+            <button className="px-2 py-1 bg-slate-100 rounded hover:bg-slate-200" onClick={() => {
+              try { localStorage.setItem('app:debug', debugEnabled ? '1' : '0') } catch {}
+              setDebugOpen(false)
+            }}>Persist</button>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <div>isAuthenticated</div><div className="font-mono">{String(isAuthenticated)}</div>
+            <div>displayName</div><div className="font-mono truncate" title={displayName}>{displayName || '—'}</div>
+            <div>user.email</div><div className="font-mono truncate" title={user?.email || ''}>{user?.email || '—'}</div>
+            <div>user.id</div><div className="font-mono truncate" title={user?.id || ''}>{user?.id || '—'}</div>
+            <div>quoteView</div><div className="font-mono">{String(quoteView)}</div>
+            <div>showQuotePage</div><div className="font-mono">{String(showQuotePage)}</div>
+            <div>wantsCheckout</div><div className="font-mono">{String(wantsCheckout)}</div>
+          </div>
+          <hr className="my-2" />
+          <div className="mb-1 font-semibold">Session</div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <div>access_token</div><div className="font-mono truncate" title={debugSession?.access_token || ''}>{mask(debugSession?.access_token)}</div>
+            <div>refresh_token</div><div className="font-mono truncate" title={(debugSession as any)?.refresh_token || ''}>{mask((debugSession as any)?.refresh_token)}</div>
+            <div>expires_at</div><div className="font-mono">{debugSession?.expires_at ? new Date((debugSession.expires_at||0) * 1000).toLocaleString() : '—'}</div>
+            <div>expires_in</div><div className="font-mono">{(debugSession as any)?.expires_in ?? '—'}</div>
+            <div>token_type</div><div className="font-mono">{(debugSession as any)?.token_type ?? '—'}</div>
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button className="px-2 py-1 bg-slate-100 rounded hover:bg-slate-200" onClick={() => {
+              const payload = {
+                session: debugSession,
+                user,
+                isAuthenticated,
+                wantsCheckout,
+                quoteView,
+                ts: new Date().toISOString(),
+                ua: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+              }
+              try { navigator.clipboard.writeText(JSON.stringify(payload, null, 2)) } catch {}
+            }}>Copy session JSON</button>
+            <button className="px-2 py-1 bg-red-50 text-red-700 rounded hover:bg-red-100" onClick={() => {
+              console.warn('[debug] Full session', debugSession)
+              alert('Full session logged to console (open DevTools).')
+            }}>Log full session</button>
+          </div>
+          <hr className="my-2" />
+          <div className="mb-1 font-semibold">Auth events (latest first)</div>
+          <ol className="list-decimal pl-4 space-y-0.5 max-h-40 overflow-auto">
+            {[...debugAuthEvents].reverse().map((e, i) => (
+              <li key={i} className="font-mono truncate" title={`${new Date(e.t).toLocaleTimeString()} ${e.event} uid=${e.uid || ''}`}>
+                {new Date(e.t).toLocaleTimeString()} · {e.event} · session={String(e.hasSession)} · uid={e.uid || '—'}
+              </li>
+            ))}
+          </ol>
+          <div className="mt-2 mb-1 font-semibold">Focus/visibility</div>
+          <ol className="list-decimal pl-4 space-y-0.5 max-h-32 overflow-auto">
+            {[...debugFocusEvents].reverse().map((e, i) => (
+              <li key={i} className="font-mono truncate">
+                {new Date(e.t).toLocaleTimeString()} · {e.type}{e.visible ? ` (${e.visible})` : ''}
+              </li>
+            ))}
+          </ol>
+          <hr className="my-2" />
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <div>visibility</div><div className="font-mono">{typeof document !== 'undefined' ? document.visibilityState : '—'}</div>
+            <div>hasFocus</div><div className="font-mono">{typeof document !== 'undefined' ? String(document.hasFocus()) : '—'}</div>
+            <div>userAgent</div><div className="font-mono truncate" title={typeof navigator !== 'undefined' ? navigator.userAgent : ''}>{typeof navigator !== 'undefined' ? navigator.userAgent : '—'}</div>
+          </div>
+          <div className="mt-2 text-[10px] text-slate-500">Tokens are masked here. Only click “Log full session” if you’re on a safe machine.</div>
+        </div>
+      )}
                 <div className="text-gray-400 mb-2">
                   <ShoppingCart className="h-12 w-12 mx-auto mb-2 opacity-50" />
                 </div>
