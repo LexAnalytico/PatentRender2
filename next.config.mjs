@@ -17,7 +17,7 @@ const nextConfig = {
     }
     return config
   },
-  async headers() {
+    async headers() {
     // Set no-store on the root document to emulate DevTools "Disable cache" for HTML only.
     // Static assets remain fingerprinted and cached under /_next/static/.
     return [
