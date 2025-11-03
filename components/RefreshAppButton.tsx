@@ -7,25 +7,6 @@ export default function RefreshAppButton() {
     const force = !!opts?.force;
     const reason = opts?.reason || 'unspecified';
     try {
-      // Persist a structured debug payload so next load can explain why we reloaded
-      try {
-        const dpr = (window as any).devicePixelRatio || 1;
-        const scr = (window as any).screen as any;
-        const screenSize = scr && typeof scr.width === 'number' && typeof scr.height === 'number' ? `${scr.width}x${scr.height}` : '';
-        const payload = {
-          reason: `button:${reason}${force ? ':force' : ''}`,
-          ts: Date.now(),
-          details: {
-            force,
-            dims: `${window.innerWidth}x${window.innerHeight}`,
-            dpr,
-            screen: screenSize,
-            pathname: typeof window !== 'undefined' ? window.location.pathname : undefined,
-            ua: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-          },
-        };
-        localStorage.setItem('app_debug_refresh', JSON.stringify(payload));
-      } catch {}
       // One-off suppression so beforeunload hooks (e.g., focus guard) don't prompt
       try {
         sessionStorage.setItem('suppress_unload_prompt', '1');
@@ -52,24 +33,6 @@ export default function RefreshAppButton() {
       return;
     } catch {}
     try {
-      try {
-        const dpr = (window as any).devicePixelRatio || 1;
-        const scr = (window as any).screen as any;
-        const screenSize = scr && typeof scr.width === 'number' && typeof scr.height === 'number' ? `${scr.width}x${scr.height}` : '';
-        const payload = {
-          reason: `button:${reason}${force ? ':force' : ''}`,
-          ts: Date.now(),
-          details: {
-            force,
-            dims: `${window.innerWidth}x${window.innerHeight}`,
-            dpr,
-            screen: screenSize,
-            pathname: typeof window !== 'undefined' ? window.location.pathname : undefined,
-            ua: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-          },
-        };
-        localStorage.setItem('app_debug_refresh', JSON.stringify(payload));
-      } catch {}
       try {
         sessionStorage.setItem('suppress_unload_prompt', '1');
         // Fallback path: also mark resume notice intent
