@@ -94,6 +94,8 @@ export default function LegalIPWebsite() {
       return next.slice(-50)
     })
   }, [])
+  // Track last logout click (source + timestamp) for UI instrumentation
+  const [debugLastLogout, setDebugLastLogout] = useState<{ t: number; source: 'header' | 'sidebar' | 'unknown' } | null>(null)
   const pushFocus = useCallback((type: string) => {
     setDebugFocusEvents(prev => {
       const next = [...prev, { t: Date.now(), type, visible: typeof document !== 'undefined' ? document.visibilityState : undefined }]
@@ -1913,9 +1915,13 @@ const patentServices = [
   useEffect(() => {
     const RESET_ON_RESIZE = process.env.NEXT_PUBLIC_RESET_ON_RESIZE === '1'
     const RESET_ON_FOCUS = process.env.NEXT_PUBLIC_RESET_ON_FOCUS === '1'
+    const RESET_ON_FOCUS_CHROME = process.env.NEXT_PUBLIC_RESET_ON_FOCUS_CHROME === '1'
     const FORCE_REFRESH_ON_FOCUS_MS = Number(process.env.NEXT_PUBLIC_FORCE_REFRESH_ON_FOCUS_MS || '0') || 0
     const winFlag = (typeof window !== 'undefined') && ((window as any).RESET_ON_RESIZE === true)
-    if (!RESET_ON_RESIZE && !winFlag && !RESET_ON_FOCUS && FORCE_REFRESH_ON_FOCUS_MS <= 0) return
+    // Chrome-only opt-in: if enabled, treat Chrome as if RESET_ON_FOCUS were on
+    const isChrome = typeof navigator !== 'undefined' && /chrome|chromium/i.test(navigator.userAgent) && !/edge|edg/i.test(navigator.userAgent)
+    const resetOnFocusEnabled = RESET_ON_FOCUS || (RESET_ON_FOCUS_CHROME && isChrome)
+    if (!RESET_ON_RESIZE && !winFlag && !resetOnFocusEnabled && FORCE_REFRESH_ON_FOCUS_MS <= 0) return
 
     const updateDims = () => {
       try { localStorage.setItem('app_last_seen_dims', `${window.innerWidth}x${window.innerHeight}`) } catch {}
@@ -1955,7 +1961,7 @@ const patentServices = [
         const hiddenAt = Number(localStorage.getItem('app_hidden_at') || '0')
         const hiddenDur = hiddenAt ? (Date.now() - hiddenAt) : 0
         const longHidden = FORCE_REFRESH_ON_FOCUS_MS > 0 && hiddenDur >= FORCE_REFRESH_ON_FOCUS_MS
-        if (marker || changedDims || changedDpr || changedScreen || RESET_ON_FOCUS || longHidden) {
+        if (marker || changedDims || changedDpr || changedScreen || resetOnFocusEnabled || longHidden) {
           try {
             const payload = {
               reason: 'resize-hidden',
@@ -2542,6 +2548,7 @@ const patentServices = [
     if (typeof document === 'undefined' || typeof window === 'undefined') return
     const isSafari = /safari/i.test(navigator.userAgent) && !/chrome|chromium|android/i.test(navigator.userAgent)
     if (!isSafari) return
+    const DISABLE_SAFARI_HARD_REFRESH = process.env.NEXT_PUBLIC_DISABLE_SAFARI_HARD_REFRESH === '1'
     let lastPreviewTotal: number | null = preview.total
     const handleVisReload = () => {
       if (document.hidden) return
@@ -2566,7 +2573,34 @@ const patentServices = [
             localStorage.setItem('safari_refresh_ts', String(now))
             localStorage.setItem('safari_refresh_attempts', String(attempts + 1))
           } catch {}
-          window.location.reload()
+          // Persist reason for post-reload debug
+          try {
+            const dpr = (window as any).devicePixelRatio || 1
+            const scr = (window as any).screen as any
+            const screenSize = scr && typeof scr.width === 'number' && typeof scr.height === 'number' ? `${scr.width}x${scr.height}` : ''
+            const payload = {
+              reason: 'safari-heuristic',
+              ts: Date.now(),
+              details: {
+                condA,
+                condB,
+                condC,
+                attempts: attempts + 1,
+                dims: `${window.innerWidth}x${window.innerHeight}`,
+                dpr,
+                screen: screenSize,
+                pathname: typeof window !== 'undefined' ? window.location.pathname : undefined,
+                ua: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+              }
+            }
+            localStorage.setItem('app_debug_refresh', JSON.stringify(payload))
+          } catch {}
+          if (DISABLE_SAFARI_HARD_REFRESH) {
+            // Soft nudge only when disabled via env
+            setVisibilityTick(t => t + 1)
+          } else {
+            window.location.reload()
+          }
         } else {
           // Fallback: if we hit attempt cap, try a soft state nudge by updating visibilityTick
           setVisibilityTick(t => t + 1)
@@ -3106,7 +3140,7 @@ const handleAuth = async (e: React.FormEvent) => {
 };
 
   const handleLogout = async () => {
-    console.debug('[ui] Sign Out clicked')
+    console.log('[ui] Sign Out clicked')
     try {
       await hookLogout()
       // Ensure session is cleared
@@ -4160,6 +4194,57 @@ if (showQuotePage) {
           <div>userAgent</div><div className="font-mono truncate" title={typeof navigator !== 'undefined' ? navigator.userAgent : ''}>{typeof navigator !== 'undefined' ? navigator.userAgent : '—'}</div>
         </div>
         <div className="mt-2 text-[10px] text-slate-500">Tokens are masked here. Only click “Log full session” if you’re on a safe machine.</div>
+        <hr className="my-2" />
+        <div className="mb-1 font-semibold">Reload diagnostics</div>
+        {(() => {
+          try {
+            const raw = typeof window !== 'undefined' ? localStorage.getItem('app_debug_refresh') : null
+            const info = raw ? JSON.parse(raw) : null
+            const now = Date.now()
+            const lastTs = info?.ts ? Number(info.ts) : 0
+            const lastAgo = lastTs ? `${Math.max(0, Math.floor((now - lastTs)/1000))}s` : '—'
+            const markers = {
+              on_focus: typeof window !== 'undefined' ? (localStorage.getItem('app_refresh_on_focus') === '1') : false,
+              on_main: typeof window !== 'undefined' ? (localStorage.getItem('app_refresh_on_main') === '1') : false,
+            }
+            const prevDims = typeof window !== 'undefined' ? (localStorage.getItem('app_prev_dims_on_hide') || '—') : '—'
+            const prevDpr = typeof window !== 'undefined' ? (localStorage.getItem('app_prev_dpr_on_hide') || '—') : '—'
+            const prevScreen = typeof window !== 'undefined' ? (localStorage.getItem('app_prev_screen_on_hide') || '—') : '—'
+            const hiddenAt = typeof window !== 'undefined' ? Number(localStorage.getItem('app_hidden_at') || '0') : 0
+            const hiddenAgo = hiddenAt ? `${Math.max(0, Math.floor((now - hiddenAt)/1000))}s` : '—'
+            const manualTs = typeof window !== 'undefined' ? Number(localStorage.getItem('app_manual_refresh_ts') || '0') : 0
+            const manualAgo = manualTs ? `${Math.max(0, Math.floor((now - manualTs)/1000))}s` : '—'
+            const safariAttempts = typeof window !== 'undefined' ? Number(localStorage.getItem('safari_refresh_attempts') || '0') : 0
+            const isSafari = typeof navigator !== 'undefined' && /safari/i.test(navigator.userAgent) && !/chrome|chromium|android/i.test(navigator.userAgent)
+            return (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div>last_reason</div><div className="font-mono truncate" title={info?.reason || ''}>{info?.reason || '—'}</div>
+                <div>last_reason_age</div><div className="font-mono">{lastAgo}</div>
+                <div>markers.on_focus</div><div className="font-mono">{String(markers.on_focus)}</div>
+                <div>markers.on_main</div><div className="font-mono">{String(markers.on_main)}</div>
+                <div>prev_dims_on_hide</div><div className="font-mono">{prevDims}</div>
+                <div>prev_dpr_on_hide</div><div className="font-mono">{prevDpr}</div>
+                <div>prev_screen_on_hide</div><div className="font-mono">{prevScreen}</div>
+                <div>last_hidden_ago</div><div className="font-mono">{hiddenAgo}</div>
+                <div>last_manual_refresh_ago</div><div className="font-mono">{manualAgo}</div>
+                <div>safari_attempts</div><div className="font-mono">{String(safariAttempts)}</div>
+                <div>env.RESET_ON_FOCUS</div><div className="font-mono">{String(process.env.NEXT_PUBLIC_RESET_ON_FOCUS === '1')}</div>
+                <div>env.FORCE_REFRESH_ON_FOCUS_MS</div><div className="font-mono">{String(process.env.NEXT_PUBLIC_FORCE_REFRESH_ON_FOCUS_MS || '')}</div>
+                <div>env.RESET_ON_FOCUS_CHROME</div><div className="font-mono">{String(process.env.NEXT_PUBLIC_RESET_ON_FOCUS_CHROME === '1')}</div>
+                <div>env.RESET_ON_RESIZE</div><div className="font-mono">{String(process.env.NEXT_PUBLIC_RESET_ON_RESIZE === '1')}</div>
+                <div>env.FORCE_REFRESH_ON_MAIN</div><div className="font-mono">{String(process.env.NEXT_PUBLIC_FORCE_REFRESH_ON_MAIN === '1')}</div>
+                <div>env.DISABLE_SAFARI_HARD_REFRESH</div><div className="font-mono">{String(process.env.NEXT_PUBLIC_DISABLE_SAFARI_HARD_REFRESH === '1')}</div>
+                <div>win.RESET_ON_RESIZE</div><div className="font-mono">{String(typeof window !== 'undefined' && (window as any).RESET_ON_RESIZE === true)}</div>
+                <div>win.FORCE_REFRESH_ON_MAIN</div><div className="font-mono">{String(typeof window !== 'undefined' && ((window as any).FORCE_REFRESH_ON_MAIN === true || (window as any).RESET_ON_MAIN === true))}</div>
+                <div>win.DEBUG_REFRESH</div><div className="font-mono">{String(typeof window !== 'undefined' && (window as any).DEBUG_REFRESH === true)}</div>
+                <div>isSafari</div><div className="font-mono">{String(isSafari)}</div>
+                <div>last_logout_click</div><div className="font-mono">{debugLastLogout ? `${Math.max(0, Math.floor((now - debugLastLogout.t)/1000))}s ago (${debugLastLogout.source})` : '—'}</div>
+              </div>
+            )
+          } catch {
+            return <div className="text-slate-500">No reload info</div>
+          }
+        })()}
       </div>
     )}
     </>
@@ -4274,7 +4359,14 @@ if (showQuotePage) {
 
             {/* Sign Out: visible but disabled when not signed in */}
             <button
-              onClick={() => { if (!isAuthenticated) return; handleLogout(); setIsOpen(false); }}
+              onClick={(e) => {
+                try { e.preventDefault(); e.stopPropagation(); } catch {}
+                if (!isAuthenticated) return;
+                setDebugLastLogout({ t: Date.now(), source: 'header' })
+                console.log('[ui] Header Sign Out pressed')
+                handleLogout();
+                setIsOpen(false);
+              }}
               className={`block w-full text-left px-4 py-2 text-gray-700 hover:bg-blue-100 ${!isAuthenticated ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
               disabled={!isAuthenticated}
               aria-disabled={!isAuthenticated}
@@ -4454,6 +4546,10 @@ if (showQuotePage) {
             <div>expires_at</div><div className="font-mono">{debugSession?.expires_at ? new Date((debugSession.expires_at||0) * 1000).toLocaleString() : '—'}</div>
             <div>expires_in</div><div className="font-mono">{(debugSession as any)?.expires_in ?? '—'}</div>
             <div>token_type</div><div className="font-mono">{(debugSession as any)?.token_type ?? '—'}</div>
+            <div>time_to_expiry</div>
+            <div className="font-mono">
+              {debugSession?.expires_at ? `${Math.max(0, Math.floor((((debugSession.expires_at||0) * 1000) - Date.now())/1000))}s` : '—'}
+            </div>
           </div>
           <div className="mt-2 flex gap-2">
             <button className="px-2 py-1 bg-slate-100 rounded hover:bg-slate-200" onClick={() => {
@@ -4497,6 +4593,57 @@ if (showQuotePage) {
             <div>userAgent</div><div className="font-mono truncate" title={typeof navigator !== 'undefined' ? navigator.userAgent : ''}>{typeof navigator !== 'undefined' ? navigator.userAgent : '—'}</div>
           </div>
           <div className="mt-2 text-[10px] text-slate-500">Tokens are masked here. Only click “Log full session” if you’re on a safe machine.</div>
+          <hr className="my-2" />
+          <div className="mb-1 font-semibold">Reload diagnostics</div>
+          {(() => {
+            try {
+              const raw = typeof window !== 'undefined' ? localStorage.getItem('app_debug_refresh') : null
+              const info = raw ? JSON.parse(raw) : null
+              const now = Date.now()
+              const lastTs = info?.ts ? Number(info.ts) : 0
+              const lastAgo = lastTs ? `${Math.max(0, Math.floor((now - lastTs)/1000))}s` : '—'
+              const markers = {
+                on_focus: typeof window !== 'undefined' ? (localStorage.getItem('app_refresh_on_focus') === '1') : false,
+                on_main: typeof window !== 'undefined' ? (localStorage.getItem('app_refresh_on_main') === '1') : false,
+              }
+              const prevDims = typeof window !== 'undefined' ? (localStorage.getItem('app_prev_dims_on_hide') || '—') : '—'
+              const prevDpr = typeof window !== 'undefined' ? (localStorage.getItem('app_prev_dpr_on_hide') || '—') : '—'
+              const prevScreen = typeof window !== 'undefined' ? (localStorage.getItem('app_prev_screen_on_hide') || '—') : '—'
+              const hiddenAt = typeof window !== 'undefined' ? Number(localStorage.getItem('app_hidden_at') || '0') : 0
+              const hiddenAgo = hiddenAt ? `${Math.max(0, Math.floor((now - hiddenAt)/1000))}s` : '—'
+              const manualTs = typeof window !== 'undefined' ? Number(localStorage.getItem('app_manual_refresh_ts') || '0') : 0
+              const manualAgo = manualTs ? `${Math.max(0, Math.floor((now - manualTs)/1000))}s` : '—'
+              const safariAttempts = typeof window !== 'undefined' ? Number(localStorage.getItem('safari_refresh_attempts') || '0') : 0
+              const isSafari = typeof navigator !== 'undefined' && /safari/i.test(navigator.userAgent) && !/chrome|chromium|android/i.test(navigator.userAgent)
+              return (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <div>last_reason</div><div className="font-mono truncate" title={info?.reason || ''}>{info?.reason || '—'}</div>
+                  <div>last_reason_age</div><div className="font-mono">{lastAgo}</div>
+                  <div>markers.on_focus</div><div className="font-mono">{String(markers.on_focus)}</div>
+                  <div>markers.on_main</div><div className="font-mono">{String(markers.on_main)}</div>
+                  <div>prev_dims_on_hide</div><div className="font-mono">{prevDims}</div>
+                  <div>prev_dpr_on_hide</div><div className="font-mono">{prevDpr}</div>
+                  <div>prev_screen_on_hide</div><div className="font-mono">{prevScreen}</div>
+                  <div>last_hidden_ago</div><div className="font-mono">{hiddenAgo}</div>
+                  <div>last_manual_refresh_ago</div><div className="font-mono">{manualAgo}</div>
+                  <div>safari_attempts</div><div className="font-mono">{String(safariAttempts)}</div>
+                  <div>env.RESET_ON_FOCUS</div><div className="font-mono">{String(process.env.NEXT_PUBLIC_RESET_ON_FOCUS === '1')}</div>
+                  <div>env.FORCE_REFRESH_ON_FOCUS_MS</div><div className="font-mono">{String(process.env.NEXT_PUBLIC_FORCE_REFRESH_ON_FOCUS_MS || '')}</div>
+                  <div>env.RESET_ON_FOCUS_CHROME</div><div className="font-mono">{String(process.env.NEXT_PUBLIC_RESET_ON_FOCUS_CHROME === '1')}</div>
+                  <div>env.RESET_ON_RESIZE</div><div className="font-mono">{String(process.env.NEXT_PUBLIC_RESET_ON_RESIZE === '1')}</div>
+                  <div>env.FORCE_REFRESH_ON_MAIN</div><div className="font-mono">{String(process.env.NEXT_PUBLIC_FORCE_REFRESH_ON_MAIN === '1')}</div>
+                  <div>env.DISABLE_SAFARI_HARD_REFRESH</div><div className="font-mono">{String(process.env.NEXT_PUBLIC_DISABLE_SAFARI_HARD_REFRESH === '1')}</div>
+                  <div>win.RESET_ON_RESIZE</div><div className="font-mono">{String(typeof window !== 'undefined' && (window as any).RESET_ON_RESIZE === true)}</div>
+                  <div>win.FORCE_REFRESH_ON_MAIN</div><div className="font-mono">{String(typeof window !== 'undefined' && ((window as any).FORCE_REFRESH_ON_MAIN === true || (window as any).RESET_ON_MAIN === true))}</div>
+                  <div>win.DEBUG_REFRESH</div><div className="font-mono">{String(typeof window !== 'undefined' && (window as any).DEBUG_REFRESH === true)}</div>
+                  <div>isSafari</div><div className="font-mono">{String(isSafari)}</div>
+                  <div>last_logout_click</div><div className="font-mono">{debugLastLogout ? `${Math.max(0, Math.floor((now - debugLastLogout.t)/1000))}s ago (${debugLastLogout.source})` : '—'}</div>
+                </div>
+              )
+            } catch {
+              return <div className="text-slate-500">No reload info</div>
+            }
+          })()}
         </div>
       )}
                 <div className="text-gray-400 mb-2">
