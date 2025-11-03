@@ -88,6 +88,8 @@ export default function LegalIPWebsite() {
   const [debugSession, setDebugSession] = useState<Session | null>(null)
   const [debugAuthEvents, setDebugAuthEvents] = useState<Array<{ t: number; event: AuthChangeEvent; hasSession: boolean; uid?: string | null }>>([])
   const [debugFocusEvents, setDebugFocusEvents] = useState<Array<{ t: number; type: string; visible?: string }>>([])
+  const [debugNavType, setDebugNavType] = useState<string>('')
+  const [debugBFCache, setDebugBFCache] = useState<null | boolean>(null)
   const pushAuthEvent = useCallback((e: AuthChangeEvent, s: Session | null) => {
     setDebugAuthEvents(prev => {
       const next = [...prev, { t: Date.now(), event: e, hasSession: !!s, uid: s?.user?.id ?? null }]
@@ -128,19 +130,40 @@ export default function LegalIPWebsite() {
       pushAuthEvent(event, session)
       setDebugSession(session)
     })
-    // focus/visibility listeners
+    // navigation type snapshot
+    try {
+      const nav = performance.getEntriesByType?.('navigation') as any[] | undefined
+      if (nav && nav[0] && typeof nav[0].type === 'string') setDebugNavType(nav[0].type)
+    } catch {}
+
+    // focus/visibility/bfcache listeners
     const onFocus = () => { console.debug('[debug][focus] window focus'); pushFocus('focus') }
     const onBlur = () => { console.debug('[debug][focus] window blur'); pushFocus('blur') }
     const onVis = () => { console.debug('[debug][focus] visibility', document.visibilityState); pushFocus('visibility:' + (document.visibilityState || '')) }
+    const onPageShow = (e: PageTransitionEvent) => {
+      const persisted = Boolean((e as any).persisted)
+      setDebugBFCache(persisted)
+      console.debug('[debug][focus] pageshow', { persisted })
+      pushFocus('pageshow:' + (persisted ? 'persisted' : 'normal'))
+    }
+    const onPageHide = (e: PageTransitionEvent) => {
+      const persisted = Boolean((e as any).persisted)
+      console.debug('[debug][focus] pagehide', { persisted })
+      pushFocus('pagehide:' + (persisted ? 'persisted' : 'normal'))
+    }
     try { window.addEventListener('focus', onFocus) } catch {}
     try { window.addEventListener('blur', onBlur) } catch {}
     try { document.addEventListener('visibilitychange', onVis) } catch {}
+    try { window.addEventListener('pageshow', onPageShow as any) } catch {}
+    try { window.addEventListener('pagehide', onPageHide as any) } catch {}
     return () => {
       mounted = false
       sub?.subscription?.unsubscribe()
       try { window.removeEventListener('focus', onFocus) } catch {}
       try { window.removeEventListener('blur', onBlur) } catch {}
       try { document.removeEventListener('visibilitychange', onVis) } catch {}
+      try { window.removeEventListener('pageshow', onPageShow as any) } catch {}
+      try { window.removeEventListener('pagehide', onPageHide as any) } catch {}
     }
   }, [debugEnabled, pushAuthEvent, pushFocus])
 
@@ -4494,6 +4517,8 @@ if (showQuotePage) {
           <div className="grid grid-cols-2 gap-x-4 gap-y-1">
             <div>visibility</div><div className="font-mono">{typeof document !== 'undefined' ? document.visibilityState : '—'}</div>
             <div>hasFocus</div><div className="font-mono">{typeof document !== 'undefined' ? String(document.hasFocus()) : '—'}</div>
+            <div>nav.type</div><div className="font-mono">{debugNavType || '—'}</div>
+            <div>bfcache restore</div><div className="font-mono">{debugBFCache == null ? '—' : String(debugBFCache)}</div>
             <div>userAgent</div><div className="font-mono truncate" title={typeof navigator !== 'undefined' ? navigator.userAgent : ''}>{typeof navigator !== 'undefined' ? navigator.userAgent : '—'}</div>
           </div>
           <div className="mt-2 text-[10px] text-slate-500">Tokens are masked here. Only click “Log full session” if you’re on a safe machine.</div>
