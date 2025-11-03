@@ -82,40 +82,12 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 
 
 export default function LegalIPWebsite() {
-  // Browser detection helpers (keep Safari logic intact and add Chrome path)
-  const isSafari = useMemo(() => {
-    if (typeof navigator === 'undefined') return false
-    const ua = navigator.userAgent
-    // Safari (not Chrome/Chromium/Edge/Android)
-    return /safari/i.test(ua) && !/(chrome|chromium|crios|edg|edgios|opr|opera|android)/i.test(ua)
-  }, [])
-  const isChrome = useMemo(() => {
-    if (typeof navigator === 'undefined') return false
-    // Prefer userAgentData if available
-    const anyNav: any = navigator as any
-    const brands: Array<{ brand: string; version: string }> | undefined = anyNav.userAgentData?.brands
-    if (Array.isArray(brands) && brands.length > 0) {
-      const brandStr = brands.map(b => (b?.brand || '').toLowerCase()).join(' | ')
-      const isChromium = /chromium|google chrome/i.test(brandStr)
-      const isEdge = /edge/i.test(brandStr)
-      const isOpera = /opera|opr/i.test(brandStr)
-      return isChromium && !isEdge && !isOpera
-    }
-    // Fallback to UA sniff
-    const ua = navigator.userAgent
-    const isChromelike = /(chrome|crios)/i.test(ua)
-    const notEdge = !/edg/i.test(ua)
-    const notOpera = !/(opr|opera)/i.test(ua)
-    const notSafariOnly = !isSafari
-    return isChromelike && notEdge && notOpera && notSafariOnly
-  }, [isSafari])
   // ==== DEV DEBUG: enable with ?debug=1 or localStorage('app:debug') === '1' ====
   const [debugEnabled, setDebugEnabled] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
   const [debugSession, setDebugSession] = useState<Session | null>(null)
   const [debugAuthEvents, setDebugAuthEvents] = useState<Array<{ t: number; event: AuthChangeEvent; hasSession: boolean; uid?: string | null }>>([])
   const [debugFocusEvents, setDebugFocusEvents] = useState<Array<{ t: number; type: string; visible?: string }>>([])
-  const [debugPricingInfo, setDebugPricingInfo] = useState<{ key?: string; keys?: string[]; inFlight?: boolean } | null>(null)
   const pushAuthEvent = useCallback((e: AuthChangeEvent, s: Session | null) => {
     setDebugAuthEvents(prev => {
       const next = [...prev, { t: Date.now(), event: e, hasSession: !!s, uid: s?.user?.id ?? null }]
@@ -155,11 +127,6 @@ export default function LegalIPWebsite() {
       console.debug('[debug][auth] event', { event, hasSession: !!session, uid: session?.user?.id })
       pushAuthEvent(event, session)
       setDebugSession(session)
-      try {
-        if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user?.id) {
-          sessionStorage.setItem('app:lastSignedInAt', String(Date.now()))
-        }
-      } catch {}
     })
     // focus/visibility listeners
     const onFocus = () => { console.debug('[debug][focus] window focus'); pushFocus('focus') }
@@ -1374,11 +1341,8 @@ const pricingLoadInFlightRef = useRef(false)
 const PATENTRENDER_CACHE_KEY = useMemo(() => `pricing:patentrender:v${process.env.NEXT_PUBLIC_PRICING_CACHE_VER || '1'}`,[process.env.NEXT_PUBLIC_PRICING_CACHE_VER])
 const mapPatentrenderToPricing = (row: any): Record<string, number> => ({
   'Patentability Search': Number(row?.patent_search ?? 0),
-  // Swap mapping to better align with service naming in UI
-  // Drafting likely corresponds to a distinct base; use patent_portfolio as placeholder base
-  'Drafting': Number(row?.patent_portfolio ?? 0),
-  // Patent Application Filing should align with patent_application
-  'Patent Application Filing': Number(row?.patent_application ?? 0),
+  'Drafting': Number(row?.patent_application ?? 0),
+  'Patent Application Filing': Number(row?.patent_portfolio ?? 0),
   'First Examination Response': Number(row?.first_examination ?? 0),
   'Trademark Search': Number(row?.trademark_search ?? 0),
   'Trademark Registration': Number(row?.trademark_registration ?? 0),
@@ -1405,30 +1369,22 @@ const fetchPricing = useCallback(async () => {
           if (Object.values(formatted).some((v) => v > 0)) {
             setServicePricing(formatted)
           }
-          if (debugEnabled) setDebugPricingInfo({ key: PATENTRENDER_CACHE_KEY, keys: Object.keys(formatted || {}), inFlight: true })
         }
       } catch {}
     }
 
     // 2) Ensure cache from DB if needed, then set pricing
-    let row: any = null
-    try {
-      row = await ensurePatentrenderCache()
-    } catch (e) {
-      console.warn('[pricing] ensurePatentrenderCache threw', e)
-    }
+    const row = await ensurePatentrenderCache()
     if (row) {
       setServicePricing(mapPatentrenderToPricing(row))
-      if (debugEnabled) setDebugPricingInfo({ key: PATENTRENDER_CACHE_KEY, keys: Object.keys(mapPatentrenderToPricing(row) || {}), inFlight: false })
     } else {
       console.log("No pricing data found in 'patentrender'.")
-      if (debugEnabled) setDebugPricingInfo({ key: PATENTRENDER_CACHE_KEY, keys: [], inFlight: false })
     }
   } finally {
     setLoading(false)
     pricingLoadInFlightRef.current = false
   }
-}, [PATENTRENDER_CACHE_KEY, debugEnabled])
+}, [PATENTRENDER_CACHE_KEY])
 
 // Initial pricing load on mount: seed from localStorage JSON, then fetch/cache
 useEffect(() => {
@@ -1442,13 +1398,12 @@ useEffect(() => {
         if (Object.values(formatted).some((v) => v > 0)) {
           setServicePricing(formatted)
         }
-        if (debugEnabled) setDebugPricingInfo({ key: PATENTRENDER_CACHE_KEY, keys: Object.keys(formatted || {}), inFlight: !!pricingLoadInFlightRef.current })
       }
     }
   } catch {}
   // Then ensure cache and refresh state
   fetchPricing()
-}, [fetchPricing, PATENTRENDER_CACHE_KEY, debugEnabled])
+}, [fetchPricing, PATENTRENDER_CACHE_KEY])
 
 // Main screen (landing) focus/visibility/pageshow refresh: only when missing, mirroring Orders/Profile missing-only behavior
 useEffect(() => {
@@ -2044,94 +1999,6 @@ const patentServices = [
       window.removeEventListener('resize', updateDims)
     }
   }, [])
-
-  // Chrome-only: when on the main landing screen, hard-reset on tab-out -> tab-in per flags
-  useEffect(() => {
-    const RESET_ON_FOCUS = process.env.NEXT_PUBLIC_RESET_ON_FOCUS === '1'
-    const FORCE_REFRESH_ON_MAIN = process.env.NEXT_PUBLIC_FORCE_REFRESH_ON_MAIN === '1'
-    const CART_RESET_ON_MAIN = process.env.NEXT_PUBLIC_CART_RESET_ON_MAIN === '1'
-    const FORCE_REFRESH_ON_FOCUS_MS = Number(process.env.NEXT_PUBLIC_FORCE_REFRESH_ON_FOCUS_MS || '0') || 0
-    // Allow QA override with window flags
-    const win: any = typeof window !== 'undefined' ? window : {}
-    const OVERRIDE = !!(win.CHROME_FOCUS_RESET === true || win.RESET_ON_FOCUS === true)
-    if (!RESET_ON_FOCUS && !FORCE_REFRESH_ON_MAIN && !OVERRIDE && FORCE_REFRESH_ON_FOCUS_MS <= 0) return
-    if (!isChrome) return // keep Safari and others unchanged
-
-    let hiddenAt = 0
-    const THROTTLE_KEY = 'app:chromeFocusRefreshedAt'
-    const THROTTLE_MS = 3000
-    const tryHardReset = (reason: string) => {
-      if (showQuotePage) return // only on landing
-      // Skip if we just completed an OAuth sign-in refresh
-      try {
-        const lastSignIn = Number(sessionStorage.getItem('app:lastSignedInAt') || '0')
-        const oauthPending = sessionStorage.getItem('app:oauthRefreshPending') === '1'
-        const oauthRefreshedAt = Number(sessionStorage.getItem('app:oauthRefreshedAt') || '0')
-        const withinSignInWindow = lastSignIn && (Date.now() - lastSignIn < 6000)
-        const withinOauthWindow = oauthRefreshedAt && (Date.now() - oauthRefreshedAt < 6000)
-        if (oauthPending || withinSignInWindow || withinOauthWindow) {
-          console.debug('[ChromeFocusReset] skipped due to recent OAuth/sign-in activity', { oauthPending, lastSignIn, oauthRefreshedAt })
-          return
-        }
-      } catch {}
-      // Throttle to avoid double-refresh
-      try {
-        const last = Number(localStorage.getItem(THROTTLE_KEY) || '0')
-        if (Date.now() - last < THROTTLE_MS) return
-        localStorage.setItem(THROTTLE_KEY, String(Date.now()))
-      } catch {}
-      // Optional: clear cart
-      try {
-        const winFlag = !!(win.CART_RESET_ON_MAIN === true || win.RESET_ON_MAIN === true)
-        if (CART_RESET_ON_MAIN || winFlag) clearCart()
-      } catch {}
-      // Prefer the global reset hooks if available (consistent with your Reset button)
-      try {
-        if (typeof win.triggerAppResetForce === 'function') {
-          console.debug('[ChromeFocusReset] triggerAppResetForce', { reason })
-          win.triggerAppResetForce(reason)
-          return
-        }
-        if (typeof win.triggerAppReset === 'function') {
-          console.debug('[ChromeFocusReset] triggerAppReset', { reason })
-          win.triggerAppReset()
-          return
-        }
-      } catch {}
-      // Fallback: hard reload
-      console.debug('[ChromeFocusReset] hard reload', { reason })
-      try { window.location.reload() } catch { window.location.href = '/' }
-    }
-    const onVis = () => {
-      try {
-        if (document.hidden) { hiddenAt = Date.now(); return }
-        // Became visible
-        if (showQuotePage) return
-        // Always if RESET_ON_FOCUS, or if long hidden and threshold configured, or override set
-        const wasLongHidden = hiddenAt > 0 && FORCE_REFRESH_ON_FOCUS_MS > 0 && (Date.now() - hiddenAt) >= FORCE_REFRESH_ON_FOCUS_MS
-        if (RESET_ON_FOCUS || wasLongHidden || OVERRIDE) {
-          tryHardReset(RESET_ON_FOCUS ? 'chrome-focus' : (wasLongHidden ? 'chrome-focus-threshold' : 'chrome-override'))
-        }
-      } catch {}
-    }
-    const onFocus = () => {
-      try {
-        if (document.hidden) return
-        if (showQuotePage) return
-        // Mirror visibility handler to cover cases where visibilitychange didn’t fire
-        const wasLongHidden = hiddenAt > 0 && FORCE_REFRESH_ON_FOCUS_MS > 0 && (Date.now() - hiddenAt) >= FORCE_REFRESH_ON_FOCUS_MS
-        if (RESET_ON_FOCUS || wasLongHidden || OVERRIDE) {
-          tryHardReset(RESET_ON_FOCUS ? 'chrome-window-focus' : (wasLongHidden ? 'chrome-window-focus-threshold' : 'chrome-override'))
-        }
-      } catch {}
-    }
-    document.addEventListener('visibilitychange', onVis)
-    window.addEventListener('focus', onFocus)
-    return () => {
-      document.removeEventListener('visibilitychange', onVis)
-      window.removeEventListener('focus', onFocus)
-    }
-  }, [isChrome, showQuotePage])
 
   // Debug overlay: show why the last auto-refresh was triggered (if enabled)
   useEffect(() => {
@@ -3100,7 +2967,6 @@ useEffect(() => {
   const { data: sub } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
   debugLog("[auth] event", { event, hasUser: !!session?.user })
     if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
-      try { sessionStorage.setItem('app:lastSignedInAt', String(Date.now())) } catch {}
       upsertUserProfileFromSession()
       setShowAuthModal(false)
       if (event === "SIGNED_IN" && session?.user) {
@@ -4629,9 +4495,6 @@ if (showQuotePage) {
             <div>visibility</div><div className="font-mono">{typeof document !== 'undefined' ? document.visibilityState : '—'}</div>
             <div>hasFocus</div><div className="font-mono">{typeof document !== 'undefined' ? String(document.hasFocus()) : '—'}</div>
             <div>userAgent</div><div className="font-mono truncate" title={typeof navigator !== 'undefined' ? navigator.userAgent : ''}>{typeof navigator !== 'undefined' ? navigator.userAgent : '—'}</div>
-            <div>pricingKey</div><div className="font-mono truncate" title={debugPricingInfo?.key || ''}>{debugPricingInfo?.key || '—'}</div>
-            <div>pricingKeys</div><div className="font-mono truncate" title={(debugPricingInfo?.keys || []).join(', ')}>{(debugPricingInfo?.keys || []).join(', ') || '—'}</div>
-            <div>pricingInFlight</div><div className="font-mono">{String(debugPricingInfo?.inFlight ?? false)}</div>
           </div>
           <div className="mt-2 text-[10px] text-slate-500">Tokens are masked here. Only click “Log full session” if you’re on a safe machine.</div>
         </div>
