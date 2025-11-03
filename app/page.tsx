@@ -1,5 +1,11 @@
 "use client"
 
+// Force dynamic rendering for the root page so the HTML document is never cached.
+// This mimics the effect of DevTools "Disable cache" for the main document while
+// still allowing static assets (/_next/static/*) to be cached.
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 import type React from "react"
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "react"
 import { OrderChatPopup } from '@/components/OrderChatPopup'
