@@ -14,8 +14,6 @@ export default function RefreshAppButton() {
         sessionStorage.setItem('app_resume_notice', '1');
         (window as any).__suppressBeforeUnloadPrompt = true;
         window.dispatchEvent(new CustomEvent('app:prepare-refresh', { detail: { reason } }));
-        // New: perform a soft resync first (no navigation) so auth/UI stabilizes without reload
-        window.dispatchEvent(new CustomEvent('app:soft-resync', { detail: { reason } }));
       } catch {}
       // Structured debug for programmatic + manual paths
       const ts = new Date().toISOString();
@@ -24,28 +22,14 @@ export default function RefreshAppButton() {
       const delta = now - last;
       // eslint-disable-next-line no-console
       console.debug('[AppRefresh] doRefresh invoked', { ts, now, last, delta, force, reason });
-      // Allow disabling hard reload via local flag for diagnostics
-      const softOnly = localStorage.getItem('app:soft-resync-only') === '1';
       if (!force && delta < 3000) {
         // eslint-disable-next-line no-console
         console.debug('[AppRefresh] throttled; skipping reload');
         return;
       }
-      if (!force && softOnly) {
-        // eslint-disable-next-line no-console
-        console.debug('[AppRefresh] soft-resync-only enabled; skipping reload');
-        return;
-      }
       localStorage.setItem('app_manual_refresh_ts', String(now));
       try { sessionStorage.setItem('app_resume_notice', '1'); } catch {}
-      // Cache-busting reload to avoid any intermediate caches on the document
-      try {
-        const loc = window.location;
-        const bust = `${loc.origin}${loc.pathname}?r=${Date.now()}${loc.hash || ''}`;
-        window.location.replace(bust);
-      } catch {
-        window.location.reload();
-      }
+      window.location.reload();
       return;
     } catch {}
     try {
@@ -55,21 +39,13 @@ export default function RefreshAppButton() {
         sessionStorage.setItem('app_resume_notice', '1');
         (window as any).__suppressBeforeUnloadPrompt = true;
         window.dispatchEvent(new CustomEvent('app:prepare-refresh', { detail: { reason } }));
-        window.dispatchEvent(new CustomEvent('app:soft-resync', { detail: { reason } }));
       } catch {}
       const now = Date.now();
       const last = Number(localStorage.getItem('app_manual_refresh_ts') || '0');
-      const softOnly = localStorage.getItem('app:soft-resync-only') === '1';
-      if (!force && (now - last < 3000 || softOnly)) return; // throttle or skip hard reload in soft-only mode
+      if (!force && now - last < 3000) return; // throttle (fallback path)
       localStorage.setItem('app_manual_refresh_ts', String(now));
       try { sessionStorage.setItem('app_resume_notice', '1'); } catch {}
-      try {
-        const loc = window.location;
-        const bust = `${loc.origin}${loc.pathname}?r=${Date.now()}${loc.hash || ''}`;
-        window.location.replace(bust);
-      } catch {
-        window.location.reload();
-      }
+      window.location.reload();
     } catch {
       window.location.reload();
     }
