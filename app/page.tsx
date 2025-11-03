@@ -82,6 +82,30 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 
 
 export default function LegalIPWebsite() {
+  // ==== VERCEL CACHE BUSTER: Force browser to check for new version ====
+  useEffect(() => {
+    // On mount, check if we need to force reload due to stale cached version
+    try {
+      const buildVersion = typeof window !== 'undefined' ? (window as any).__NEXT_DATA__?.buildId : null
+      const lastBuildId = typeof localStorage !== 'undefined' ? localStorage.getItem('app:last_build_id') : null
+      
+      if (buildVersion && lastBuildId && buildVersion !== lastBuildId) {
+        console.warn('[cache-buster] Build ID changed, clearing caches and reloading')
+        // Clear localStorage cache flags
+        try { localStorage.removeItem('app:last_build_id') } catch {}
+        // Force hard reload to fetch new resources
+        setTimeout(() => window.location.reload(), 100)
+        return
+      }
+      
+      if (buildVersion) {
+        try { localStorage.setItem('app:last_build_id', buildVersion) } catch {}
+      }
+    } catch (e) {
+      console.warn('[cache-buster] failed', e)
+    }
+  }, [])
+
   // ==== DEV DEBUG: enable with ?debug=1 or localStorage('app:debug') === '1' ====
   const [debugEnabled, setDebugEnabled] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
