@@ -2,6 +2,7 @@
 "use client"
 
 import { resolveFormTypeFromOrderLike } from "./utils/resolve-form-type"
+import { useEffect } from "react"
 
 // Map canonical keys to human-readable labels used in forms
 const TYPE_LABELS: Record<string,string> = {
@@ -34,6 +35,17 @@ const CheckoutModal = ({
   const showCheckoutThankYou = isOpen
   const checkoutPayment = payment
   const checkoutOrders = orders
+
+  // Dispatch screen:ready when modal opens to clear any blur overlay from tab-in
+  useEffect(() => {
+    if (showCheckoutThankYou) {
+      // Small delay to ensure modal is rendered
+      const timer = setTimeout(() => {
+        try { window.dispatchEvent(new Event('screen:ready')) } catch {}
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [showCheckoutThankYou])
 
   // Pre-resolve application type(s) for display & debug
   const resolvedTypes: string[] = (checkoutOrders || []).map(o => resolveFormTypeFromOrderLike(o))

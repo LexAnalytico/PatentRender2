@@ -2,6 +2,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
+import { useEffect } from "react"
 
 interface PaymentProcessingModalProps {
   isVisible: boolean
@@ -14,6 +15,17 @@ export function PaymentProcessingModal({
   message = "Processing payment, please wait...",
   className,
 }: PaymentProcessingModalProps) {
+  // Dispatch screen:ready when modal becomes visible to clear any blur overlay from tab-in
+  useEffect(() => {
+    if (isVisible) {
+      // Small delay to ensure modal is rendered
+      const timer = setTimeout(() => {
+        try { window.dispatchEvent(new Event('screen:ready')) } catch {}
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [isVisible])
+
   if (!isVisible) return null
 
   return (

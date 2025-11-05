@@ -237,15 +237,50 @@ export default function FocusProvider({ children }: { children: React.ReactNode 
     if (!overlayActive) return
     const isDedicated = pathname?.startsWith('/orders') || pathname?.startsWith('/profile') || pathname?.startsWith('/forms')
     if (!isDedicated) return
-    const t = setTimeout(() => {
-      setOverlay(false, 'route-arrived')
+    // Use two fallback timers for more robust clearing on Safari/small windows:
+    // - Quick check at 400ms in case screen:ready was missed
+    // - Longer fallback at 1200ms as absolute safety net
+    const t1 = setTimeout(() => {
+      setOverlay(false, 'route-arrived-quick')
       if (restoreCycleRef.current) {
         restoreCycleRef.current = false
-        setLastViewHome('route-arrived')
+        setLastViewHome('route-arrived-quick')
       }
-    }, 600)
-    return () => clearTimeout(t)
+    }, 400)
+    const t2 = setTimeout(() => {
+      setOverlay(false, 'route-arrived-fallback')
+      if (restoreCycleRef.current) {
+        restoreCycleRef.current = false
+        setLastViewHome('route-arrived-fallback')
+      }
+    }, 1200)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+    }
   }, [pathname, overlayActive])
+
+  // Additional safety: clear overlay on user interaction (click, touch, scroll)
+  // This helps on Safari with small windows where timing may be unreliable
+  useEffect(() => {
+    if (!overlayActive) return
+    const clearOnInteraction = () => {
+      setOverlay(false, 'user-interaction')
+      if (restoreCycleRef.current) {
+        restoreCycleRef.current = false
+        setLastViewHome('user-interaction')
+      }
+    }
+    // Listen for any user interaction
+    window.addEventListener('click', clearOnInteraction, { once: true })
+    window.addEventListener('touchstart', clearOnInteraction, { once: true })
+    window.addEventListener('scroll', clearOnInteraction, { once: true, passive: true })
+    return () => {
+      window.removeEventListener('click', clearOnInteraction)
+      window.removeEventListener('touchstart', clearOnInteraction)
+      window.removeEventListener('scroll', clearOnInteraction)
+    }
+  }, [overlayActive])
 
   useEffect(() => {
     // Instrument navigation APIs so we can see which code navigates to '/'
