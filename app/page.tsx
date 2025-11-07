@@ -16,6 +16,7 @@ import { BannerCarousel } from '@/components/sections/BannerCarousel'
 import { buildQuotationHtml as buildQuotationHtmlUtil, buildInvoiceWithFormsHtml } from '@/lib/quotation'
 import AuthModal from "@/components/AuthModal"; // Adjust path
 import { Footer } from "@/components/layout/Footer"
+import { Chatbot, ChatbotTrigger } from "@/components/Chatbot"
 import { UserCircleIcon } from "@heroicons/react/24/outline";
 import CheckoutLayer from '@/components/panels/CheckoutLayer'
 import { debugLog } from '@/lib/logger'
@@ -112,6 +113,9 @@ export default function LegalIPWebsite() {
   const [debugSession, setDebugSession] = useState<Session | null>(null)
   const [debugAuthEvents, setDebugAuthEvents] = useState<Array<{ t: number; event: AuthChangeEvent; hasSession: boolean; uid?: string | null }>>([])
   const [debugFocusEvents, setDebugFocusEvents] = useState<Array<{ t: number; type: string; visible?: string }>>([])
+  
+  // ==== CHATBOT STATE ====
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false)
   const pushAuthEvent = useCallback((e: AuthChangeEvent, s: Session | null) => {
     setDebugAuthEvents(prev => {
       const next = [...prev, { t: Date.now(), event: e, hasSession: !!s, uid: s?.user?.id ?? null }]
@@ -4783,6 +4787,16 @@ if (showQuotePage) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Chatbot */}
+      <Chatbot 
+        isOpen={isChatbotOpen} 
+        onClose={() => setIsChatbotOpen(false)} 
+      />
+      
+      {!isChatbotOpen && (
+        <ChatbotTrigger onClick={() => setIsChatbotOpen(true)} />
+      )}
 
   {/* CheckoutLayer handles thank-you modal inside quote/dashboard context; duplicate removed here. */}
     </div>
