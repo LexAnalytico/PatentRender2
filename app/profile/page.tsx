@@ -837,6 +837,11 @@ function ProfilePageInner() {
         country: editProfile.country || null,
       }
 
+      // Debug: Log the payload being sent
+      console.log('🔍 Profile save payload (profile page):', payload)
+      console.log('🔍 Company field value:', payload.company)
+      console.log('🔍 Edit profile state:', editProfile)
+
       // Single upsert keyed by authenticated user's id ensures we either
       // create or update the correct row and avoids multi-row updates.
       const { data, error } = await supabase
@@ -846,6 +851,11 @@ function ProfilePageInner() {
           "id, email, first_name, last_name, company, phone, address, city, state, country"
         )
         .single()
+
+      // Debug: Log the response from database
+      console.log('🔍 Database response (profile page):', data)
+      console.log('🔍 Database error:', error)
+      console.log('🔍 Returned company field:', data?.company)
 
       if (error) {
         console.error("Failed to save profile:", error.message)

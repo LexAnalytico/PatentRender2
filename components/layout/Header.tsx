@@ -81,9 +81,11 @@ export function Header() {
               {adminInfo.isPrimaryAdmin ? 'Admin Dashboard' : adminInfo.isSecondaryAdmin ? 'My Admin View' : 'Admin Dashboard'}
             </button>
 
-            {/* Welcome text */}
-            {isAuthenticated && displayName && (
-              <span className="text-gray-700 text-sm max-w-[150px] truncate" title={displayName}>Welcome, {displayName}</span>
+            {/* Welcome text with loading fallback */}
+            {isAuthenticated && (
+              <span className="text-gray-700 text-sm max-w-[150px] truncate" title={displayName || "Loading..."}>
+                Welcome, {displayName || "Loading..."}
+              </span>
             )}
 
             {/* Profile / Auth menu */}

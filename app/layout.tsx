@@ -8,7 +8,15 @@ import PointerEventsReset from "@/components/PointerEventsReset";
 import OverlayInspector from "@/components/OverlayInspector";
 import FocusProvider from '@/components/FocusProvider'
 import "./globals.css";
-import { GeistSans } from "geist/font/sans"
+import { Inter } from 'next/font/google'
+
+// Configure the font with proper optimization
+const inter = Inter({ 
+  subsets: ['latin'],
+  display: 'swap',
+  preload: true,
+  variable: '--font-inter'
+})
 
 export const metadata: Metadata = {
   title: "PatentRender2",
@@ -22,9 +30,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <head />
-      <body className={GeistSans.className}>
+      <body className={inter.className}>
         <Navbar />
         <AutoLogout />
         <PointerEventsReset />

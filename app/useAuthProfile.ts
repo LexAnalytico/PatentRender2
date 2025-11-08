@@ -23,6 +23,10 @@ export function useAuthProfile(): AuthProfile {
   const [displayName, setDisplayName] = useState("")
   const [wantsCheckout, setWantsCheckout] = useState(false)
 
+  // Cache for performance on slow networks
+  const [lastDisplayNameUpdate, setLastDisplayNameUpdate] = useState(0)
+  const [cachedDisplayName, setCachedDisplayName] = useState("")
+
   const upsertUserProfileFromSession = useCallback(async () => {
     // Prefer getSession to avoid transient nulls during hydration on Vercel
     const { data: s } = await supabase.auth.getSession()
@@ -55,38 +59,88 @@ export function useAuthProfile(): AuthProfile {
   }, [])
 
   const refreshDisplayName = useCallback(async () => {
+    // Performance optimization: avoid unnecessary refreshes within 30 seconds
+    const now = Date.now()
+    if (cachedDisplayName && (now - lastDisplayNameUpdate) < 30000) {
+      console.log('🔍 Using cached display name (performance optimization):', cachedDisplayName)
+      setDisplayName(cachedDisplayName)
+      return
+    }
+
     // First, check for a live session; avoids getUser() returning null during initial hydration
     const { data: s } = await supabase.auth.getSession()
     if (!s?.session) {
+      console.log('🔍 No session found, clearing display name')
       setDisplayName("")
       setUser(null)
       setIsAuthenticated(false)
+      setCachedDisplayName("")
+      setLastDisplayNameUpdate(0)
       return
     }
     const u = s.session.user
     setUser(u)
     setIsAuthenticated(true)
 
+    console.log('🔍 User metadata:', u.user_metadata)
+    console.log('🔍 User email:', u.email)
+
     const meta = u.user_metadata || {}
     const given = (meta.given_name as string) || ""
     const family = (meta.family_name as string) || ""
     const full = (meta.full_name as string) || (meta.name as string) || ""
+    
+    console.log('🔍 Extracted from metadata - given:', given, 'family:', family, 'full:', full)
+    
     let name = ""
     if (given || family) name = [given, family].filter(Boolean).join(" ")
     else if (full) name = full
     else if (u.email) name = u.email.split("@")[0]
 
+    console.log('🔍 Computed name from metadata/email:', name)
+
     if (name) {
+      console.log('🔍 Setting display name from metadata/email:', name)
       setDisplayName(name)
+      setCachedDisplayName(name)
+      setLastDisplayNameUpdate(now)
       return
     }
 
-    const { data: row } = await supabase.from("users").select("first_name,last_name,email").eq("id", u.id).maybeSingle()
-    if (row) {
-      const n = [row.first_name, row.last_name].filter(Boolean).join(" ") || (row.email?.split("@")[0] ?? "")
-      setDisplayName(n)
+    console.log('🔍 No name from metadata, checking database with timeout...')
+    
+    try {
+      // Add timeout for slow networks (5 seconds max)
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Database query timeout')), 5000)
+      )
+      
+      const dbPromise = supabase.from("users").select("first_name,last_name,email").eq("id", u.id).maybeSingle()
+      
+      const { data: row } = await Promise.race([dbPromise, timeoutPromise]) as any
+      console.log('🔍 Database row:', row)
+      
+      if (row) {
+        const n = [row.first_name, row.last_name].filter(Boolean).join(" ") || (row.email?.split("@")[0] ?? "")
+        console.log('🔍 Setting display name from database:', n)
+        setDisplayName(n)
+        setCachedDisplayName(n)
+        setLastDisplayNameUpdate(now)
+      } else {
+        console.log('🔍 No database row found, using email fallback')
+        const fallbackName = u.email?.split("@")[0] ?? ""
+        setDisplayName(fallbackName)
+        setCachedDisplayName(fallbackName)
+        setLastDisplayNameUpdate(now)
+      }
+    } catch (error) {
+      console.warn('🔍 Database query failed or timed out, using email fallback:', error)
+      const fallbackName = u.email?.split("@")[0] ?? ""
+      setDisplayName(fallbackName)
+      setCachedDisplayName(fallbackName)
+      setLastDisplayNameUpdate(now)
     }
-  }, [])
+  }, [cachedDisplayName, lastDisplayNameUpdate])
 
   useEffect(() => {
     let active = true

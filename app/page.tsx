@@ -1348,11 +1348,22 @@ if (quoteView === "orders") {
         state: embeddedProfile.state || null,
         country: embeddedProfile.country || null,
       }
+      
+      // Debug: Log the payload being sent
+      console.log('🔍 Profile save payload:', payload)
+      console.log('🔍 Company field value:', payload.company)
+      
       const { data, error } = await supabase
         .from('users')
         .upsert(payload, { onConflict: 'id' })
         .select('id, email, first_name, last_name, company, phone, address, city, state, country')
         .single()
+        
+      // Debug: Log the response from database
+      console.log('🔍 Database response:', data)
+      console.log('🔍 Database error:', error)
+      console.log('🔍 Returned company field:', data?.company)
+      
       if (error) {
         console.error('Failed to save embedded profile', error)
         alert(`Failed to save profile: ${error.message}`)
