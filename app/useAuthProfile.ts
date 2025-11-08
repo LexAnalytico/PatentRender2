@@ -147,7 +147,14 @@ export function useAuthProfile(): AuthProfile {
 
     ;(async () => {
       try {
+        console.log('🔍 [PERF] Starting auth session check...')
+        const startTime = performance.now()
+        
         const { data } = await supabase.auth.getSession()
+        
+        const endTime = performance.now()
+        console.log(`🔍 [PERF] Auth session check took ${(endTime - startTime).toFixed(2)}ms`)
+        
         if (!active) return
                 setIsAuthenticated(!!data?.session)
         setUser(data?.session?.user ?? null)

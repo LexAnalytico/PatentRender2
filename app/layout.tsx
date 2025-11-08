@@ -10,11 +10,12 @@ import FocusProvider from '@/components/FocusProvider'
 import "./globals.css";
 import { Inter } from 'next/font/google'
 
-// Configure the font with proper optimization
+// Configure the font with proper optimization - reduced preload to avoid unused warning
 const inter = Inter({ 
   subsets: ['latin'],
   display: 'swap',
-  preload: true,
+  preload: false, // Disable preload to avoid unused font warning
+  fallback: ['system-ui', 'arial'], // Ensure immediate text rendering
   variable: '--font-inter'
 })
 
