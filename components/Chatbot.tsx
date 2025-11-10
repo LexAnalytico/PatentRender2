@@ -23,18 +23,22 @@ export function Chatbot({ isOpen, onClose }: ChatbotProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  const sendMessage = async (messageText: string) => {
+    if (!messageText.trim() || isLoading) return;
+
+    // Handle home command locally
+    if (messageText.toLowerCase().trim() === 'home') {
+      resetToHome();
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: messageText,
     };
 
     setMessages(prev => [...prev, userMessage]);
-    setInput('');
     setIsLoading(true);
 
     try {
@@ -55,7 +59,6 @@ export function Chatbot({ isOpen, onClose }: ChatbotProps) {
         throw new Error('Failed to get response');
       }
 
-      // Handle simple text response
       const responseText = await response.text();
       
       const assistantMessage: Message = {
@@ -79,6 +82,20 @@ export function Chatbot({ isOpen, onClose }: ChatbotProps) {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await sendMessage(input);
+    setInput('');
+  };
+
+  const handleQuickReply = async (reply: string) => {
+    await sendMessage(reply);
+  };
+
+  const resetToHome = () => {
+    setMessages([]);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -89,27 +106,99 @@ export function Chatbot({ isOpen, onClose }: ChatbotProps) {
             <Bot className="h-5 w-5" />
             PatentRender Assistant
           </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="text-white hover:bg-blue-700 h-8 w-8 p-0"
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          <div className="flex gap-1">
+            {messages.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetToHome}
+                className="text-white hover:bg-blue-700 h-8 px-2 text-xs"
+                title="Return to main menu"
+              >
+                🏠
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="text-white hover:bg-blue-700 h-8 w-8 p-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </CardHeader>
         
         <CardContent className="p-0 flex flex-col h-[calc(500px-60px)]">
           <ScrollArea className="flex-1 p-4">
             <div className="space-y-4">
               {messages.length === 0 && (
-                <div className="text-center text-gray-500 py-8">
+                <div className="text-center text-gray-500 py-4">
                   <Bot className="h-12 w-12 mx-auto mb-4 text-blue-600" />
-                  <p className="text-sm">
-                    Hi! I'm here to help you with IP services.
-                    <br />
-                    Ask me about patents, trademarks, copyrights, or designs!
-                  </p>
+                  <div className="text-sm space-y-3">
+                    <p className="font-semibold text-gray-700">Welcome to PatentRender2! 👋</p>
+                    <p className="text-xs">I'm here to help with our IP services.</p>
+                    
+                    <div className="text-xs text-left bg-blue-50 p-3 rounded-lg space-y-2">
+                      <p className="font-semibold text-blue-800 mb-2">Please select a category 👇</p>
+                      <div className="space-y-1 text-blue-700">
+                        <div>1️⃣ <strong>Core Services Overview</strong></div>
+                        <div>2️⃣ <strong>Platform Navigation</strong></div>
+                        <div>3️⃣ <strong>Technical Support</strong></div>
+                        <div>4️⃣ <strong>Client Feedback</strong></div>
+                        <div>5️⃣ <strong>Emergency Support</strong></div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 space-y-2">
+                      <div className="grid grid-cols-1 gap-2 text-xs">
+                        <Button
+                          onClick={() => handleQuickReply('1')}
+                          variant="outline"
+                          size="sm"
+                          className="justify-start text-left h-auto py-2 px-3"
+                        >
+                          <span className="text-blue-600">1️⃣ Core Services Overview</span>
+                        </Button>
+                        <Button
+                          onClick={() => handleQuickReply('2')}
+                          variant="outline"
+                          size="sm"
+                          className="justify-start text-left h-auto py-2 px-3"
+                        >
+                          <span className="text-blue-600">2️⃣ Platform Navigation</span>
+                        </Button>
+                        <Button
+                          onClick={() => handleQuickReply('3')}
+                          variant="outline"
+                          size="sm"
+                          className="justify-start text-left h-auto py-2 px-3"
+                        >
+                          <span className="text-blue-600">3️⃣ Technical Support</span>
+                        </Button>
+                        <Button
+                          onClick={() => handleQuickReply('4')}
+                          variant="outline"
+                          size="sm"
+                          className="justify-start text-left h-auto py-2 px-3"
+                        >
+                          <span className="text-blue-600">4️⃣ Client Feedback</span>
+                        </Button>
+                        <Button
+                          onClick={() => handleQuickReply('5')}
+                          variant="outline"
+                          size="sm"
+                          className="justify-start text-left h-auto py-2 px-3"
+                        >
+                          <span className="text-blue-600">5️⃣ Emergency Support</span>
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-2 text-xs bg-gray-50 p-2 rounded">
+                      <p><em>Or type a number/category name</em></p>
+                    </div>
+                  </div>
                 </div>
               )}
               
@@ -164,7 +253,7 @@ export function Chatbot({ isOpen, onClose }: ChatbotProps) {
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about IP services..."
+                placeholder="Type a number, category, or 'home'..."
                 disabled={isLoading}
                 className="flex-1"
               />

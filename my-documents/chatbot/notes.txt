@@ -1,0 +1,121 @@
+## Welcome Message
+Welcome to PatentRender2 Professional Services! 👋
+
+I'm your dedicated assistant for navigating our comprehensive intellectual property platform. I'm here to provide expert guidance on our services, technical support, and platform navigation.
+
+**Quick Actions Available:**
+✅ **Alt+T** - Start interactive platform tour
+✅ **Alt+O** - Access your orders dashboard  
+✅ **Alt+P** - View profile and account settings
+✅ **Alt+H** - Open comprehensive help center
+
+---
+
+### 📖 **1. Platform Guide & Navigation**
+**Master our comprehensive IP services platform**
+
+**Core Services Overview:**
+- **Patent Research & Analysis** - Comprehensive prior art searches, patentability assessments
+- **Patent Drafting & Filing** - Professional patent application preparation and prosecution
+- **IP Portfolio Management** - Strategic patent portfolio development and maintenance
+- **Legal Documentation** - Contract drafting, licensing agreements, IP transactions
+- **Technical Consulting** - Expert analysis for complex intellectual property matters
+
+**Platform Navigation:**
+- **Orders Dashboard**: Track service progress, view deliverables, manage active projects
+- **Service Catalog**: Browse available services with detailed descriptions and pricing
+- **Document Library**: Access completed work, download reports, manage IP documentation
+- **Account Management**: Update billing information, view invoices, manage preferences
+- **Communication Center**: Direct messaging with assigned attorneys and technical experts
+
+**Quick Navigation Commands:**
+- Type **"services"** for detailed service descriptions
+- Type **"pricing"** for transparent fee structures
+- Type **"timeline"** for typical project delivery schedules
+- Type **"guide"** for comprehensive platform walkthrough
+
+### 🔧 **2. Technical Support & Troubleshooting**
+**Expert technical assistance for optimal platform experience**
+
+**Immediate Solutions:**
+- **🔄 Manual Refresh**: Blue floating refresh button (located below chatbot) - resolves 80% of display issues
+- **⌨️ Focus Reset**: Alt+Tab out and back in to refresh browser focus
+- **🌐 Connection Issues**: Network connectivity problems - try switching networks or cellular data
+- **📱 Mobile Optimization**: For mobile users - rotate device, use Chrome/Safari browsers
+
+**Common Technical Issues:**
+
+**Authentication & Account Access:**
+- **Username not displaying**: Hard refresh (Ctrl+F5), check network stability
+- **Login difficulties**: Clear browser cache, disable browser extensions temporarily
+- **Session timeouts**: Automatic re-authentication in 30 seconds, manual refresh if needed
+- **Multi-device access**: Use incognito/private mode on shared devices
+
+**Performance & Loading:**
+- **Slow page loading**: Close unused browser tabs, check available memory
+- **Service catalog loading**: Disable ad blockers for our domain
+- **Document downloads**: Ensure popup blockers are disabled
+- **Video calls with attorneys**: Grant camera/microphone permissions
+
+**Payment & Billing:**
+- **Payment gateway issues**: Disable popup blockers, enable third-party cookies
+- **Invoice access problems**: Check spam folder, ensure PDF viewer is enabled
+- **Billing discrepancies**: Screenshot error messages for faster resolution
+
+**Browser Compatibility:**
+- **Recommended browsers**: Chrome 100+, Firefox 98+, Safari 14+, Edge 100+
+- **Required settings**: JavaScript enabled, cookies allowed, popup exceptions for our domain
+- **Security software**: Whitelist our domain in antivirus/firewall settings
+
+**Advanced Troubleshooting:**
+1. **Complete browser reset**: Clear all browsing data (Ctrl+Shift+Delete)
+2. **Network diagnostics**: Test on different networks or mobile hotspot
+3. **Device-specific issues**: Try different device or contact our technical team
+4. **Persistent problems**: Provide detailed error screenshots and browser console logs
+
+### 💬 **3. Client Feedback & Service Enhancement**
+**Your insights drive our continuous improvement**
+
+**Professional Feedback Channels:**
+
+**Service Quality Assessment:**
+- **Attorney Performance**: Evaluate communication, expertise, and deliverable quality
+- **Project Timeline**: Share feedback on delivery schedules and milestone management  
+- **Technical Accuracy**: Comment on the precision and depth of IP analysis
+- **Client Experience**: Rate overall satisfaction with service delivery process
+
+**Platform Enhancement Suggestions:**
+- **User Interface**: Navigation improvements, workflow optimization suggestions
+- **New Service Requests**: Emerging IP needs not currently addressed
+- **Integration Capabilities**: Third-party tools and software integration requests
+- **Mobile Experience**: App functionality and mobile-specific feature requests
+
+**How to Submit Professional Feedback:**
+
+**Secure Submission Process:**
+1. **Authenticate**: Login required for all feedback submissions (maintains confidentiality)
+2. **Navigate**: Profile → "Client Feedback & Service Enhancement"  
+3. **Categorize**: Select appropriate feedback type (Service Quality/Platform/Technical)
+4. **Detail**: Provide specific, actionable feedback with examples
+5. **Priority**: Indicate urgency level (Immediate/Standard/Future Enhancement)
+6. **Submit**: Encrypted submission with automatic acknowledgment receipt
+
+**Feedback Categories:**
+- ⭐ **Service Excellence**: Exceptional attorney/technical team performance
+- 🎯 **Process Improvement**: Workflow and efficiency enhancement suggestions  
+- 🔧 **Technical Issues**: Platform functionality and performance concerns
+- 💡 **Innovation Requests**: New features and service offerings
+- 📊 **Reporting Enhancements**: Deliverable format and content suggestions
+
+**Our Commitment:**
+- **Response Time**: All feedback reviewed within 24 hours, response within 48 hours
+- **Action Timeline**: Implementation updates provided for accepted suggestions
+- **Recognition**: Outstanding feedback contributors acknowledged in quarterly updates
+- **Follow-up**: Personal consultation available for complex enhancement proposals
+
+**Confidentiality Assurance**: All feedback is handled under attorney-client privilege where applicable, with strict confidentiality protocols for all client communications.
+
+---
+
+**Emergency Support**: For urgent technical issues during active legal deadlines, use the priority support button (red icon) for immediate assistance.
+

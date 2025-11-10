@@ -2,18 +2,18 @@
 
 ## Welcome Message & Main Menu
 
-Initial Greeting:
+**Initial Greeting:**
 Welcome to PatentRender2! 👋  
 I'm here to help with our IP services.
 
 Please select a category 👇
-1️⃣ Core Services Overview
-2️⃣ Platform Navigation  
-3️⃣ Technical Support  
-4️⃣ Client Feedback  
-5️⃣ Emergency Support
+1️⃣ **Core Services Overview**  
+2️⃣ **Platform Navigation**  
+3️⃣ **Technical Support**  
+4️⃣ **Client Feedback**  
+5️⃣ **Emergency Support**
 
-Type a number or category name
+*Type a number or category name*
 
 ---
 
@@ -130,7 +130,7 @@ Type the number or section name
 View and manage your IP service orders.
 
 🔍 How to access: Dashboard → Orders  
-📊 Track progress: Real-time status updates  
+📊 Track progress:** Real-time status updates  
 📁 View documents: Download completed work  
 💬 Communicate: Message your assigned team  
 
@@ -186,31 +186,31 @@ Manage your profile and preferences.
 
 ## Communication Center - Response to "5" from navigation or "communication"
 
-💬 Communication Center 
+💬 **Communication Center**  
 Connect with your legal teams.
 
-👨‍💼 Direct messaging: Assigned attorneys and experts  
-📎 File sharing: Secure document exchange  
-📅 Meetings: Schedule consultation calls  
-🚨 Priority support: Urgent matter assistance  
+👨‍💼 **Direct messaging:** Assigned attorneys and experts  
+📎 **File sharing:** Secure document exchange  
+📅 **Meetings:** Schedule consultation calls  
+🚨 **Priority support:** Urgent matter assistance  
 
-📋 Check orders → type "orders"  
+📋 **Check orders** → type "orders"  
 🏠 Type "home" for main menu
 
 ---
 
 ## Technical Support - Response to "3" or "support" or "help"
 
-🔧 Technical Support & Troubleshooting 
+🔧 **Technical Support & Troubleshooting**  
 Select your issue type:
 
-1. Authentication Issues  
-2. Performance Problems  
-3. Payment & Billing  
-4. Browser Compatibility  
-5. Advanced Troubleshooting
+1. **Authentication Issues**  
+2. **Performance Problems**  
+3. **Payment & Billing**  
+4. **Browser Compatibility**  
+5. **Advanced Troubleshooting**
 
-Type the number or issue type  
+*Type the number or issue type*  
 🏠 Type "home" to return to main menu
 
 ---

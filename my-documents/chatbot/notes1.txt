@@ -1,0 +1,71 @@
+User: help
+Bot:
+Please select a category 👇
+1️⃣ Core Services Overview  
+2️⃣ Platform Navigation  
+3️⃣ Technical Support & Troubleshooting  
+4️⃣ Client Feedback & Service Enhancement  
+5️⃣ Emergency Support
+
+Bot:
+🧭 Core Services Overview
+Select a subtopic:
+1. Patent Research & Analysis  
+2. Patent Drafting & Filing  
+3. IP Portfolio Management  
+4. Legal Documentation  
+5. Technical Consulting
+(Type the number or name)
+
+Bot:
+📄 Patent Drafting & Filing  
+Professional preparation of patent applications, including claims, drawings, and prosecution before IP offices.  
+✅ Ideal for: Inventors, corporations, and research teams  
+⏱ Typical delivery: 7–10 business days  
+💵 View pricing → type "pricing"
+
+Do:
+
+Use emojis to visually separate topics (🧭, 📄, 💡, ⚙️, etc.)
+
+Keep each section ≤ 5 lines per message bubble
+
+Use bold for emphasis, not full sentences
+
+Break long sections into multiple messages
+
+Use “Next ➡️” or “Back 🔙” buttons for navigation
+
+Reference other commands with short hints (Type "guide" or Tap "help")
+
+Don’t:
+
+Paste long paragraphs (users skip walls of text)
+
+Mix categories in one message
+
+Overuse emojis — one per heading is fine
+
+Recommended Command Hierarchy
+Command	Category	Subcommands	Example
+services	Core Services	research, drafting, portfolio, legal, consulting	“Type ‘services drafting’”
+navigation	Platform Navigation	orders, catalog, library, account, communication	“Type ‘navigation orders’”
+support	Technical Support	auth, performance, billing, browser, advanced	“Type ‘support billing’”
+feedback	Feedback & Enhancement	quality, platform, technical, innovation, reporting	“Type ‘feedback technical’”
+emergency	Support	None	“Contact immediate support via red button.”
+
+Add a “Home 🏠” button on every screen to restart
+
+Maintain a breadcrumb (You are in: Support → Billing)
+
+Allow keyboard shortcuts (e.g., typing “home” or pressing Esc resets chat)
+
+Add typing delay (simulate human pause, e.g. 400–800 ms)
+
+If you want future upgrade → easy to plug NLP layer later (same commands can serve as intents)
+
+Main menu	Always accessible “🏠” floating icon
+Backup command	Allow typing “menu” or “home”
+Submenu nav	Add “Back 🔙” quick reply
+Design	Fixed FAB or bottom toolbar
+Implementation	Simple resetChatState() function that reloads main menu

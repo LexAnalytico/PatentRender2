@@ -113,14 +113,39 @@ export default function KnowledgeBaseAdmin() {
           />
           
           <div className="text-sm text-gray-500 space-y-2">
-            <p><strong>Usage Tips:</strong></p>
+            <p><strong>Knowledge Base Management Guide:</strong></p>
             <ul className="list-disc pl-5 space-y-1">
-              <li>Use clear section headers for different types of questions</li>
-              <li>Include example user questions in each section</li>
-              <li>Provide exact responses you want the chatbot to give</li>
-              <li>Test changes by asking the chatbot questions after saving</li>
-              <li>The knowledge base supports Markdown formatting</li>
+              <li><strong>Content Structure:</strong> Use clear section headers with ## for different question categories</li>
+              <li><strong>User Commands:</strong> Include trigger phrases like "Response to 'keyword'" for chatbot recognition</li>
+              <li><strong>Interactive Elements:</strong> Reference keyboard shortcuts (Alt+T, Alt+O, Alt+P) and tour features</li>
+              <li><strong>Professional Tone:</strong> Maintain legal industry standards with technical accuracy</li>
+              <li><strong>Quick Actions:</strong> Include command triggers like "services", "pricing", "guide", "tour"</li>
+              <li><strong>Troubleshooting:</strong> Provide step-by-step solutions with specific browser requirements</li>
+              <li><strong>Testing:</strong> After saving, test changes by asking the chatbot various questions</li>
+              <li><strong>Markdown Support:</strong> Use formatting for emphasis, lists, and code blocks</li>
             </ul>
+            
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+              <p><strong>💡 Content Integration Tips:</strong></p>
+              <ul className="list-disc pl-5 space-y-1 mt-2">
+                <li><strong>Welcome Message:</strong> First section defines initial user greeting and available commands</li>
+                <li><strong>Quick Commands:</strong> Users can type "tour", "help", "services", "pricing" for specific responses</li>
+                <li><strong>Keyboard Shortcuts:</strong> Alt+T (tour), Alt+O (orders), Alt+P (profile), Alt+H (help)</li>
+                <li><strong>Context Awareness:</strong> Chatbot understands user intent and provides relevant section responses</li>
+                <li><strong>Professional Standards:</strong> Content reflects legal industry expertise and confidentiality requirements</li>
+              </ul>
+            </div>
+            
+            <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-md">
+              <p><strong>🎯 User Interaction Context:</strong></p>
+              <ul className="list-disc pl-5 space-y-1 mt-2">
+                <li><strong>Platform Integration:</strong> Knowledge base connects with tour system and navigation shortcuts</li>
+                <li><strong>Technical Support:</strong> Comprehensive troubleshooting covers browser compatibility and common issues</li>
+                <li><strong>Service Guidance:</strong> Professional IP service explanations with pricing and process details</li>
+                <li><strong>Emergency Support:</strong> Priority channels for urgent legal deadline situations</li>
+                <li><strong>Confidentiality:</strong> Attorney-client privilege protection and security protocols explained</li>
+              </ul>
+            </div>
           </div>
         </CardContent>
       </Card>
