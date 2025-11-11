@@ -4577,7 +4577,11 @@ if (showQuotePage) {
               <span className="text-xl font-bold text-blue-600">{formatINR(getTotalPrice())}</span>
             </div>
             <div className="space-y-2">
-              <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={goToQuotePage}>
+              <Button 
+                className="w-full bg-gray-400 hover:bg-gray-400 cursor-not-allowed" 
+                onClick={goToQuotePage}
+                disabled={true}
+              >
                 Go To Payments
               </Button>
              
