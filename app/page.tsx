@@ -2243,6 +2243,9 @@ const patentServices = [
 
   // On visibility gain, if we somehow landed on Home but the saved view was Orders, auto-navigate back
   useEffect(() => {
+    let lastVisibilityHiddenTime = 0
+    const MIN_AWAY_TIME_MS = 2000 // Only restore if user was away for at least 2 seconds
+    
     const handleVisRestore = () => {
       try {
         // Terminal/debug helper: post a small payload to server to record visibility events
@@ -2268,6 +2271,8 @@ const patentServices = [
         // If the user is on a dedicated route like /orders or /main, don't mutate view state.
         if (typeof window !== 'undefined' && window.location.pathname !== '/') return
         if (document.hidden) {
+          // Track when page was hidden
+          lastVisibilityHiddenTime = Date.now()
           // Persist the current view on tab-out so we can restore accurately
           // Map forms -> orders so coming back lands on Orders instead of Forms
           let val = showQuotePage ? `quote:${quoteView}` : 'home'
@@ -2297,9 +2302,18 @@ const patentServices = [
           } catch {}
           return
         }
-        // Became visible
+        // Became visible - check if user was actually away long enough to warrant auto-restore
+        const awayDuration = lastVisibilityHiddenTime > 0 ? (Date.now() - lastVisibilityHiddenTime) : 0
+        const shouldRestore = awayDuration >= MIN_AWAY_TIME_MS
+        
+        if (!shouldRestore) {
+          // User was only briefly away (e.g., file picker opened), don't auto-navigate
+          console.debug('[ViewPersist] skipping auto-restore, away time too short', { awayDuration })
+          return
+        }
+        
         const last = localStorage.getItem(LAST_VIEW_KEY)
-        debugLog('[ViewPersist] visible', { last, showQuotePage, quoteView })
+        debugLog('[ViewPersist] visible', { last, showQuotePage, quoteView, awayDuration })
   if (last === 'quote:orders') {
           // Restore Orders inside the embedded dashboard (no dedicated route)
           debugLog('[ViewPersist] restoring orders on visible (embedded)')

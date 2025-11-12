@@ -449,6 +449,19 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   setThankYouVariant(null)
     // Clear all current field values
     setFormValues({})
+    // Clear localStorage draft to ensure empty state is saved
+    ;(async () => {
+      try {
+        const { data: s } = await supabase.auth.getSession()
+        const uid = s?.session?.user?.id || null
+        const keyExact = formDraftKey(uid, orderIdEffective ?? null, selectedType)
+        const keyLast = lastByTypeKey(uid, selectedType)
+        localStorage.removeItem(keyExact)
+        localStorage.removeItem(keyLast)
+      } catch (e) {
+        console.warn('[Refill] Failed to clear localStorage draft', e)
+      }
+    })()
     // Reset multi-author fields to a single blank row where applicable
     try {
       const pattern = /^(inventor\s*\/\s*)?applicant.*name\(s\)|^(inventor|applicant).*name(s)?$/i
@@ -1378,10 +1391,10 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
   }, [prefillCandidate, onPrefillStateChange])
 
   return (
-    <div className="py-8 px-4 sm:px-6">
+    <div className="py-8 px-4 sm:px-6 bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
       {/* Prefill banner removed; replaced by external header button in parent component */}
       <div className={styleTokens.outer}>
-        <Card className="border-0 shadow-none">
+        <Card className="border-0 shadow-lg bg-white/95 backdrop-blur-sm">
         {/* Anchor for focus/scroll after exiting confirm mode */}
         <div ref={formTopRef} tabIndex={-1} aria-label="Form top anchor" />
         <CardContent className="px-8 pb-10 space-y-12">
@@ -1412,7 +1425,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
           </div>
 
           {selectedType ? (
-            <div className="pt-2 space-y-2">
+            <div className="pt-2 space-y-2 bg-gradient-to-br from-blue-50/40 via-indigo-50/20 to-blue-50/40 rounded-xl p-6 border border-blue-100/50 shadow-inner">
               <div className={styleTokens.sectionWrap}>
                 <div className={styleTokens.sectionHeaderRow}>
                   <span className={styleTokens.sectionAccent} />
