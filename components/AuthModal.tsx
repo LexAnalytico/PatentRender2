@@ -45,7 +45,7 @@ const AuthModal: React.FC<AuthModalProps> = ({
         <CardHeader className="text-center">
           <div className="flex items-center justify-center mb-4">
             <Scale className="h-8 w-8 text-blue-600 mr-2" />
-            <span className="text-2xl font-bold text-gray-900">LegalIP Pro</span>
+            <span className="text-2xl font-bold text-gray-900">IP Protection India</span>
           </div>
           <CardTitle className="text-xl">
             {authMode === "signin" ? "Sign In to Continue" : "Create Your Account"}

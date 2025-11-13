@@ -136,7 +136,7 @@ export function Chatbot({ isOpen, onClose }: ChatbotProps) {
                 <div className="text-center text-gray-500 py-4">
                   <Bot className="h-12 w-12 mx-auto mb-4 text-blue-600" />
                   <div className="text-sm space-y-3">
-                    <p className="font-semibold text-gray-700">Welcome to PatentRender2! 👋</p>
+                    <p className="font-semibold text-gray-700">Welcome to IP Protection India! 👋</p>
                     <p className="text-xs">I'm here to help with our IP services.</p>
                     
                     <div className="text-xs text-left bg-blue-50 p-3 rounded-lg space-y-2">

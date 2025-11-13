@@ -1634,7 +1634,7 @@ const patentServices = [
 
   const reviews = [
     {
-      quote: "LegalIP Pro streamlined our filing and kept us informed at every step. Outstanding experience.",
+      quote: "IP Protection India streamlined our filing and kept us informed at every step. Outstanding experience.",
       name: "Anita S.",
       role: "Founder, HealthTech Co.",
       rating: 5,
@@ -3438,7 +3438,7 @@ useEffect(() => {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
         amount: order.amount || amount,
         currency: order.currency || 'INR',
-        name: 'LegalIP Pro',
+        name: 'IP Protection India',
         description: firstItem?.name || 'IP Service Payment',
         orderId: order.id,
         prefill: { name: user?.user_metadata?.full_name || '', email: user?.email || '', contact: user?.phone || '' },
@@ -3833,7 +3833,7 @@ if (showQuotePage) {
                                         </div>
                                       </div>
                                       <div style='text-align:right;font-size:12px;'>
-                                        <strong>LegalIP Pro</strong><br/>Professional IP Services<br/>support@legalippro.com
+                                        <strong>IP Protection India</strong><br/>Professional IP Services<br/>info@lexanalytico.com
                                       </div>
                                     </div>
                                     <table style='margin-top:12px;'>
@@ -3892,7 +3892,7 @@ if (showQuotePage) {
                                     }
                                   }
                                   // 3) Build HTML with attachments included
-                                  const html = buildInvoiceWithFormsHtml({ bundle, company: { name: 'LegalIP Pro' }, attachments: attachmentsMap })
+                                  const html = buildInvoiceWithFormsHtml({ bundle, company: { name: 'IP Protection India' }, attachments: attachmentsMap })
                                   // 4) Build blob & create object URL for inline iframe preview
                                   const blob = new Blob([html], { type: 'text/html' })
                                   const url = URL.createObjectURL(blob)
@@ -4261,7 +4261,7 @@ if (showQuotePage) {
 )}
 
   {/* Hidden landing heading anchor for skip link and initial focus */}
-    <h1 id="page-heading" tabIndex={-1} className="sr-only">LegalIP Pro – Services</h1>
+    <h1 id="page-heading" tabIndex={-1} className="sr-only">IP Protection India – Services</h1>
 
   {/* Header */}
       <header className="bg-white shadow-md p-4">

@@ -20,7 +20,7 @@ export function Footer() {
           <div>
             <div className="flex items-center mb-4">
               <Scale className="h-8 w-8 text-blue-400 mr-2" />
-              <span className="text-2xl font-bold">LegalIP Pro</span>
+              <span className="text-2xl font-bold">IP Protection India</span>
             </div>
             <p className="text-gray-400">
               Your trusted partner for comprehensive intellectual property protection services.
@@ -76,7 +76,7 @@ export function Footer() {
           </div>
         </div>
         <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-          <p>&copy; 2024 LegalIP Pro. All rights reserved.</p>
+          <p>&copy; 2025 IP Protection India. All rights reserved.</p>
         </div>
       </div>
     </footer>

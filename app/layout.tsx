@@ -20,8 +20,8 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "PatentRender2",
-  description: "PatentRender2 app",
+  title: "IP Protection India",
+  description: "IP Protection India app",
 };
 
 export const viewport: Viewport = {
@@ -53,7 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
         <RefreshAppButton />
         <footer style={{padding:12,borderTop:'1px solid #eee',marginTop:20}}>
-          <small>PatentRender2</small>
+          <small>IP Protection India</small>
         </footer>
       </body>
     </html>
