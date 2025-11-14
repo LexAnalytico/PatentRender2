@@ -7,6 +7,7 @@ import AutoLogout from '@/components/AutoLogout'
 import PointerEventsReset from "@/components/PointerEventsReset";
 import OverlayInspector from "@/components/OverlayInspector";
 import FocusProvider from '@/components/FocusProvider'
+import { Analytics } from "@vercel/analytics/react"
 import "./globals.css";
 import { Inter } from 'next/font/google'
 
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <footer style={{padding:12,borderTop:'1px solid #eee',marginTop:20}}>
           <small>IP Protection India</small>
         </footer>
+        <Analytics />
       </body>
     </html>
   )
