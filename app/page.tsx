@@ -61,8 +61,12 @@ import {
   Eye,
   EyeOff,
   Info,
+  Sparkles,
+  Briefcase,
+  AlertCircle,
+  Users,
+  X,
 } from "lucide-react"
-import { Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import FormClient from "./forms/FormClient"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -353,6 +357,11 @@ const openFirstFormEmbedded = () => {
     proofFileNames: [] as string[],
     searchType: "",
   })
+  
+  // Renewal-specific state
+  const [showRenewalModal, setShowRenewalModal] = useState(false)
+  const [renewalClassType, setRenewalClassType] = useState<'single' | 'multi'>('single')
+  const [renewalClassCount, setRenewalClassCount] = useState(2)
 
  
   const [activeServiceTab, setActiveServiceTab] = useState("patent") // State for active tab
@@ -1574,18 +1583,45 @@ const patentServices = [
   const trademarkServices = [
     {
       title: "Trademark Search",
-      description: "Comprehensive trademark availability search",
+      description: "A trademark search is essential before filing to ensure your mark is unique and available for registration. We conduct comprehensive searches across trademark databases, business registries, and common law sources to identify potential conflicts. Our detailed reports help you assess registration prospects, minimize objections, and make informed branding decisions with confidence.",
       icon: <Scale className="h-8 w-8 text-green-600" />,
+      price: 500,
     },
     {
-      title: "Trademark Registration",
-      description: "Complete trademark application and registration process",
+      title: "Trademark Filing",
+      description: "Trademark filing establishes your legal claim to a brand name, logo, or slogan. We prepare and submit applications with accurate classifications, complete documentation, and strategic descriptions. Our team ensures compliance with trademark office requirements, optimizes your application for approval, and manages the entire filing process smoothly from start to finish.",
       icon: <Shield className="h-8 w-8 text-green-600" />,
+      price: 3000,
     },
     {
-      title: "Trademark Monitoring",
-      description: "Ongoing monitoring and protection services",
+      title: "Response To Examination Report",
+      description: "The examination report outlines objections raised by the trademark examiner. Our experts analyze each objection, prepare persuasive legal arguments, and submit comprehensive responses with supporting evidence. We address concerns regarding similarity, descriptiveness, or documentation to overcome objections and advance your application toward successful registration.",
+      icon: <FileText className="h-8 w-8 text-green-600" />,
+      price: 4000,
+    },
+    {
+      title: "Post Examination Hearing",
+      description: "When written responses aren't sufficient, a post-examination hearing provides an opportunity to present your case directly to the trademark office. Our attorneys represent you at hearings, present compelling arguments, clarify misunderstandings, and negotiate solutions. We ensure your interests are strongly advocated throughout the hearing process.",
+      icon: <Briefcase className="h-8 w-8 text-green-600" />,
+      price: 3000,
+    },
+    {
+      title: "Opposition",
+      description: "Trademark opposition allows you to challenge applications that may infringe on your rights or cause market confusion. We file detailed oppositions with legal grounds, evidence, and strong arguments. Our team protects your brand by preventing conflicting registrations and safeguarding your market position through strategic opposition proceedings.",
+      icon: <AlertCircle className="h-8 w-8 text-green-600" />,
+      price: 2700,
+    },
+    {
+      title: "Opposition Hearing",
+      description: "Opposition hearings require skilled representation to defend or challenge trademark applications. Our experienced attorneys present evidence, cross-examine witnesses, and deliver persuasive legal arguments before trademark boards. We prepare thoroughly to maximize your chances of a favorable outcome and protect your trademark interests effectively.",
+      icon: <Users className="h-8 w-8 text-green-600" />,
+      price: 4000,
+    },
+    {
+      title: "Renewal of Registration",
+      description: "Trademark renewal maintains your registration and ongoing protection. We track renewal deadlines, prepare required documentation, and ensure timely submissions to prevent lapses in coverage. Our proactive renewal management keeps your trademark rights active, avoiding costly re-filing and maintaining your brand's legal protection without interruption.",
       icon: <Clock className="h-8 w-8 text-green-600" />,
+      price: 1500,
     },
   ]
 
@@ -2488,6 +2524,14 @@ const patentServices = [
 
   // Options panel helpers
   const openOptionsForService = (serviceName: string, category: string) => {
+    // Special handling for Renewal of Registration
+    if (serviceName === 'Renewal of Registration') {
+      setShowRenewalModal(true)
+      setRenewalClassType('single')
+      setRenewalClassCount(2)
+      return
+    }
+    
     setSelectedServiceTitle(serviceName)
     setSelectedServiceCategory(category)
     setShowOptionsPanel(true)
@@ -4392,17 +4436,34 @@ if (showQuotePage) {
 
 
           {/* Trademark Services */}
-          <section id="trademark-services" className="bg-neutral-50 py-6 md:py-8 rounded-lg mt-6 md:mt-8 border border-neutral-200 scroll-mt-24">
+          <section id="trademark-services" className="bg-green-50 py-6 md:py-8 rounded-lg mt-6 md:mt-8 scroll-mt-24">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
                 <h2 className="text-2xl md:text-4xl font-bold text-gray-900">Trademark Services</h2>
                 <p className="text-base md:text-lg text-gray-600 max-w-3xl">Protect your brand identity with tailored search, filing, and monitoring solutions.</p>
               </div>
-              <div className="text-center py-10 md:py-12">
-                <div className="mx-auto mb-6 w-14 h-14 md:w-16 md:h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
-                  <Clock className="h-7 w-7 md:h-8 md:w-8 text-neutral-600" />
-                </div>
-                <h3 className="text-xl md:text-2xl font-semibold text-gray-900 mb-2">Coming soon</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+                {trademarkServices.map((service) => (
+                  <Card key={service.title} className="bg-white hover:shadow-lg transition-shadow">
+                    <CardContent className="p-5 md:p-7">
+                      <div className="flex items-start gap-3 justify-between">
+                        <div className="p-2 md:p-3 bg-green-100 rounded-full">
+                          <span className="inline-flex items-center justify-center h-6 w-6 md:h-8 md:w-8 text-green-600">{service.icon}</span>
+                        </div>
+                        <h3 className="text-lg md:text-xl font-semibold text-gray-900">{service.title}</h3>
+                      </div>
+                      <p className="text-gray-600 mt-3 md:mt-4 text-sm md:text-base">
+                        {service.description}
+                      </p>
+                      <div className="flex items-center justify-between mt-3 md:mt-4">
+                        <span className="text-xl md:text-2xl font-bold text-green-600">
+                          {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(service.price)}
+                        </span>
+                        <Button onClick={() => openOptionsForService(service.title, 'Trademark')} size="sm" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Select</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
                 <p className="text-gray-600 max-w-2xl mx-auto text-sm md:text-base">We’re polishing our trademark offerings. Meanwhile, explore our fully available patent services.</p>
                 <div className="mt-6">
                   <Button variant="outline" className="border-neutral-200" onClick={() => scrollToSection('patent-services')}>
@@ -4696,6 +4757,113 @@ if (showQuotePage) {
                
               />
             )}
+            
+            {/* Renewal Modal */}
+            {showRenewalModal && (
+              <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4" onClick={() => setShowRenewalModal(false)}>
+                <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-xl font-semibold text-gray-900">Renewal of Registration</h3>
+                    <button onClick={() => setShowRenewalModal(false)} className="text-gray-400 hover:text-gray-600">
+                      <X className="h-6 w-6" />
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {/* Class Type Dropdown */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select Class Type
+                      </label>
+                      <select
+                        value={renewalClassType}
+                        onChange={(e) => setRenewalClassType(e.target.value as 'single' | 'multi')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      >
+                        <option value="single">Single Class</option>
+                        <option value="multi">Multi Class</option>
+                      </select>
+                    </div>
+                    
+                    {/* Multi Class Counter */}
+                    {renewalClassType === 'multi' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Number of Classes (2-10)
+                        </label>
+                        <div className="flex items-center gap-4">
+                          <button
+                            onClick={() => setRenewalClassCount(Math.max(2, renewalClassCount - 1))}
+                            disabled={renewalClassCount <= 2}
+                            className="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            -
+                          </button>
+                          <span className="text-2xl font-semibold text-gray-900 w-12 text-center">
+                            {renewalClassCount}
+                          </span>
+                          <button
+                            onClick={() => setRenewalClassCount(Math.min(10, renewalClassCount + 1))}
+                            disabled={renewalClassCount >= 10}
+                            className="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Price Display */}
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Total Price:</span>
+                        <span className="text-2xl font-bold text-green-600">
+                          {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                            renewalClassType === 'single' ? 1500 : renewalClassCount * 1500
+                          )}
+                        </span>
+                      </div>
+                      {renewalClassType === 'multi' && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          {renewalClassCount} classes × ₹1,500 per class
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Add to Cart Button */}
+                    <button
+                      onClick={() => {
+                        const price = renewalClassType === 'single' ? 1500 : renewalClassCount * 1500
+                        const details = renewalClassType === 'single' 
+                          ? 'Single Class'
+                          : `Multi Class (${renewalClassCount} classes)`
+                        
+                        const newItem = {
+                          id: `renewal-${Date.now()}`,
+                          name: 'Renewal of Registration',
+                          service_id: null,
+                          price: price,
+                          category: 'Trademark',
+                          details: details
+                        }
+                        
+                        setCartItems((prev) => {
+                          const next = [...prev, newItem]
+                          try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+                          return next
+                        })
+                        
+                        setShowRenewalModal(false)
+                      }}
+                      className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-md transition-colors"
+                    >
+                      Add to Cart
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
           </div>
         </div>
