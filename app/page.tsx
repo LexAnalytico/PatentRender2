@@ -379,7 +379,7 @@ const openFirstFormEmbedded = () => {
   
   // Opposition specific state
   const [showOppositionModal, setShowOppositionModal] = useState(false)
-  const [oppositionType, setOppositionType] = useState<string>('notice')
+  const [oppositionTypes, setOppositionTypes] = useState<string[]>([])
 
  
   const [activeServiceTab, setActiveServiceTab] = useState("patent") // State for active tab
@@ -2579,7 +2579,7 @@ const patentServices = [
     // Special handling for Opposition
     if (serviceName === 'Opposition') {
       setShowOppositionModal(true)
-      setOppositionType('notice')
+      setOppositionTypes([])
       return
     }
     
@@ -4924,47 +4924,78 @@ if (showQuotePage) {
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Opposition</DialogTitle>
-                  <DialogDescription>Select the type of opposition filing</DialogDescription>
+                  <DialogDescription>Select the types of opposition filing (multiple selections allowed)</DialogDescription>
                 </DialogHeader>
                 
                 <div className="space-y-4">
-                  {/* Opposition Type Dropdown */}
+                  {/* Opposition Type Multi-Select */}
                   <div>
-                    <Label className="text-sm font-medium text-gray-700">Select the Type of Opposition</Label>
-                    <Select value={oppositionType} onValueChange={(v) => setOppositionType(v)}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Choose opposition type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="notice">Notice of Opposition</SelectItem>
-                        <SelectItem value="counter">Counter Statement</SelectItem>
-                        <SelectItem value="support-opposition">Affidavit in Support of Opposition</SelectItem>
-                        <SelectItem value="support-application">Affidavit in Support of Application</SelectItem>
-                        <SelectItem value="reply">Reply Affidavit/ Relying Letter</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Select the Type(s) of Opposition</Label>
+                    <div className="space-y-2">
+                      {[
+                        { value: 'notice', label: 'Notice of Opposition', hasGovtFee: true },
+                        { value: 'counter', label: 'Counter Statement', hasGovtFee: true },
+                        { value: 'support-opposition', label: 'Affidavit in Support of Opposition', hasGovtFee: false },
+                        { value: 'support-application', label: 'Affidavit in Support of Application', hasGovtFee: false },
+                        { value: 'reply', label: 'Reply Affidavit/ Relying Letter', hasGovtFee: false }
+                      ].map((option) => (
+                        <label key={option.value} className="flex items-center space-x-2 cursor-pointer p-2 rounded hover:bg-gray-50">
+                          <input
+                            type="checkbox"
+                            checked={oppositionTypes.includes(option.value)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setOppositionTypes([...oppositionTypes, option.value])
+                              } else {
+                                setOppositionTypes(oppositionTypes.filter(t => t !== option.value))
+                              }
+                            }}
+                            className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                          />
+                          <span className="text-sm">{option.label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                   
                   {/* Price Display */}
-                  <div className="rounded-md border p-3 bg-gray-50">
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Professional Fee</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(2700)}</span>
+                  {oppositionTypes.length > 0 && (
+                    <div className="rounded-md border p-3 bg-gray-50">
+                      {(() => {
+                        const professionalFee = 2700 * oppositionTypes.length
+                        const govtFeeCount = oppositionTypes.filter(t => t === 'notice' || t === 'counter').length
+                        const governmentFee = 2700 * govtFeeCount
+                        const total = professionalFee + governmentFee
+                        
+                        return (
+                          <>
+                            <div className="flex items-center justify-between text-sm mb-1">
+                              <span>Professional Fee ({oppositionTypes.length} {oppositionTypes.length === 1 ? 'type' : 'types'})</span>
+                              <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(professionalFee)}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-sm mb-1">
+                              <span>Government Fee{govtFeeCount > 0 ? ` (${govtFeeCount} ${govtFeeCount === 1 ? 'type' : 'types'})` : ''}</span>
+                              <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(governmentFee)}</span>
+                            </div>
+                            <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                              <span>Total</span>
+                              <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(total)}</span>
+                            </div>
+                          </>
+                        )
+                      })()}
                     </div>
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Government Fee</span>
-                      <span>₹0</span>
-                    </div>
-                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
-                      <span>Total</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(2700)}</span>
-                    </div>
-                  </div>
+                  )}
                 </div>
                 
                 <DialogFooter>
                   <Button
                     onClick={() => {
+                      if (oppositionTypes.length === 0) {
+                        alert('Please select at least one opposition type')
+                        return
+                      }
+                      
                       const typeLabels: Record<string, string> = {
                         'notice': 'Notice of Opposition',
                         'counter': 'Counter Statement',
@@ -4973,13 +5004,20 @@ if (showQuotePage) {
                         'reply': 'Reply Affidavit/ Relying Letter'
                       }
                       
+                      const professionalFee = 2700 * oppositionTypes.length
+                      const govtFeeCount = oppositionTypes.filter(t => t === 'notice' || t === 'counter').length
+                      const governmentFee = 2700 * govtFeeCount
+                      const totalPrice = professionalFee + governmentFee
+                      
+                      const selectedLabels = oppositionTypes.map(t => typeLabels[t]).join(', ')
+                      
                       const newItem = {
                         id: `opposition-${Date.now()}`,
                         name: 'Opposition',
                         service_id: null,
-                        price: 2700,
+                        price: totalPrice,
                         category: 'Trademark',
-                        details: `Type: ${typeLabels[oppositionType]}`
+                        details: `Types: ${selectedLabels}`
                       }
                       
                       setCartItems((prev) => {
@@ -4989,8 +5027,10 @@ if (showQuotePage) {
                       })
                       
                       setShowOppositionModal(false)
+                      setOppositionTypes([])
                     }}
                     className="w-full"
+                    disabled={oppositionTypes.length === 0}
                   >
                     Add to Cart
                   </Button>
