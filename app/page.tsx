@@ -362,6 +362,24 @@ const openFirstFormEmbedded = () => {
   const [showRenewalModal, setShowRenewalModal] = useState(false)
   const [renewalClassType, setRenewalClassType] = useState<'single' | 'multi'>('single')
   const [renewalClassCount, setRenewalClassCount] = useState(2)
+  
+  // Trademark Search specific state
+  const [showTrademarkSearchModal, setShowTrademarkSearchModal] = useState(false)
+  const [trademarkSearchTurnaround, setTrademarkSearchTurnaround] = useState<'expedited' | 'rush'>('expedited')
+  
+  // Trademark Filing specific state
+  const [showTrademarkFilingModal, setShowTrademarkFilingModal] = useState(false)
+  const [trademarkFilingAffidavit, setTrademarkFilingAffidavit] = useState<'with' | 'without'>('with')
+  
+  // Response To Examination Report specific state
+  const [showResponseModal, setShowResponseModal] = useState(false)
+  
+  // Opposition Hearing specific state
+  const [showOppositionHearingModal, setShowOppositionHearingModal] = useState(false)
+  
+  // Opposition specific state
+  const [showOppositionModal, setShowOppositionModal] = useState(false)
+  const [oppositionType, setOppositionType] = useState<string>('notice')
 
  
   const [activeServiceTab, setActiveServiceTab] = useState("patent") // State for active tab
@@ -1591,7 +1609,7 @@ const patentServices = [
       title: "Trademark Filing",
       description: "Trademark filing establishes your legal claim to a brand name, logo, or slogan. We prepare and submit applications with accurate classifications, complete documentation, and strategic descriptions. Our team ensures compliance with trademark office requirements, optimizes your application for approval, and manages the entire filing process smoothly from start to finish.",
       icon: <Shield className="h-8 w-8 text-green-600" />,
-      price: 3000,
+      price: 8500,
     },
     {
       title: "Response To Examination Report",
@@ -2529,6 +2547,39 @@ const patentServices = [
       setShowRenewalModal(true)
       setRenewalClassType('single')
       setRenewalClassCount(2)
+      return
+    }
+    
+    // Special handling for Trademark Search
+    if (serviceName === 'Trademark Search') {
+      setShowTrademarkSearchModal(true)
+      setTrademarkSearchTurnaround('expedited')
+      return
+    }
+    
+    // Special handling for Trademark Filing
+    if (serviceName === 'Trademark Filing') {
+      setShowTrademarkFilingModal(true)
+      setTrademarkFilingAffidavit('with')
+      return
+    }
+    
+    // Special handling for Response To Examination Report
+    if (serviceName === 'Response To Examination Report') {
+      setShowResponseModal(true)
+      return
+    }
+    
+    // Special handling for Opposition Hearing
+    if (serviceName === 'Opposition Hearing') {
+      setShowOppositionHearingModal(true)
+      return
+    }
+    
+    // Special handling for Opposition
+    if (serviceName === 'Opposition') {
+      setShowOppositionModal(true)
+      setOppositionType('notice')
       return
     }
     
@@ -4759,110 +4810,484 @@ if (showQuotePage) {
             )}
             
             {/* Renewal Modal */}
-            {showRenewalModal && (
-              <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4" onClick={() => setShowRenewalModal(false)}>
-                <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-xl font-semibold text-gray-900">Renewal of Registration</h3>
-                    <button onClick={() => setShowRenewalModal(false)} className="text-gray-400 hover:text-gray-600">
-                      <X className="h-6 w-6" />
-                    </button>
+            <Dialog open={showRenewalModal} onOpenChange={setShowRenewalModal}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Renewal of Registration</DialogTitle>
+                  <DialogDescription>Select class type and number of classes for renewal</DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  {/* Class Type Dropdown */}
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">Select Class Type</Label>
+                    <Select value={renewalClassType} onValueChange={(v) => setRenewalClassType(v as 'single' | 'multi')}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Choose class type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="single">Single Class — ₹1,500</SelectItem>
+                        <SelectItem value="multi">Multi Class — ₹1,500 per class</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   
-                  <div className="space-y-4">
-                    {/* Class Type Dropdown */}
+                  {/* Multi Class Counter */}
+                  {renewalClassType === 'multi' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Select Class Type
-                      </label>
-                      <select
-                        value={renewalClassType}
-                        onChange={(e) => setRenewalClassType(e.target.value as 'single' | 'multi')}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                      >
-                        <option value="single">Single Class</option>
-                        <option value="multi">Multi Class</option>
-                      </select>
-                    </div>
-                    
-                    {/* Multi Class Counter */}
-                    {renewalClassType === 'multi' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Number of Classes (2-10)
-                        </label>
-                        <div className="flex items-center gap-4">
-                          <button
-                            onClick={() => setRenewalClassCount(Math.max(2, renewalClassCount - 1))}
-                            disabled={renewalClassCount <= 2}
-                            className="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            -
-                          </button>
-                          <span className="text-2xl font-semibold text-gray-900 w-12 text-center">
-                            {renewalClassCount}
-                          </span>
-                          <button
-                            onClick={() => setRenewalClassCount(Math.min(10, renewalClassCount + 1))}
-                            disabled={renewalClassCount >= 10}
-                            className="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Price Display */}
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Total Price:</span>
-                        <span className="text-2xl font-bold text-green-600">
-                          {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
-                            renewalClassType === 'single' ? 1500 : renewalClassCount * 1500
-                          )}
+                      <Label className="text-sm font-medium text-gray-700">Number of Classes (2-10)</Label>
+                      <div className="flex items-center gap-4 mt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setRenewalClassCount(Math.max(2, renewalClassCount - 1))}
+                          disabled={renewalClassCount <= 2}
+                        >
+                          -
+                        </Button>
+                        <span className="text-xl font-semibold text-gray-900 w-12 text-center">
+                          {renewalClassCount}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setRenewalClassCount(Math.min(10, renewalClassCount + 1))}
+                          disabled={renewalClassCount >= 10}
+                        >
+                          +
+                        </Button>
+                        <span className="text-sm text-gray-600 ml-2">
+                          {renewalClassCount} × ₹1,500
                         </span>
                       </div>
-                      {renewalClassType === 'multi' && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          {renewalClassCount} classes × ₹1,500 per class
-                        </p>
-                      )}
                     </div>
-                    
-                    {/* Add to Cart Button */}
-                    <button
-                      onClick={() => {
-                        const price = renewalClassType === 'single' ? 1500 : renewalClassCount * 1500
-                        const details = renewalClassType === 'single' 
-                          ? 'Single Class'
-                          : `Multi Class (${renewalClassCount} classes)`
-                        
-                        const newItem = {
-                          id: `renewal-${Date.now()}`,
-                          name: 'Renewal of Registration',
-                          service_id: null,
-                          price: price,
-                          category: 'Trademark',
-                          details: details
-                        }
-                        
-                        setCartItems((prev) => {
-                          const next = [...prev, newItem]
-                          try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
-                          return next
-                        })
-                        
-                        setShowRenewalModal(false)
-                      }}
-                      className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-md transition-colors"
-                    >
-                      Add to Cart
-                    </button>
+                  )}
+                  
+                  {/* Price Display */}
+                  <div className="rounded-md border p-3 bg-gray-50">
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Professional Fee</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                        renewalClassType === 'single' ? 1500 : renewalClassCount * 1500
+                      )}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Government Fee</span>
+                      <span>₹0</span>
+                    </div>
+                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                      <span>Total</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                        renewalClassType === 'single' ? 1500 : renewalClassCount * 1500
+                      )}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+                
+                <DialogFooter>
+                  <Button
+                    onClick={() => {
+                      const price = renewalClassType === 'single' ? 1500 : renewalClassCount * 1500
+                      const details = renewalClassType === 'single' 
+                        ? 'Single Class'
+                        : `Multi Class (${renewalClassCount} classes)`
+                      
+                      const newItem = {
+                        id: `renewal-${Date.now()}`,
+                        name: 'Renewal of Registration',
+                        service_id: null,
+                        price: price,
+                        category: 'Trademark',
+                        details: details
+                      }
+                      
+                      setCartItems((prev) => {
+                        const next = [...prev, newItem]
+                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+                        return next
+                      })
+                      
+                      setShowRenewalModal(false)
+                    }}
+                    className="w-full"
+                  >
+                    Add to Cart
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            
+            {/* Opposition Modal */}
+            <Dialog open={showOppositionModal} onOpenChange={setShowOppositionModal}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Opposition</DialogTitle>
+                  <DialogDescription>Select the type of opposition filing</DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  {/* Opposition Type Dropdown */}
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">Select the Type of Opposition</Label>
+                    <Select value={oppositionType} onValueChange={(v) => setOppositionType(v)}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Choose opposition type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="notice">Notice of Opposition</SelectItem>
+                        <SelectItem value="counter">Counter Statement</SelectItem>
+                        <SelectItem value="support-opposition">Affidavit in Support of Opposition</SelectItem>
+                        <SelectItem value="support-application">Affidavit in Support of Application</SelectItem>
+                        <SelectItem value="reply">Reply Affidavit/ Relying Letter</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Price Display */}
+                  <div className="rounded-md border p-3 bg-gray-50">
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Professional Fee</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(2700)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Government Fee</span>
+                      <span>₹0</span>
+                    </div>
+                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                      <span>Total</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(2700)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <DialogFooter>
+                  <Button
+                    onClick={() => {
+                      const typeLabels: Record<string, string> = {
+                        'notice': 'Notice of Opposition',
+                        'counter': 'Counter Statement',
+                        'support-opposition': 'Affidavit in Support of Opposition',
+                        'support-application': 'Affidavit in Support of Application',
+                        'reply': 'Reply Affidavit/ Relying Letter'
+                      }
+                      
+                      const newItem = {
+                        id: `opposition-${Date.now()}`,
+                        name: 'Opposition',
+                        service_id: null,
+                        price: 2700,
+                        category: 'Trademark',
+                        details: `Type: ${typeLabels[oppositionType]}`
+                      }
+                      
+                      setCartItems((prev) => {
+                        const next = [...prev, newItem]
+                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+                        return next
+                      })
+                      
+                      setShowOppositionModal(false)
+                    }}
+                    className="w-full"
+                  >
+                    Add to Cart
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            
+            {/* Opposition Hearing Modal */}
+            <Dialog open={showOppositionHearingModal} onOpenChange={setShowOppositionHearingModal}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Opposition Hearing</DialogTitle>
+                  <DialogDescription>Expert representation for opposition hearings</DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  {/* Timeline Notice */}
+                  <div className="rounded-md border p-3 bg-blue-50 border-blue-200">
+                    <div className="text-sm font-medium text-blue-800 mb-1">Timeline</div>
+                    <div className="text-sm text-blue-700">One month</div>
+                  </div>
+                  
+                  {/* Price Display */}
+                  <div className="rounded-md border p-3 bg-gray-50">
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Professional Fee</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(4000)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Government Fee</span>
+                      <span>₹0</span>
+                    </div>
+                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                      <span>Total</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(4000)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <DialogFooter>
+                  <Button
+                    onClick={() => {
+                      const newItem = {
+                        id: `opposition-hearing-${Date.now()}`,
+                        name: 'Opposition Hearing',
+                        service_id: null,
+                        price: 4000,
+                        category: 'Trademark',
+                        details: 'Timeline: One month'
+                      }
+                      
+                      setCartItems((prev) => {
+                        const next = [...prev, newItem]
+                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+                        return next
+                      })
+                      
+                      setShowOppositionHearingModal(false)
+                    }}
+                    className="w-full"
+                  >
+                    Add to Cart
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            
+            {/* Response To Examination Report Modal */}
+            <Dialog open={showResponseModal} onOpenChange={setShowResponseModal}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Response To Examination Report</DialogTitle>
+                  <DialogDescription>Our experts prepare comprehensive responses to examination objections</DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  {/* Due Date Notice */}
+                  <div className="rounded-md border p-3 bg-amber-50 border-amber-200">
+                    <div className="text-sm font-medium text-amber-800 mb-1">⚠️ Important Notice</div>
+                    <div className="text-sm text-amber-700">Due date to respond: Within 7 days</div>
+                  </div>
+                  
+                  {/* Price Display */}
+                  <div className="rounded-md border p-3 bg-gray-50">
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Professional Fee</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(4000)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Government Fee</span>
+                      <span>₹0</span>
+                    </div>
+                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                      <span>Total</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(4000)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <DialogFooter>
+                  <Button
+                    onClick={() => {
+                      const newItem = {
+                        id: `response-examination-${Date.now()}`,
+                        name: 'Response To Examination Report',
+                        service_id: null,
+                        price: 4000,
+                        category: 'Trademark',
+                        details: 'Due within 7 days'
+                      }
+                      
+                      setCartItems((prev) => {
+                        const next = [...prev, newItem]
+                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+                        return next
+                      })
+                      
+                      setShowResponseModal(false)
+                    }}
+                    className="w-full"
+                  >
+                    Add to Cart
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            
+            {/* Trademark Filing Modal */}
+            <Dialog open={showTrademarkFilingModal} onOpenChange={setShowTrademarkFilingModal}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Trademark Filing</DialogTitle>
+                  <DialogDescription>Select affidavit type for your trademark filing</DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  {/* Affidavit Type Dropdown */}
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">Select Affidavit</Label>
+                    <Select value={trademarkFilingAffidavit} onValueChange={(v) => setTrademarkFilingAffidavit(v as 'with' | 'without')}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Choose affidavit type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="with">With User Affidavit</SelectItem>
+                        <SelectItem value="without">Without User Affidavit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Applicant Type Display */}
+                  {trademarkFilingAffidavit === 'with' && (
+                    <div className="rounded-md border p-3 bg-blue-50">
+                      <div className="text-sm font-medium text-gray-700 mb-1">Applicant Type</div>
+                      <div className="text-sm text-gray-600">Individual, Startup, and MSME</div>
+                    </div>
+                  )}
+                  
+                  {trademarkFilingAffidavit === 'without' && (
+                    <div className="rounded-md border p-3 bg-blue-50">
+                      <div className="text-sm font-medium text-gray-700 mb-1">Applicant Type</div>
+                      <div className="text-sm text-gray-600">Others</div>
+                    </div>
+                  )}
+                  
+                  {/* Price Display */}
+                  <div className="rounded-md border p-3 bg-gray-50">
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Base Fee</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                        trademarkFilingAffidavit === 'with' ? 4000 : 3000
+                      )}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>{trademarkFilingAffidavit === 'with' ? 'Affidavit Fee' : 'Additional Fee'}</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                        trademarkFilingAffidavit === 'with' ? 4500 : 9000
+                      )}</span>
+                    </div>
+                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                      <span>Total</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                        trademarkFilingAffidavit === 'with' ? 8500 : 12000
+                      )}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <DialogFooter>
+                  <Button
+                    onClick={() => {
+                      const price = trademarkFilingAffidavit === 'with' ? 8500 : 12000
+                      const details = trademarkFilingAffidavit === 'with'
+                        ? 'With User Affidavit (Individual, Startup, MSME)'
+                        : 'Without User Affidavit (Others)'
+                      
+                      const newItem = {
+                        id: `trademark-filing-${Date.now()}`,
+                        name: 'Trademark Filing',
+                        service_id: null,
+                        price: price,
+                        category: 'Trademark',
+                        details: details
+                      }
+                      
+                      setCartItems((prev) => {
+                        const next = [...prev, newItem]
+                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+                        return next
+                      })
+                      
+                      setShowTrademarkFilingModal(false)
+                    }}
+                    className="w-full"
+                  >
+                    Add to Cart
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            
+            {/* Trademark Search Modal */}
+            <Dialog open={showTrademarkSearchModal} onOpenChange={setShowTrademarkSearchModal}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Trademark Search</DialogTitle>
+                  <DialogDescription>Select turnaround time for your trademark search</DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  {/* Turnaround Dropdown */}
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">Turnaround</Label>
+                    <Select value={trademarkSearchTurnaround} onValueChange={(v) => setTrademarkSearchTurnaround(v as 'expedited' | 'rush')}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Choose turnaround" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="expedited">Expedited (5-7 Days) — ₹500</SelectItem>
+                        <SelectItem value="rush">Rush (1-2 Days) — ₹800</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Price Display */}
+                  <div className="rounded-md border p-3 bg-gray-50">
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Professional Fee</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                        trademarkSearchTurnaround === 'expedited' ? 500 : 800
+                      )}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span>Government Fee</span>
+                      <span>₹0</span>
+                    </div>
+                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                      <span>Total</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                        trademarkSearchTurnaround === 'expedited' ? 500 : 800
+                      )}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <DialogFooter>
+                  <Button
+                    onClick={() => {
+                      const price = trademarkSearchTurnaround === 'expedited' ? 500 : 800
+                      const details = trademarkSearchTurnaround === 'expedited' 
+                        ? 'Expedited (5-7 Days)'
+                        : 'Rush (1-2 Days)'
+                      
+                      const newItem = {
+                        id: `trademark-search-${Date.now()}`,
+                        name: 'Trademark Search',
+                        service_id: null,
+                        price: price,
+                        category: 'Trademark',
+                        details: details
+                      }
+                      
+                      setCartItems((prev) => {
+                        const next = [...prev, newItem]
+                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+                        return next
+                      })
+                      
+                      setShowTrademarkSearchModal(false)
+                    }}
+                    className="w-full"
+                  >
+                    Add to Cart
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             
             <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
           </div>
