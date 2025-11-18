@@ -4704,9 +4704,9 @@ if (showQuotePage) {
             </div>
             <div className="space-y-2">
               <Button 
-                className="w-full bg-gray-400 hover:bg-gray-400 cursor-not-allowed" 
+                className="w-full bg-blue-600 hover:bg-blue-700" 
                 onClick={goToQuotePage}
-                disabled={true}
+                disabled={false}
               >
                 Go To Payments
               </Button>

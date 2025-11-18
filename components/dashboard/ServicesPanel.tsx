@@ -134,10 +134,10 @@ function ServicesPanelComponent({
         <Button
           ref={makePaymentRef}
           type="button"
-          className="w-full max-w-sm bg-gray-400 hover:bg-gray-400 text-white cursor-not-allowed opacity-70"
+          className="w-full max-w-sm bg-blue-600 hover:bg-blue-700 text-white"
           onClick={onMakePayment}
-          disabled={true}
-          aria-disabled={true}
+          disabled={isProcessing}
+          aria-disabled={isProcessing}
           aria-busy={isProcessing}
           aria-describedby="make-payment-note"
         >
