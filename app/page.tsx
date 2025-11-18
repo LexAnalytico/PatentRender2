@@ -370,6 +370,7 @@ const openFirstFormEmbedded = () => {
   // Trademark Filing specific state
   const [showTrademarkFilingModal, setShowTrademarkFilingModal] = useState(false)
   const [trademarkFilingAffidavit, setTrademarkFilingAffidavit] = useState<'with' | 'without'>('with')
+  const [trademarkFilingApplicantType, setTrademarkFilingApplicantType] = useState<'individual' | 'others'>('individual')
   
   // Response To Examination Report specific state
   const [showResponseModal, setShowResponseModal] = useState(false)
@@ -2561,6 +2562,7 @@ const patentServices = [
     if (serviceName === 'Trademark Filing') {
       setShowTrademarkFilingModal(true)
       setTrademarkFilingAffidavit('with')
+      setTrademarkFilingApplicantType('individual')
       return
     }
     
@@ -5163,13 +5165,13 @@ if (showQuotePage) {
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Trademark Filing</DialogTitle>
-                  <DialogDescription>Select affidavit type for your trademark filing</DialogDescription>
+                  <DialogDescription>Select affidavit type and applicant type for your trademark filing</DialogDescription>
                 </DialogHeader>
                 
                 <div className="space-y-4">
                   {/* Affidavit Type Dropdown */}
                   <div>
-                    <Label className="text-sm font-medium text-gray-700">Select Affidavit</Label>
+                    <Label className="text-sm font-medium text-gray-700">User Affidavit</Label>
                     <Select value={trademarkFilingAffidavit} onValueChange={(v) => setTrademarkFilingAffidavit(v as 'with' | 'without')}>
                       <SelectTrigger className="mt-1">
                         <SelectValue placeholder="Choose affidavit type" />
@@ -5181,39 +5183,38 @@ if (showQuotePage) {
                     </Select>
                   </div>
                   
-                  {/* Applicant Type Display */}
-                  {trademarkFilingAffidavit === 'with' && (
-                    <div className="rounded-md border p-3 bg-blue-50">
-                      <div className="text-sm font-medium text-gray-700 mb-1">Applicant Type</div>
-                      <div className="text-sm text-gray-600">Individual, Startup, and MSME</div>
-                    </div>
-                  )}
-                  
-                  {trademarkFilingAffidavit === 'without' && (
-                    <div className="rounded-md border p-3 bg-blue-50">
-                      <div className="text-sm font-medium text-gray-700 mb-1">Applicant Type</div>
-                      <div className="text-sm text-gray-600">Others</div>
-                    </div>
-                  )}
+                  {/* Applicant Type Dropdown */}
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">Applicant Type</Label>
+                    <Select value={trademarkFilingApplicantType} onValueChange={(v) => setTrademarkFilingApplicantType(v as 'individual' | 'others')}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Choose applicant type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="individual">Individual, Startup and MSME</SelectItem>
+                        <SelectItem value="others">Others</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   
                   {/* Price Display */}
                   <div className="rounded-md border p-3 bg-gray-50">
                     <div className="flex items-center justify-between text-sm mb-1">
                       <span>Base Fee</span>
                       <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
-                        trademarkFilingAffidavit === 'with' ? 4000 : 3000
+                        3000 + (trademarkFilingAffidavit === 'with' ? 1000 : 0)
                       )}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm mb-1">
-                      <span>{trademarkFilingAffidavit === 'with' ? 'Affidavit Fee' : 'Additional Fee'}</span>
+                      <span>Government Fee</span>
                       <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
-                        trademarkFilingAffidavit === 'with' ? 4500 : 9000
+                        trademarkFilingApplicantType === 'individual' ? 4500 : 9000
                       )}</span>
                     </div>
                     <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
                       <span>Total</span>
                       <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
-                        trademarkFilingAffidavit === 'with' ? 8500 : 12000
+                        3000 + (trademarkFilingAffidavit === 'with' ? 1000 : 0) + (trademarkFilingApplicantType === 'individual' ? 4500 : 9000)
                       )}</span>
                     </div>
                   </div>
@@ -5222,16 +5223,22 @@ if (showQuotePage) {
                 <DialogFooter>
                   <Button
                     onClick={() => {
-                      const price = trademarkFilingAffidavit === 'with' ? 8500 : 12000
-                      const details = trademarkFilingAffidavit === 'with'
-                        ? 'With User Affidavit (Individual, Startup, MSME)'
-                        : 'Without User Affidavit (Others)'
+                      const baseFee = 3000
+                      const affidavitFee = trademarkFilingAffidavit === 'with' ? 1000 : 0
+                      const govFee = trademarkFilingApplicantType === 'individual' ? 4500 : 9000
+                      const totalPrice = baseFee + affidavitFee + govFee
+                      
+                      const affidavitText = trademarkFilingAffidavit === 'with' ? 'With User Affidavit' : 'Without User Affidavit'
+                      const applicantText = trademarkFilingApplicantType === 'individual' 
+                        ? 'Individual, Startup and MSME' 
+                        : 'Others'
+                      const details = `${affidavitText} | ${applicantText}`
                       
                       const newItem = {
                         id: `trademark-filing-${Date.now()}`,
                         name: 'Trademark Filing',
                         service_id: null,
-                        price: price,
+                        price: totalPrice,
                         category: 'Trademark',
                         details: details
                       }
