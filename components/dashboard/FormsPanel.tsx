@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import FormClient from '@/app/forms/FormClient'
 import { buildInvoiceWithFormsHtml, buildFormsSummaryHtml } from '@/lib/quotation'
 import { supabaseBrowser as supabase } from '@/lib/supabase-browser'
+import { AppTour } from '@/components/AppTour'
 
 export interface EmbeddedFormEntry { id: number; type: string }
 interface FormsPanelProps {
@@ -41,6 +42,17 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
   embeddedOrders,
   checkoutOrders,
 }) => {
+  // Tour guide state
+  const [showTour, setShowTour] = useState(false)
+  
+  const handleTourComplete = () => {
+    setShowTour(false)
+  }
+  
+  const startTour = () => {
+    setShowTour(true)
+  }
+  
   // On first mount, let the shell know the Forms view is ready (clears any blur overlay)
   useEffect(() => {
     try { window.dispatchEvent(new Event('screen:ready')) } catch {}
@@ -100,6 +112,13 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
         <p className="text-gray-600 text-sm">Fill and save your application details</p>
       </div>
       <div className="flex gap-2">
+        <button
+          onClick={startTour}
+          className="px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors border border-blue-200"
+          title="Start forms screen tour"
+        >
+          📖 Tour Guide
+        </button>
         <Button variant="outline" onClick={goToOrders}>Back to Orders</Button>
         <Button variant="outline" onClick={backToServices}>Back to Selected Services</Button>
         <Button
@@ -107,6 +126,7 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
           onClick={() => { if (prefillAvailable) onPrefillApply() }}
           disabled={!prefillAvailable}
           className={!prefillAvailable ? 'opacity-40 cursor-not-allowed' : ''}
+          data-tour="refill-button"
         >
           Prefill Saved Data
         </Button>
@@ -266,6 +286,11 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
   if (!embeddedMultiForms) {
     return (
       <>
+        <AppTour 
+          run={showTour} 
+          onComplete={handleTourComplete}
+          tourType="forms"
+        />
         <div ref={topAnchorRef} tabIndex={-1} aria-label="Forms top anchor" />
         {renderHeader()}
         {showFinalBanner && (
@@ -345,6 +370,11 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
 
   return (
     <>
+      <AppTour 
+        run={showTour} 
+        onComplete={handleTourComplete}
+        tourType="forms"
+      />
       <div ref={topAnchorRef} tabIndex={-1} aria-label="Forms top anchor" />
       {renderHeader()}
       {/* Multi-form progress indicator */}

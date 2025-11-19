@@ -1755,6 +1755,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                           onClick={() => handleSave()}
                           disabled={saving || !coreComplete}
                           className={styleTokens.primaryBtn + (saving ? ' opacity-70 cursor-not-allowed' : '')}
+                          data-tour="confirm-button"
                         >
                           {saving ? 'Saving…' : 'Confirm'}
                         </Button>
@@ -1774,6 +1775,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                           onClick={handleSave}
                           disabled={readOnly || saving}
                           className={styleTokens.primaryBtn + ((!readOnly && saving) ? ' opacity-70 cursor-not-allowed' : '')}
+                          data-tour="save-button"
                         >
                           {(!readOnly && saving) ? 'Saving…' : 'Save'}
                         </Button>
@@ -1783,6 +1785,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                           variant="outline"
                           className={styleTokens.secondaryBtn}
                           disabled={saving}
+                          data-tour="refill-button"
                         >
                           Refill
                         </Button>
@@ -1791,13 +1794,14 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                           onClick={enterConfirmMode}
                           className={styleTokens.primaryBtn}
                           disabled={saving || !coreComplete}
+                          data-tour="submit-button"
                         >
                           Submit
                         </Button>
                       </>
                     )}
                     {!confirmMode && !coreComplete && (
-                      <div className="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded">
+                      <div className="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded" data-tour="mandatory-warning">
                         Fill all required fields to enable Submit
                       </div>
                     )}

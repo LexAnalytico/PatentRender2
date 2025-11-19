@@ -1,9 +1,10 @@
 "use client"
 
-import React from 'react'
+import React, { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ShoppingCart, FileText, Loader2 } from 'lucide-react'
+import { AppTour } from '@/components/AppTour'
 
 export interface ServiceCartItem {
   id: string
@@ -30,6 +31,17 @@ function ServicesPanelComponent({
   formatAmount,
   isProcessing = false,
 }: ServicesPanelProps) {
+  // Tour guide state
+  const [showTour, setShowTour] = useState(false)
+  
+  const handleTourComplete = () => {
+    setShowTour(false)
+  }
+  
+  const startTour = () => {
+    setShowTour(true)
+  }
+  
   // Accessibility: move keyboard focus into the main content when this screen mounts
   const headingRef = React.useRef<HTMLHeadingElement | null>(null)
   const makePaymentRef = React.useRef<HTMLButtonElement | null>(null)
@@ -78,17 +90,31 @@ function ServicesPanelComponent({
 
   return (
     <>
+      <AppTour 
+        run={showTour} 
+        onComplete={handleTourComplete}
+        tourType="services"
+      />
       <div className="mb-8">
-        <h1
-          ref={headingRef}
-          tabIndex={-1}
-          className="text-3xl font-bold text-gray-900 mb-2 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded"
-        >
-          Your Selected Services
-        </h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1
+            ref={headingRef}
+            tabIndex={-1}
+            className="text-3xl font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400 rounded"
+          >
+            Your Selected Services
+          </h1>
+          <button
+            onClick={startTour}
+            className="px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors border border-blue-200"
+            title="Start services screen tour"
+          >
+            📖 Tour Guide
+          </button>
+        </div>
         <p className="text-gray-600">Review your selected IP protection services and customize your quote</p>
       </div>
-      <div className="space-y-6">
+      <div className="space-y-6" data-tour="cart-items">
         {cartItems.map((item) => (
           <Card key={item.id} className="bg-white">
             <CardContent className="p-6">
@@ -140,6 +166,7 @@ function ServicesPanelComponent({
           aria-disabled={isProcessing}
           aria-busy={isProcessing}
           aria-describedby="make-payment-note"
+          data-tour="make-payment-button"
         >
           {isProcessing ? (
             <>
@@ -153,7 +180,7 @@ function ServicesPanelComponent({
             </>
           )}
         </Button>
-        <p id="make-payment-note" className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 max-w-lg text-center leading-snug">
+        <p id="make-payment-note" className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 max-w-lg text-center leading-snug" data-tour="payment-warning">
           Clicking on <span className="font-semibold">Make Payment</span> will open the secure Razorpay window. <strong>Do not switch tabs, minimize, or leave this screen until the payment is completed</strong> or you will be signed out and need to sign in again to retry.
         </p>
       </div>

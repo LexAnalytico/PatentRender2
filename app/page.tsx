@@ -4,6 +4,8 @@ import type React from "react"
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "react"
 import { OrderChatPopup } from '@/components/OrderChatPopup'
 import { supabase } from '../lib/supabase';
+import * as authCache from './authCache'
+import { isTestMode } from '@/lib/testMode'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { fetchOrdersMerged, invalidateOrdersCache } from '@/lib/orders'
 import { loadRazorpayScript, openRazorpayCheckout } from '@/lib/razorpay'
@@ -70,6 +72,7 @@ import {
 import { Button } from "@/components/ui/button"
 import FormClient from "./forms/FormClient"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { AppTour } from "@/components/AppTour"
 import ServicesPanel from '@/components/dashboard/ServicesPanel'
 import FormsPanel from '@/components/dashboard/FormsPanel'
 import ProfilePanel from '@/components/panels/ProfilePanel'
@@ -201,8 +204,9 @@ export default function LegalIPWebsite() {
     setOrders(data);
   }
 
-  // 🔄 Refresh when tab regains focus
-  useAutoRefreshOnFocus(loadOrders, { runOnMount: true });
+  // ❌ DISABLED: useAutoRefreshOnFocus causes race condition with view restoration
+  // Orders are loaded manually via goToOrders() or user clicking Refresh button
+  // useAutoRefreshOnFocus(loadOrders, { runOnMount: true });
 
   return (
     <div>
@@ -341,6 +345,26 @@ const openFirstFormEmbedded = () => {
   // Persist last view so we can restore Orders after tab-out/in or hard reload
   const LAST_VIEW_KEY = 'app:last_view'
   const [showAuthModal, setShowAuthModal] = useState(false)
+  
+  // Tour guide state
+  const [showTour, setShowTour] = useState(false)
+  const [tourType, setTourType] = useState<'main' | 'dashboard' | 'orders' | 'payment' | 'services'>('main')
+  
+  // Orders screen tour state (separate from main tour)
+  const [showOrdersTour, setShowOrdersTour] = useState(false)
+  
+  const handleTourComplete = () => {
+    setShowTour(false)
+  }
+  
+  const handleOrdersTourComplete = () => {
+    setShowOrdersTour(false)
+  }
+  
+  const startTour = (type: 'main' | 'dashboard' | 'orders' | 'payment' = 'main') => {
+    setTourType(type)
+    setShowTour(true)
+  }
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin")
   const [showPassword, setShowPassword] = useState(false)
   //const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -362,25 +386,6 @@ const openFirstFormEmbedded = () => {
   const [showRenewalModal, setShowRenewalModal] = useState(false)
   const [renewalClassType, setRenewalClassType] = useState<'single' | 'multi'>('single')
   const [renewalClassCount, setRenewalClassCount] = useState(2)
-  
-  // Trademark Search specific state
-  const [showTrademarkSearchModal, setShowTrademarkSearchModal] = useState(false)
-  const [trademarkSearchTurnaround, setTrademarkSearchTurnaround] = useState<'expedited' | 'rush'>('expedited')
-  
-  // Trademark Filing specific state
-  const [showTrademarkFilingModal, setShowTrademarkFilingModal] = useState(false)
-  const [trademarkFilingAffidavit, setTrademarkFilingAffidavit] = useState<'with' | 'without'>('with')
-  const [trademarkFilingApplicantType, setTrademarkFilingApplicantType] = useState<'individual' | 'others'>('individual')
-  
-  // Response To Examination Report specific state
-  const [showResponseModal, setShowResponseModal] = useState(false)
-  
-  // Opposition Hearing specific state
-  const [showOppositionHearingModal, setShowOppositionHearingModal] = useState(false)
-  
-  // Opposition specific state
-  const [showOppositionModal, setShowOppositionModal] = useState(false)
-  const [oppositionTypes, setOppositionTypes] = useState<string[]>([])
 
  
   const [activeServiceTab, setActiveServiceTab] = useState("patent") // State for active tab
@@ -536,6 +541,10 @@ const openFirstFormEmbedded = () => {
           goToOrders()
           setTimeout(() => { try { window.dispatchEvent(new Event('screen:ready')) } catch {} }, 120)
         } else if (v === 'profile') {
+          if (isTestMode()) {
+            console.log('🧪 TEST MODE: Blocked Profile screen navigation')
+            return
+          }
           setInitialQuoteView('profile')
           setShowQuotePage(true)
           setQuoteView('profile')
@@ -822,6 +831,10 @@ const openFirstFormEmbedded = () => {
 
   // Reload key to force orders refresh when navigating back from forms or other contexts
   const [ordersReloadKey, setOrdersReloadKey] = useState(0)
+  // Track if Orders view was restored from tab switch (should NOT auto-load)
+  const ordersRestoredFromTabRef = useRef(false)
+  // Track timestamp of last tab restore to prevent auto-load for 2 seconds after
+  const lastTabRestoreTimeRef = useRef<number>(0)
   // Track explicit Force Reload trigger timing & attempts to allow a short burst of re-queries
   const lastForceReloadAtRef = useRef<number | null>(null)
   const forceReloadAttemptsRef = useRef(0)
@@ -836,6 +849,25 @@ const openFirstFormEmbedded = () => {
   // Track when we are prefetching so we can show fresh data immediately after navigation
   const [ordersPrefetching, setOrdersPrefetching] = useState(false)
   const ordersPrefetchingRef = useRef(false)
+
+  // SessionStorage cache for Orders (survives module reloads during tab switches)
+  const [cachedOrders, setCachedOrders] = useState<any[]>(() => {
+    try {
+      const cached = sessionStorage.getItem('orders_cache')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (Date.now() - parsed.ts < 30000) return parsed.data // 30s TTL
+      }
+    } catch {}
+    return []
+  })
+  const [lastOrdersUpdate, setLastOrdersUpdate] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('orders_cache')
+      if (cached) return JSON.parse(cached).ts
+    } catch {}
+    return 0
+  })
 
   // Embedded Orders: transient banner for last opened form(s) when returning from Forms
   const [ordersLastFormBanner, setOrdersLastFormBanner] = useState<null | { single?: { orderId: number | null; formType: string | null; formTypeLabel?: string | null }; multi?: Array<{ orderId: number; formType: string | null; formTypeLabel?: string | null }> }>(null)
@@ -891,7 +923,7 @@ const openFirstFormEmbedded = () => {
       setOrdersLoadError('You are not signed in. Please sign in to view orders.')
       return []
     }
-    const { orders, error } = await fetchOrdersMerged(supabase, userId, { includeProfile: true, cacheMs: 5_000 })
+    const { orders, error } = await fetchOrdersMerged(supabase as any, userId, { includeProfile: true, cacheMs: 5_000 })
     if (error) {
       setOrdersLoadError('Failed to load orders. Please retry.')
       return []
@@ -935,6 +967,12 @@ const openFirstFormEmbedded = () => {
 
   // Centralized navigation back to Orders view with prefetch before rendering Orders screen
   function goToOrders() {
+    // 🧪 TEST MODE: Block navigation to Orders screen
+    if (isTestMode()) {
+      console.log('🧪 TEST MODE: Blocked navigation to Orders screen')
+      return
+    }
+    
     // If already in orders view, keep legacy behavior (manual refresh by reload key)
     if (quoteView === 'orders') {
       // Single refresh only (removed second bump to prevent double reload)
@@ -1049,6 +1087,52 @@ const openFirstFormEmbedded = () => {
 
   // Load embedded Orders list when switching to Orders inside the quote page
   useEffect(() => {
+  console.log('[Orders][useEffect] Triggered', { 
+    quoteView, 
+    ordersReloadKey, 
+    isTabRestore: ordersRestoredFromTabRef.current,
+    cachedOrdersCount: cachedOrders.length,
+    embeddedOrdersCount: embeddedOrders.length 
+  })
+  
+  // Skip if not on Orders view
+  if (quoteView !== 'orders') {
+    console.log('[Orders][useEffect] Not on Orders view, skipping')
+    return
+  }
+  
+  // ⚠️ CRITICAL: Check if this is a tab restore (flag will be true only once)
+  const isTabRestore = ordersRestoredFromTabRef.current
+  if (isTabRestore) {
+    console.log('⚠️ [TAB RESTORE] Orders view restored from tab - checking cache first')
+    ordersRestoredFromTabRef.current = false // Reset flag immediately
+    lastTabRestoreTimeRef.current = Date.now() // Record timestamp to block auto-loads
+    
+    // Use cached orders if available (< 30s old)
+    const now = Date.now()
+    if (cachedOrders.length > 0 && (now - lastOrdersUpdate) < 30000) {
+      console.log('✅ [TAB RESTORE] Using cached orders from sessionStorage:', cachedOrders.length, 'orders')
+      setEmbeddedOrders(cachedOrders)
+      setEmbeddedOrdersLoading(false)
+      return // Don't auto-load, cache is fresh
+    }
+    
+    console.log('⚠️ [TAB RESTORE] No valid cache, user must click Refresh Orders button')
+    setEmbeddedOrdersLoading(false) // Stop any loading state
+    setOrdersLoadError(null) // Clear any previous error
+    return // ⚠️ CRITICAL: Must return here to prevent auto-load below
+  }
+  
+  // ⚠️ ADDITIONAL PROTECTION: Block auto-load for 2 seconds after tab restore
+  // This prevents watchdog timers or reload key changes from triggering loads
+  const timeSinceTabRestore = Date.now() - lastTabRestoreTimeRef.current
+  if (timeSinceTabRestore < 2000) {
+    console.log('⚠️ [TAB RESTORE PROTECTION] Blocking auto-load (', Math.round(timeSinceTabRestore), 'ms since restore)')
+    return
+  }
+  
+  // Normal auto-load (only if NOT tab restore and protection period expired)
+  console.log('[Orders][useEffect] Proceeding with normal auto-load')
   let active = true
 
   // Safety watchdog: if we enter Orders view and loading doesn't finish in 4s, trigger one retry reload
@@ -1071,9 +1155,37 @@ const openFirstFormEmbedded = () => {
     setOrdersLoadError(null)
     try {
       console.log("[Orders] Loading start")
-      // Resolve user id with small retries
+      // Resolve user id with small retries and race condition protection
       const resolveUserId = async () => {
-        const { data: sessionRes } = await supabase.auth.getSession()
+        console.log('[Orders] Calling getSession...')
+        
+        // Add timeout to prevent hanging on getSession during race condition
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error('getSession timeout')), 3000)
+        )
+        
+        let sessionRes
+        try {
+          const result = await Promise.race([sessionPromise, timeoutPromise])
+          sessionRes = result.data
+        } catch (timeoutError) {
+          console.warn('[Orders] getSession timed out, using cached fallback')
+          // If getSession hangs, use sessionStorage-cached userId (survives module reloads)
+          const cachedUserId = authCache.getCachedUserId()
+          if (cachedUserId) {
+            console.log('[Orders] Using cached userId from sessionStorage:', cachedUserId)
+            return { uid: cachedUserId, email: null }
+          }
+          if (lastKnownUserIdRef.current) {
+            console.log('[Orders] Using lastKnown userId from ref:', lastKnownUserIdRef.current)
+            return { uid: lastKnownUserIdRef.current, email: null }
+          }
+          console.error('[Orders] No cached userId available, user must sign in again')
+          return { uid: null, email: null }
+        }
+        
+        console.log('[Orders] getSession returned:', { hasSession: !!sessionRes?.session, userId: sessionRes?.session?.user?.id })
         const uid = sessionRes?.session?.user?.id || null
         if (uid) lastKnownUserIdRef.current = uid
         return { uid, email: sessionRes?.session?.user?.email || null }
@@ -1104,11 +1216,33 @@ const openFirstFormEmbedded = () => {
         return
       }
 
-      const { orders: merged, error } = await fetchOrdersMerged(supabase, userId, { includeProfile: true, cacheMs: 8_000, force: true })
+      // Add timeout to prevent hanging
+      console.log('[Orders] About to call fetchOrdersMerged with userId:', userId)
+      // Skip profile fetch after tab restore - reduces complexity and avoids getSession race condition
+      const fetchPromise = fetchOrdersMerged(supabase as any, userId, { includeProfile: false, cacheMs: 8_000, force: true })
+      const timeoutPromise = new Promise<{orders: any[], error: string}>((_, reject) => 
+        setTimeout(() => reject(new Error('Orders fetch timeout after 10s')), 10000)
+      )
+      
+      let merged: any[] = []
+      let error: string | null = null
+      
+      try {
+        console.log('[Orders] Waiting for fetchOrdersMerged to complete...')
+        const result = await Promise.race([fetchPromise, timeoutPromise])
+        console.log('[Orders] fetchOrdersMerged completed, got', result.orders?.length, 'orders')
+        merged = result.orders || []
+        error = result.error || null
+      } catch (fetchError: any) {
+        console.error('[Orders][load] fetch error:', fetchError)
+        error = fetchError?.message || 'FETCH_ERROR'
+      }
+      
       if (error) {
+        console.error('[Orders][load] error returned:', error)
         if (active) {
           setEmbeddedOrders([])
-          setOrdersLoadError('Failed to load orders. Please retry.')
+          setOrdersLoadError(`Failed to load orders: ${error}. Please retry.`)
           setEmbeddedOrdersLoading(false)
         }
         return
@@ -1157,6 +1291,17 @@ const openFirstFormEmbedded = () => {
       if (active) {
         setEmbeddedOrders(merged)
         setOrdersLoadError(null)
+        
+        // ✅ Cache successful orders to sessionStorage (30s TTL)
+        const now = Date.now()
+        setCachedOrders(merged)
+        setLastOrdersUpdate(now)
+        try {
+          sessionStorage.setItem('orders_cache', JSON.stringify({ data: merged, ts: now }))
+          console.log('✅ Cached', merged.length, 'orders to sessionStorage')
+        } catch (e) {
+          console.warn('Failed to cache orders:', e)
+        }
       }
       console.log("[Orders] Loaded", merged.length)
     } catch (e) {
@@ -1339,10 +1484,13 @@ if (quoteView === "orders") {
     const handleVisOrFocus = () => {
       // Orders: if current view is orders and list is empty (no error & not loading) schedule a reload bump
       if (quoteView === 'orders') {
+        // ❌ DISABLED: Auto-reload on visibility causes race condition
+        // User must manually click Refresh Orders button
         const noData = !embeddedOrders || embeddedOrders.length === 0
         if (noData && !embeddedOrdersLoading && !ordersLoadError) {
-          debugLog('[UniversalRefresh][orders] bump reload key (empty on focus)')
-          setOrdersReloadKey(k => k + 1)
+          debugLog('[UniversalRefresh][orders] SKIPPED auto-reload (manual refresh required)')
+          console.log('⚠️ Orders empty on visibility - use Refresh button to load')
+          // setOrdersReloadKey(k => k + 1)
         }
       } else if (quoteView === 'profile') {
         // Profile: if missing (not loading) trigger refresh
@@ -1552,7 +1700,10 @@ useEffect(() => {
           } else {
             // Dashboard: nudge Orders/Profile views
             if (quoteView === 'orders') {
-              setOrdersReloadKey(k => k + 1)
+              // ❌ DISABLED: Auto-reload on focus causes race condition
+              // User must manually click Refresh Orders button
+              // setOrdersReloadKey(k => k + 1)
+              console.log('⚠️ Orders idle recovery disabled - use Refresh button')
             } else if (quoteView === 'profile' && !embeddedProfileLoading) {
               try { refreshEmbeddedProfile() } catch {}
             }
@@ -1610,7 +1761,7 @@ const patentServices = [
       title: "Trademark Filing",
       description: "Trademark filing establishes your legal claim to a brand name, logo, or slogan. We prepare and submit applications with accurate classifications, complete documentation, and strategic descriptions. Our team ensures compliance with trademark office requirements, optimizes your application for approval, and manages the entire filing process smoothly from start to finish.",
       icon: <Shield className="h-8 w-8 text-green-600" />,
-      price: 8500,
+      price: 3000,
     },
     {
       title: "Response To Examination Report",
@@ -2369,48 +2520,52 @@ const patentServices = [
         
         const last = localStorage.getItem(LAST_VIEW_KEY)
         debugLog('[ViewPersist] visible', { last, showQuotePage, quoteView, awayDuration })
-  if (last === 'quote:orders') {
-          // Restore Orders inside the embedded dashboard (no dedicated route)
-          debugLog('[ViewPersist] restoring orders on visible (embedded)')
+        
+        // CRITICAL: Add delay before ANY restoration to let Supabase client initialize after module reload
+        // During tab focus, modules reload and Supabase client is recreated. It needs time to restore
+        // auth state from browser storage (which may be locked for 20-50ms). This affects both
+        // username display on main screen AND Orders screen loading.
+        // Increased to 1000ms for Orders queries which need fully initialized client
+        console.log('[ViewPersist] Waiting 1000ms for Supabase client to fully initialize after module reload...')
+        setTimeout(() => {
+          console.log('[ViewPersist] Supabase client should be ready, proceeding with restoration...')
+          handleVisRestoreInternal(last)
+        }, 1000)
+      } catch {}
+    }
+    
+    const handleVisRestoreInternal = (last: string | null) => {
+      try {
+        if (last === 'quote:orders' || last === 'quote:forms') {
+          // CRITICAL FIX: Do NOT auto-load Orders after tab switch
+          // Supabase client queries hang even with 1000ms delay + timeouts
+          // Just show Orders tab, user must manually refresh
+          debugLog('[ViewPersist] restoring orders view (no auto-fetch)')
+          console.log('🔵 [VIEW RESTORE] Setting ordersRestoredFromTabRef = true')
+          ordersRestoredFromTabRef.current = true // Set flag to prevent useEffect from auto-loading
+          console.log('🔵 [VIEW RESTORE] About to setShowQuotePage(true) and setQuoteView("orders")')
           setShowQuotePage(true)
           setQuoteView('orders')
-          try {
-            const p = { event: 'rendering-saved-screen', lastSaved: last, pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
-            if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-              try { navigator.sendBeacon('/api/debug-log', JSON.stringify(p)) } catch {}
-            } else {
-              fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
-            }
-          } catch {}
-          // Prefetch and render
-          try {
-            requestAnimationFrame(() => { try { debugLog('[ViewPersist] visible -> goToOrders(rAF)'); goToOrders(); try { navigator.sendBeacon('/api/debug-log', JSON.stringify({ event: 'goToOrders-called', ts: Date.now() })) } catch {} } catch {} })
-          } catch {}
-        } else if (last === 'quote:forms') {
-          // Requirement: restoring from Forms should land on Orders (embedded)
-          debugLog('[ViewPersist] restoring forms -> orders on visible (embedded)')
-          setShowQuotePage(true)
-          setQuoteView('orders')
-          try {
-            const p = { event: 'rendering-saved-screen', lastSaved: last, pathname: typeof window !== 'undefined' ? window.location.pathname : null, ts: Date.now() }
-            if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
-              try { navigator.sendBeacon('/api/debug-log', JSON.stringify(p)) } catch {}
-            } else {
-              fetch('/api/debug-log', { method: 'POST', keepalive: true, headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }).catch(() => {})
-            }
-          } catch {}
-          try {
-            requestAnimationFrame(() => { try { debugLog('[ViewPersist] visible -> goToOrders(rAF)'); goToOrders(); try { navigator.sendBeacon('/api/debug-log', JSON.stringify({ event: 'goToOrders-called-from-forms', ts: Date.now() })) } catch {} } catch {} })
-          } catch {}
+          // Clear saved view to prevent retry loops
+          try { localStorage.setItem(LAST_VIEW_KEY, 'home') } catch {}
+          console.log('⚠️ Orders tab restored. Supabase client needs more time - please click Refresh Orders button.')
         } else if (last === 'quote:profile') {
           // Restore Profile inside the embedded dashboard (no dedicated route)
           debugLog('[ViewPersist] restoring profile on visible (embedded)')
+          if (isTestMode()) {
+            console.log('🧪 TEST MODE: Blocked Profile screen restore')
+            return
+          }
           setShowQuotePage(true)
           setQuoteView('profile')
           // Profile panel loads its data on enter
         } else if (last === 'quote:services') {
           // Restore Services (Make Payment) view inside the dashboard
           debugLog('[ViewPersist] restoring services on visible')
+          if (isTestMode()) {
+            console.log('🧪 TEST MODE: Blocked Services/Payment screen restore')
+            return
+          }
           setShowQuotePage(true)
           setQuoteView('services')
         }
@@ -2548,40 +2703,6 @@ const patentServices = [
       setShowRenewalModal(true)
       setRenewalClassType('single')
       setRenewalClassCount(2)
-      return
-    }
-    
-    // Special handling for Trademark Search
-    if (serviceName === 'Trademark Search') {
-      setShowTrademarkSearchModal(true)
-      setTrademarkSearchTurnaround('expedited')
-      return
-    }
-    
-    // Special handling for Trademark Filing
-    if (serviceName === 'Trademark Filing') {
-      setShowTrademarkFilingModal(true)
-      setTrademarkFilingAffidavit('with')
-      setTrademarkFilingApplicantType('individual')
-      return
-    }
-    
-    // Special handling for Response To Examination Report
-    if (serviceName === 'Response To Examination Report') {
-      setShowResponseModal(true)
-      return
-    }
-    
-    // Special handling for Opposition Hearing
-    if (serviceName === 'Opposition Hearing') {
-      setShowOppositionHearingModal(true)
-      return
-    }
-    
-    // Special handling for Opposition
-    if (serviceName === 'Opposition') {
-      setShowOppositionModal(true)
-      setOppositionTypes([])
       return
     }
     
@@ -3107,6 +3228,10 @@ const computeTurnaroundTotal = (turn: "standard" | "expediated" | "rush") => {
   }
 // Programmatic navigation to services view (e.g., from Orders or external trigger)
 const goToServices = () => {
+  if (isTestMode()) {
+    console.log('🧪 TEST MODE: Blocked Services/Payment navigation')
+    return
+  }
   setInitialQuoteView('services')
   setShowQuotePage(true)
   setQuoteView('services')
@@ -3693,7 +3818,13 @@ if (showQuotePage) {
                 <Button
                   variant={quoteView === 'profile' ? undefined : 'outline'}
                   className={`w-full justify-start border border-black rounded-full ${quoteView === 'profile' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
-                  onClick={() => setQuoteView('profile')}
+                  onClick={() => {
+                    if (isTestMode()) {
+                      console.log('🧪 TEST MODE: Blocked Profile button click')
+                      return
+                    }
+                    setQuoteView('profile')
+                  }}
                 >
                   Profile
                 </Button>
@@ -3783,25 +3914,44 @@ if (showQuotePage) {
             {/* Persistent Dashboard header for all internal tabs */}
             {quoteView !== 'services' && (
               <div className="mb-8 sticky top-16 z-40 bg-white pt-4 pb-3 border-b border-slate-200">
-                <h2 className="text-4xl font-bold tracking-tight text-slate-800 leading-tight select-none">
-                  {quoteView === 'orders'
-                    ? 'Orders'
-                    : quoteView === 'profile'
-                      ? 'Profile'
-                      : quoteView === 'forms'
-                        ? 'Forms'
-                        : 'Dashboard'}
-                </h2>
-                <div className="mt-2 h-[3px] w-24 bg-gradient-to-r from-blue-600 to-blue-400 rounded" />
-                {quoteView === 'orders' && (
-                  <p className="mt-3 text-sm text-gray-600">Your recent service purchases</p>
-                )}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-4xl font-bold tracking-tight text-slate-800 leading-tight select-none">
+                      {quoteView === 'orders'
+                        ? 'Orders'
+                        : quoteView === 'profile'
+                          ? 'Profile'
+                          : quoteView === 'forms'
+                            ? 'Forms'
+                            : 'Dashboard'}
+                    </h2>
+                    <div className="mt-2 h-[3px] w-24 bg-gradient-to-r from-blue-600 to-blue-400 rounded" />
+                    {quoteView === 'orders' && (
+                      <p className="mt-3 text-sm text-gray-600">Your recent service purchases</p>
+                    )}
+                  </div>
+                  {quoteView === 'orders' && (
+                    <button
+                      onClick={() => setShowOrdersTour(true)}
+                      className="px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors border border-blue-200"
+                      title="Start orders screen tour"
+                    >
+                      📖 Tour Guide
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
             {quoteView === 'orders' && (
-              <Card className="bg-white">
-                <CardContent className="p-4">
+              <>
+                <AppTour 
+                  run={showOrdersTour} 
+                  onComplete={handleOrdersTourComplete}
+                  tourType="orders"
+                />
+                <Card className="bg-white">
+                  <CardContent className="p-4">
                     {ordersLastFormBanner && ordersBannerVisible && (
                       <div
                         role="status"
@@ -3850,7 +4000,7 @@ if (showQuotePage) {
                       <div className="p-4 text-sm text-gray-500">No orders found.</div>
                     )}
                     {!embeddedOrdersLoading && !ordersLoadError && embeddedOrders && embeddedOrders.length > 0 && (
-                      <div className="overflow-x-auto overscroll-x-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-300">
+                      <div className="overflow-x-auto overscroll-x-contain scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-300" data-tour="orders-table">
                         <table className="table-auto border border-slate-300 rounded-md overflow-hidden min-w-[980px]">
                           <thead className="border-b border-slate-300">
                             <tr className="text-left text-base text-slate-700 bg-blue-50/70 divide-x divide-slate-300">
@@ -4083,6 +4233,7 @@ if (showQuotePage) {
                                               if (hasMultiple) openMultipleFormsEmbedded(bundle.orders)
                                               else openFormEmbedded(first)
                                             }}
+                                            data-tour="forms-button"
                                           >
                                             {hasMultiple ? 'Open Forms' : 'Open Form'}
                                           </Button>
@@ -4091,7 +4242,7 @@ if (showQuotePage) {
                                     </td>
                                     {/* Invoice */}
                                     <td className="p-2">
-                                      <Button size="sm" variant="outline" onClick={handleDownloadBundleWithForms} title="Download invoice plus associated form responses">
+                                      <Button size="sm" variant="outline" onClick={handleDownloadBundleWithForms} title="Download invoice plus associated form responses" data-tour="download-invoice">
                                         PDF + Forms
                                       </Button>
                                     </td>
@@ -4153,6 +4304,7 @@ if (showQuotePage) {
                     )}
                   </CardContent>
                 </Card>
+              </>
             )}
             {quoteView === 'forms' && (
               <FormsPanel
@@ -4319,6 +4471,13 @@ if (showQuotePage) {
  // Main marketing / landing view
  return (
     <div className="min-h-screen bg-white">
+      {/* App Tour Guide */}
+      <AppTour 
+        run={showTour} 
+        onComplete={handleTourComplete}
+        tourType={tourType}
+      />
+      
       {/* Auth Modal */}
        
               {showAuthModal && (
@@ -4388,8 +4547,16 @@ if (showQuotePage) {
             Welcome, {displayName}
           </span>
         )}
+        {/* Tour Guide Button */}
+        <button
+          onClick={() => startTour('main')}
+          className="px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors border border-blue-200"
+          title="Start guided tour"
+        >
+          📖 Tour Guide
+        </button>
         <div className="relative">
-          <button onClick={toggleMenu} className="focus:outline-none">
+          <button onClick={toggleMenu} className="focus:outline-none" data-tour="login-button">
             <UserCircleIcon className="h-8 w-8 text-gray-700 hover:text-blue-600" />
           </button>
    
@@ -4440,14 +4607,16 @@ if (showQuotePage) {
 
    
 
-      <BannerCarousel />
+      <div data-tour="hero-section">
+        <BannerCarousel />
+      </div>
 
       {/* Main Content Area: Services on Left, Cart on Right */}
   <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 md:py-8 flex flex-col lg:flex-row gap-6 md:gap-8">
         {/* Left Column: Tabbed Services */}
         <div className="flex-1">
           {/* Scrollable nav styled as tabs */}
-          <div className="grid w-full grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-6 md:mb-8">
+          <div className="grid w-full grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mb-6 md:mb-8" data-tour="services-grid">
             <button onClick={() => scrollToSection('patent-services')} className="px-3 py-2 rounded bg-blue-50 text-blue-700 hover:bg-blue-100">Patent Services</button>
             <button onClick={() => scrollToSection('trademark-services')} className="px-3 py-2 rounded bg-neutral-50 text-neutral-700 hover:bg-neutral-100">Trademark Services</button>
             <button onClick={() => scrollToSection('design-services')} className="px-3 py-2 rounded bg-neutral-50 text-neutral-700 hover:bg-neutral-100">Design Services</button>
@@ -4478,7 +4647,7 @@ if (showQuotePage) {
                         <span className="text-xl md:text-2xl font-bold text-blue-600">
                           {servicePricing[service.title] != null ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(servicePricing[service.title]) : 'Price not available'}
                         </span>
-                        <Button onClick={() => openOptionsForService(service.title, 'Patent')} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Select</Button>
+                        <Button onClick={() => openOptionsForService(service.title, 'Patent')} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded" data-tour="get-quote-button">Select</Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -4706,9 +4875,9 @@ if (showQuotePage) {
             </div>
             <div className="space-y-2">
               <Button 
-                className="w-full bg-blue-600 hover:bg-blue-700" 
+                className="w-full bg-gray-400 hover:bg-gray-400 cursor-not-allowed" 
                 onClick={goToQuotePage}
-                disabled={false}
+                disabled={true}
               >
                 Go To Payments
               </Button>
@@ -4812,529 +4981,110 @@ if (showQuotePage) {
             )}
             
             {/* Renewal Modal */}
-            <Dialog open={showRenewalModal} onOpenChange={setShowRenewalModal}>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Renewal of Registration</DialogTitle>
-                  <DialogDescription>Select class type and number of classes for renewal</DialogDescription>
-                </DialogHeader>
-                
-                <div className="space-y-4">
-                  {/* Class Type Dropdown */}
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">Select Class Type</Label>
-                    <Select value={renewalClassType} onValueChange={(v) => setRenewalClassType(v as 'single' | 'multi')}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Choose class type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="single">Single Class — ₹1,500</SelectItem>
-                        <SelectItem value="multi">Multi Class — ₹1,500 per class</SelectItem>
-                      </SelectContent>
-                    </Select>
+            {showRenewalModal && (
+              <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4" onClick={() => setShowRenewalModal(false)}>
+                <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-xl font-semibold text-gray-900">Renewal of Registration</h3>
+                    <button onClick={() => setShowRenewalModal(false)} className="text-gray-400 hover:text-gray-600">
+                      <X className="h-6 w-6" />
+                    </button>
                   </div>
                   
-                  {/* Multi Class Counter */}
-                  {renewalClassType === 'multi' && (
+                  <div className="space-y-4">
+                    {/* Class Type Dropdown */}
                     <div>
-                      <Label className="text-sm font-medium text-gray-700">Number of Classes (2-10)</Label>
-                      <div className="flex items-center gap-4 mt-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setRenewalClassCount(Math.max(2, renewalClassCount - 1))}
-                          disabled={renewalClassCount <= 2}
-                        >
-                          -
-                        </Button>
-                        <span className="text-xl font-semibold text-gray-900 w-12 text-center">
-                          {renewalClassCount}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setRenewalClassCount(Math.min(10, renewalClassCount + 1))}
-                          disabled={renewalClassCount >= 10}
-                        >
-                          +
-                        </Button>
-                        <span className="text-sm text-gray-600 ml-2">
-                          {renewalClassCount} × ₹1,500
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select Class Type
+                      </label>
+                      <select
+                        value={renewalClassType}
+                        onChange={(e) => setRenewalClassType(e.target.value as 'single' | 'multi')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      >
+                        <option value="single">Single Class</option>
+                        <option value="multi">Multi Class</option>
+                      </select>
+                    </div>
+                    
+                    {/* Multi Class Counter */}
+                    {renewalClassType === 'multi' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Number of Classes (2-10)
+                        </label>
+                        <div className="flex items-center gap-4">
+                          <button
+                            onClick={() => setRenewalClassCount(Math.max(2, renewalClassCount - 1))}
+                            disabled={renewalClassCount <= 2}
+                            className="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            -
+                          </button>
+                          <span className="text-2xl font-semibold text-gray-900 w-12 text-center">
+                            {renewalClassCount}
+                          </span>
+                          <button
+                            onClick={() => setRenewalClassCount(Math.min(10, renewalClassCount + 1))}
+                            disabled={renewalClassCount >= 10}
+                            className="px-3 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Price Display */}
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Total Price:</span>
+                        <span className="text-2xl font-bold text-green-600">
+                          {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                            renewalClassType === 'single' ? 1500 : renewalClassCount * 1500
+                          )}
                         </span>
                       </div>
+                      {renewalClassType === 'multi' && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          {renewalClassCount} classes × ₹1,500 per class
+                        </p>
+                      )}
                     </div>
-                  )}
-                  
-                  {/* Price Display */}
-                  <div className="rounded-md border p-3 bg-gray-50">
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Professional Fee</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
-                        renewalClassType === 'single' ? 1500 : renewalClassCount * 1500
-                      )}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Government Fee</span>
-                      <span>₹0</span>
-                    </div>
-                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
-                      <span>Total</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
-                        renewalClassType === 'single' ? 1500 : renewalClassCount * 1500
-                      )}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <DialogFooter>
-                  <Button
-                    onClick={() => {
-                      const price = renewalClassType === 'single' ? 1500 : renewalClassCount * 1500
-                      const details = renewalClassType === 'single' 
-                        ? 'Single Class'
-                        : `Multi Class (${renewalClassCount} classes)`
-                      
-                      const newItem = {
-                        id: `renewal-${Date.now()}`,
-                        name: 'Renewal of Registration',
-                        service_id: null,
-                        price: price,
-                        category: 'Trademark',
-                        details: details
-                      }
-                      
-                      setCartItems((prev) => {
-                        const next = [...prev, newItem]
-                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
-                        return next
-                      })
-                      
-                      setShowRenewalModal(false)
-                    }}
-                    className="w-full"
-                  >
-                    Add to Cart
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            
-            {/* Opposition Modal */}
-            <Dialog open={showOppositionModal} onOpenChange={setShowOppositionModal}>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Opposition</DialogTitle>
-                  <DialogDescription>Select the types of opposition filing (multiple selections allowed)</DialogDescription>
-                </DialogHeader>
-                
-                <div className="space-y-4">
-                  {/* Opposition Type Multi-Select */}
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700 mb-2 block">Select the Type(s) of Opposition</Label>
-                    <div className="space-y-2">
-                      {[
-                        { value: 'notice', label: 'Notice of Opposition', hasGovtFee: true },
-                        { value: 'counter', label: 'Counter Statement', hasGovtFee: true },
-                        { value: 'support-opposition', label: 'Affidavit in Support of Opposition', hasGovtFee: false },
-                        { value: 'support-application', label: 'Affidavit in Support of Application', hasGovtFee: false },
-                        { value: 'reply', label: 'Reply Affidavit/ Relying Letter', hasGovtFee: false }
-                      ].map((option) => (
-                        <label key={option.value} className="flex items-center space-x-2 cursor-pointer p-2 rounded hover:bg-gray-50">
-                          <input
-                            type="checkbox"
-                            checked={oppositionTypes.includes(option.value)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setOppositionTypes([...oppositionTypes, option.value])
-                              } else {
-                                setOppositionTypes(oppositionTypes.filter(t => t !== option.value))
-                              }
-                            }}
-                            className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
-                          />
-                          <span className="text-sm">{option.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {/* Price Display */}
-                  {oppositionTypes.length > 0 && (
-                    <div className="rounded-md border p-3 bg-gray-50">
-                      {(() => {
-                        const professionalFee = 2700 * oppositionTypes.length
-                        const govtFeeCount = oppositionTypes.filter(t => t === 'notice' || t === 'counter').length
-                        const governmentFee = 2700 * govtFeeCount
-                        const total = professionalFee + governmentFee
+                    
+                    {/* Add to Cart Button */}
+                    <button
+                      onClick={() => {
+                        const price = renewalClassType === 'single' ? 1500 : renewalClassCount * 1500
+                        const details = renewalClassType === 'single' 
+                          ? 'Single Class'
+                          : `Multi Class (${renewalClassCount} classes)`
                         
-                        return (
-                          <>
-                            <div className="flex items-center justify-between text-sm mb-1">
-                              <span>Professional Fee ({oppositionTypes.length} {oppositionTypes.length === 1 ? 'type' : 'types'})</span>
-                              <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(professionalFee)}</span>
-                            </div>
-                            <div className="flex items-center justify-between text-sm mb-1">
-                              <span>Government Fee{govtFeeCount > 0 ? ` (${govtFeeCount} ${govtFeeCount === 1 ? 'type' : 'types'})` : ''}</span>
-                              <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(governmentFee)}</span>
-                            </div>
-                            <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
-                              <span>Total</span>
-                              <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(total)}</span>
-                            </div>
-                          </>
-                        )
-                      })()}
-                    </div>
-                  )}
-                </div>
-                
-                <DialogFooter>
-                  <Button
-                    onClick={() => {
-                      if (oppositionTypes.length === 0) {
-                        alert('Please select at least one opposition type')
-                        return
-                      }
-                      
-                      const typeLabels: Record<string, string> = {
-                        'notice': 'Notice of Opposition',
-                        'counter': 'Counter Statement',
-                        'support-opposition': 'Affidavit in Support of Opposition',
-                        'support-application': 'Affidavit in Support of Application',
-                        'reply': 'Reply Affidavit/ Relying Letter'
-                      }
-                      
-                      const professionalFee = 2700 * oppositionTypes.length
-                      const govtFeeCount = oppositionTypes.filter(t => t === 'notice' || t === 'counter').length
-                      const governmentFee = 2700 * govtFeeCount
-                      const totalPrice = professionalFee + governmentFee
-                      
-                      const selectedLabels = oppositionTypes.map(t => typeLabels[t]).join(', ')
-                      
-                      const newItem = {
-                        id: `opposition-${Date.now()}`,
-                        name: 'Opposition',
-                        service_id: null,
-                        price: totalPrice,
-                        category: 'Trademark',
-                        details: `Types: ${selectedLabels}`
-                      }
-                      
-                      setCartItems((prev) => {
-                        const next = [...prev, newItem]
-                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
-                        return next
-                      })
-                      
-                      setShowOppositionModal(false)
-                      setOppositionTypes([])
-                    }}
-                    className="w-full"
-                    disabled={oppositionTypes.length === 0}
-                  >
-                    Add to Cart
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            
-            {/* Opposition Hearing Modal */}
-            <Dialog open={showOppositionHearingModal} onOpenChange={setShowOppositionHearingModal}>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Opposition Hearing</DialogTitle>
-                  <DialogDescription>Expert representation for opposition hearings</DialogDescription>
-                </DialogHeader>
-                
-                <div className="space-y-4">
-                  {/* Timeline Notice */}
-                  <div className="rounded-md border p-3 bg-blue-50 border-blue-200">
-                    <div className="text-sm font-medium text-blue-800 mb-1">Timeline</div>
-                    <div className="text-sm text-blue-700">One month</div>
-                  </div>
-                  
-                  {/* Price Display */}
-                  <div className="rounded-md border p-3 bg-gray-50">
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Professional Fee</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(4000)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Government Fee</span>
-                      <span>₹0</span>
-                    </div>
-                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
-                      <span>Total</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(4000)}</span>
-                    </div>
+                        const newItem = {
+                          id: `renewal-${Date.now()}`,
+                          name: 'Renewal of Registration',
+                          service_id: null,
+                          price: price,
+                          category: 'Trademark',
+                          details: details
+                        }
+                        
+                        setCartItems((prev) => {
+                          const next = [...prev, newItem]
+                          try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+                          return next
+                        })
+                        
+                        setShowRenewalModal(false)
+                      }}
+                      className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-md transition-colors"
+                    >
+                      Add to Cart
+                    </button>
                   </div>
                 </div>
-                
-                <DialogFooter>
-                  <Button
-                    onClick={() => {
-                      const newItem = {
-                        id: `opposition-hearing-${Date.now()}`,
-                        name: 'Opposition Hearing',
-                        service_id: null,
-                        price: 4000,
-                        category: 'Trademark',
-                        details: 'Timeline: One month'
-                      }
-                      
-                      setCartItems((prev) => {
-                        const next = [...prev, newItem]
-                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
-                        return next
-                      })
-                      
-                      setShowOppositionHearingModal(false)
-                    }}
-                    className="w-full"
-                  >
-                    Add to Cart
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            
-            {/* Response To Examination Report Modal */}
-            <Dialog open={showResponseModal} onOpenChange={setShowResponseModal}>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Response To Examination Report</DialogTitle>
-                  <DialogDescription>Our experts prepare comprehensive responses to examination objections</DialogDescription>
-                </DialogHeader>
-                
-                <div className="space-y-4">
-                  {/* Due Date Notice */}
-                  <div className="rounded-md border p-3 bg-amber-50 border-amber-200">
-                    <div className="text-sm font-medium text-amber-800 mb-1">⚠️ Important Notice</div>
-                    <div className="text-sm text-amber-700">Due date to respond: Within 7 days</div>
-                  </div>
-                  
-                  {/* Price Display */}
-                  <div className="rounded-md border p-3 bg-gray-50">
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Professional Fee</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(4000)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Government Fee</span>
-                      <span>₹0</span>
-                    </div>
-                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
-                      <span>Total</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(4000)}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <DialogFooter>
-                  <Button
-                    onClick={() => {
-                      const newItem = {
-                        id: `response-examination-${Date.now()}`,
-                        name: 'Response To Examination Report',
-                        service_id: null,
-                        price: 4000,
-                        category: 'Trademark',
-                        details: 'Due within 7 days'
-                      }
-                      
-                      setCartItems((prev) => {
-                        const next = [...prev, newItem]
-                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
-                        return next
-                      })
-                      
-                      setShowResponseModal(false)
-                    }}
-                    className="w-full"
-                  >
-                    Add to Cart
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            
-            {/* Trademark Filing Modal */}
-            <Dialog open={showTrademarkFilingModal} onOpenChange={setShowTrademarkFilingModal}>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Trademark Filing</DialogTitle>
-                  <DialogDescription>Select affidavit type and applicant type for your trademark filing</DialogDescription>
-                </DialogHeader>
-                
-                <div className="space-y-4">
-                  {/* Affidavit Type Dropdown */}
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">User Affidavit</Label>
-                    <Select value={trademarkFilingAffidavit} onValueChange={(v) => setTrademarkFilingAffidavit(v as 'with' | 'without')}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Choose affidavit type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="with">With User Affidavit</SelectItem>
-                        <SelectItem value="without">Without User Affidavit</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  {/* Applicant Type Dropdown */}
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">Applicant Type</Label>
-                    <Select value={trademarkFilingApplicantType} onValueChange={(v) => setTrademarkFilingApplicantType(v as 'individual' | 'others')}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Choose applicant type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="individual">Individual, Startup and MSME</SelectItem>
-                        <SelectItem value="others">Others</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  {/* Price Display */}
-                  <div className="rounded-md border p-3 bg-gray-50">
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Base Fee</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
-                        3000 + (trademarkFilingAffidavit === 'with' ? 1000 : 0)
-                      )}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Government Fee</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
-                        trademarkFilingApplicantType === 'individual' ? 4500 : 9000
-                      )}</span>
-                    </div>
-                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
-                      <span>Total</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
-                        3000 + (trademarkFilingAffidavit === 'with' ? 1000 : 0) + (trademarkFilingApplicantType === 'individual' ? 4500 : 9000)
-                      )}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <DialogFooter>
-                  <Button
-                    onClick={() => {
-                      const baseFee = 3000
-                      const affidavitFee = trademarkFilingAffidavit === 'with' ? 1000 : 0
-                      const govFee = trademarkFilingApplicantType === 'individual' ? 4500 : 9000
-                      const totalPrice = baseFee + affidavitFee + govFee
-                      
-                      const affidavitText = trademarkFilingAffidavit === 'with' ? 'With User Affidavit' : 'Without User Affidavit'
-                      const applicantText = trademarkFilingApplicantType === 'individual' 
-                        ? 'Individual, Startup and MSME' 
-                        : 'Others'
-                      const details = `${affidavitText} | ${applicantText}`
-                      
-                      const newItem = {
-                        id: `trademark-filing-${Date.now()}`,
-                        name: 'Trademark Filing',
-                        service_id: null,
-                        price: totalPrice,
-                        category: 'Trademark',
-                        details: details
-                      }
-                      
-                      setCartItems((prev) => {
-                        const next = [...prev, newItem]
-                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
-                        return next
-                      })
-                      
-                      setShowTrademarkFilingModal(false)
-                    }}
-                    className="w-full"
-                  >
-                    Add to Cart
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            
-            {/* Trademark Search Modal */}
-            <Dialog open={showTrademarkSearchModal} onOpenChange={setShowTrademarkSearchModal}>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Trademark Search</DialogTitle>
-                  <DialogDescription>Select turnaround time for your trademark search</DialogDescription>
-                </DialogHeader>
-                
-                <div className="space-y-4">
-                  {/* Turnaround Dropdown */}
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">Turnaround</Label>
-                    <Select value={trademarkSearchTurnaround} onValueChange={(v) => setTrademarkSearchTurnaround(v as 'expedited' | 'rush')}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Choose turnaround" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="expedited">Expedited (5-7 Days) — ₹500</SelectItem>
-                        <SelectItem value="rush">Rush (1-2 Days) — ₹800</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  {/* Price Display */}
-                  <div className="rounded-md border p-3 bg-gray-50">
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Professional Fee</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
-                        trademarkSearchTurnaround === 'expedited' ? 500 : 800
-                      )}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span>Government Fee</span>
-                      <span>₹0</span>
-                    </div>
-                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
-                      <span>Total</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
-                        trademarkSearchTurnaround === 'expedited' ? 500 : 800
-                      )}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <DialogFooter>
-                  <Button
-                    onClick={() => {
-                      const price = trademarkSearchTurnaround === 'expedited' ? 500 : 800
-                      const details = trademarkSearchTurnaround === 'expedited' 
-                        ? 'Expedited (5-7 Days)'
-                        : 'Rush (1-2 Days)'
-                      
-                      const newItem = {
-                        id: `trademark-search-${Date.now()}`,
-                        name: 'Trademark Search',
-                        service_id: null,
-                        price: price,
-                        category: 'Trademark',
-                        details: details
-                      }
-                      
-                      setCartItems((prev) => {
-                        const next = [...prev, newItem]
-                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
-                        return next
-                      })
-                      
-                      setShowTrademarkSearchModal(false)
-                    }}
-                    className="w-full"
-                  >
-                    Add to Cart
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+              </div>
+            )}
             
             <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
           </div>
@@ -5424,7 +5174,9 @@ if (showQuotePage) {
       </section>
 
       {/* Footer */}
-      <Footer />
+      <div data-tour="features-section">
+        <Footer />
+      </div>
 
       {/* Inline Quotation Preview Dialog */}
       <Dialog open={showQuotePreview} onOpenChange={(open) => { if (!open) setShowQuotePreview(false) }}>

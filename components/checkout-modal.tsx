@@ -2,7 +2,8 @@
 "use client"
 
 import { resolveFormTypeFromOrderLike } from "./utils/resolve-form-type"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
+import { AppTour } from "@/components/AppTour"
 
 // Map canonical keys to human-readable labels used in forms
 const TYPE_LABELS: Record<string,string> = {
@@ -35,6 +36,17 @@ const CheckoutModal = ({
   const showCheckoutThankYou = isOpen
   const checkoutPayment = payment
   const checkoutOrders = orders
+  
+  // Tour guide state
+  const [showTour, setShowTour] = useState(false)
+  
+  const handleTourComplete = () => {
+    setShowTour(false)
+  }
+  
+  const startTour = () => {
+    setShowTour(true)
+  }
 
   // Dispatch screen:ready when modal opens to clear any blur overlay from tab-in
   useEffect(() => {
@@ -131,6 +143,11 @@ const openSingleOrderForm = (o: any) => {
 }
   return (
     <>
+      <AppTour 
+        run={showTour} 
+        onComplete={handleTourComplete}
+        tourType="payment"
+      />
       {showCheckoutThankYou && (
         <div
           id="checkout-thankyou-modal"
@@ -153,7 +170,13 @@ const openSingleOrderForm = (o: any) => {
                     <p className="text-blue-100 text-sm">Your order has been confirmed and verified</p>
                   </div>
                 </div>
-                {/* Removed top-right close (X) button as requested */}
+                <button
+                  onClick={startTour}
+                  className="px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20 rounded-md transition-colors border border-white/30"
+                  title="Start payment screen tour"
+                >
+                  📖 Tour
+                </button>
               </div>
             </div>
 
@@ -177,7 +200,7 @@ const openSingleOrderForm = (o: any) => {
                   <p className="text-xs opacity-80">If this persists, please contact support with your Payment ID.</p>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-2 gap-4 mb-6" data-tour="payment-details">
                 <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
                   <div className="text-blue-600 text-xs font-medium uppercase tracking-wide mb-1">Payment ID</div>
                   <div className="font-semibold text-gray-900">
@@ -202,7 +225,7 @@ const openSingleOrderForm = (o: any) => {
 
               {/* Application Type summary */}
               {checkoutOrders.length === 1 && (
-                <div className="mb-6">
+                <div className="mb-6" data-tour="application-type">
                   <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
                     <div className="text-blue-600 text-xs font-medium uppercase tracking-wide mb-1">Application Type</div>
                     <div className="font-semibold text-gray-900">
@@ -285,6 +308,7 @@ const openSingleOrderForm = (o: any) => {
 
                   <div className="flex items-center justify-end gap-3">
                     <button
+                      data-tour="proceed-button"
                       className="group inline-flex items-center space-x-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-3 text-white font-medium shadow-lg transition-all duration-200 hover:from-blue-700 hover:to-blue-800 hover:shadow-xl hover:-translate-y-0.5"
                       onClick={() => {
                         try { onClose() } catch {}
