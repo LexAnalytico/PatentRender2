@@ -967,12 +967,6 @@ const openFirstFormEmbedded = () => {
 
   // Centralized navigation back to Orders view with prefetch before rendering Orders screen
   function goToOrders() {
-    // 🧪 TEST MODE: Block navigation to Orders screen
-    if (isTestMode()) {
-      console.log('🧪 TEST MODE: Blocked navigation to Orders screen')
-      return
-    }
-    
     // If already in orders view, keep legacy behavior (manual refresh by reload key)
     if (quoteView === 'orders') {
       // Single refresh only (removed second bump to prevent double reload)
@@ -3818,13 +3812,7 @@ if (showQuotePage) {
                 <Button
                   variant={quoteView === 'profile' ? undefined : 'outline'}
                   className={`w-full justify-start border border-black rounded-full ${quoteView === 'profile' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''}`}
-                  onClick={() => {
-                    if (isTestMode()) {
-                      console.log('🧪 TEST MODE: Blocked Profile button click')
-                      return
-                    }
-                    setQuoteView('profile')
-                  }}
+                  onClick={() => setQuoteView('profile')}
                 >
                   Profile
                 </Button>

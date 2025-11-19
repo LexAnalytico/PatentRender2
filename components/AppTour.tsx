@@ -11,6 +11,12 @@ interface AppTourProps {
 
 export function AppTour({ run, onComplete, tourType = 'main' }: AppTourProps) {
   const [stepIndex, setStepIndex] = useState(0)
+  const [isMounted, setIsMounted] = useState(false)
+
+  // Prevent hydration errors by only rendering on client
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // Main screen tour steps
   const mainScreenSteps: Step[] = [
@@ -341,6 +347,11 @@ export function AppTour({ run, onComplete, tourType = 'main' }: AppTourProps) {
       setStepIndex(0)
       onComplete()
     }
+  }
+
+  // Don't render during SSR to prevent hydration errors
+  if (!isMounted) {
+    return null
   }
 
   return (
