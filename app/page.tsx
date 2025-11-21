@@ -37,9 +37,10 @@ const services = [
   "Copyright Registration",
   "DMCA Services",
   "Copyright Licensing",
-  "Design Registration",
-  "Design Search",
-  "Design Portfolio",
+  "Design Filing",
+  "Response to FER",
+  "Hearing",
+  "Cancellation",
 ]
 
 import {
@@ -66,6 +67,7 @@ import {
   AlertCircle,
   Users,
   X,
+  XCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import FormClient from "./forms/FormClient"
@@ -381,6 +383,14 @@ const openFirstFormEmbedded = () => {
   // Opposition specific state
   const [showOppositionModal, setShowOppositionModal] = useState(false)
   const [oppositionTypes, setOppositionTypes] = useState<string[]>([])
+  
+  // Design Filing specific state
+  const [showDesignFilingModal, setShowDesignFilingModal] = useState(false)
+  const [designFilingApplicantType, setDesignFilingApplicantType] = useState<'individual' | 'startup_msme' | 'large_entity'>('individual')
+  
+  // Design Cancellation specific state
+  const [showDesignCancellationModal, setShowDesignCancellationModal] = useState(false)
+  const [designCancellationApplicantType, setDesignCancellationApplicantType] = useState<'individual' | 'startup_msme' | 'large_entity'>('individual')
 
  
   const [activeServiceTab, setActiveServiceTab] = useState("patent") // State for active tab
@@ -1664,19 +1674,28 @@ const patentServices = [
 
   const designServices = [
     {
-      title: "Design Registration",
-      description: "Protect your unique designs and visual elements",
+      title: "Design Filing",
+      description: "Complete design registration filing to protect your unique product designs and visual elements. We handle applications, documentation, and compliance for individual applicants, startups, MSMEs, and large entities.",
       icon: <Palette className="h-8 w-8 text-orange-600" />,
+      price: 11000,
     },
     {
-      title: "Design Search",
-      description: "Comprehensive design prior art search services",
-      icon: <Scale className="h-8 w-8 text-orange-600" />,
+      title: "Response to FER",
+      description: "Expert responses to First Examination Reports for design applications. We address examiner objections with technical precision, preparing detailed clarifications to guide your application toward successful registration.",
+      icon: <FileText className="h-8 w-8 text-orange-600" />,
+      price: 5000,
     },
     {
-      title: "Design Portfolio",
-      description: "Strategic design portfolio development and management",
-      icon: <Award className="h-8 w-8 text-orange-600" />,
+      title: "Hearing",
+      description: "Professional representation at design application hearings. Our attorneys present evidence and deliver persuasive arguments before registration boards to protect your design rights effectively.",
+      icon: <Users className="h-8 w-8 text-orange-600" />,
+      price: 5000,
+    },
+    {
+      title: "Cancellation",
+      description: "Strategic design cancellation proceedings to challenge or defend registrations. We file detailed petitions with legal grounds and evidence, protecting your market position and design rights.",
+      icon: <XCircle className="h-8 w-8 text-orange-600" />,
+      price: 16500,
     },
   ]
 
@@ -2582,6 +2601,60 @@ const patentServices = [
     if (serviceName === 'Opposition') {
       setShowOppositionModal(true)
       setOppositionTypes([])
+      return
+    }
+    
+    // Special handling for Design Filing
+    if (serviceName === 'Design Filing') {
+      setShowDesignFilingModal(true)
+      setDesignFilingApplicantType('individual')
+      return
+    }
+    
+    // Special handling for Cancellation (Design)
+    if (serviceName === 'Cancellation') {
+      setShowDesignCancellationModal(true)
+      setDesignCancellationApplicantType('individual')
+      return
+    }
+    
+    // Special handling for Response to FER (Design) - directly add to cart
+    if (serviceName === 'Response to FER' && category === 'Design') {
+      const newItem = {
+        id: `design-fer-${Date.now()}`,
+        name: 'Response to FER',
+        service_id: 13,
+        price: 5000,
+        category: 'Design',
+        details: 'Single Service',
+        type: 'design_fer_response'
+      }
+      
+      setCartItems((prev) => {
+        const next = [...prev, newItem]
+        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+        return next
+      })
+      return
+    }
+    
+    // Special handling for Hearing (Design) - directly add to cart
+    if (serviceName === 'Hearing' && category === 'Design') {
+      const newItem = {
+        id: `design-hearing-${Date.now()}`,
+        name: 'Hearing',
+        service_id: 14,
+        price: 5000,
+        category: 'Design',
+        details: 'Single Service',
+        type: 'design_hearing'
+      }
+      
+      setCartItems((prev) => {
+        const next = [...prev, newItem]
+        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+        return next
+      })
       return
     }
     
@@ -4528,24 +4601,32 @@ if (showQuotePage) {
           </section>
 
           {/* Design Services (moved above Copyright) */}
-          <section id="design-services" className="bg-neutral-50 py-6 md:py-8 rounded-lg mt-6 md:mt-8 border border-neutral-200 scroll-mt-24">
+          <section id="design-services" className="bg-orange-50 py-6 md:py-8 rounded-lg mt-6 md:mt-8 scroll-mt-24">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
                 <h2 className="text-2xl md:text-4xl font-bold text-gray-900">Design Services</h2>
-                <p className="text-base md:text-lg text-gray-600 max-w-3xl">Protect unique designs with strategic search, filing, and portfolio support.</p>
+                <p className="text-base md:text-lg text-gray-600 max-w-3xl">Protect your unique product designs with expert registration, compliance, and strategic support.</p>
               </div>
-              <div className="text-center py-10 md:py-12">
-                <div className="mx-auto mb-6 w-14 h-14 md:w-16 md:h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
-                  <Clock className="h-7 w-7 md:h-8 md:w-8 text-neutral-600" />
-                </div>
-                <h3 className="text-xl md:text-2xl font-semibold text-gray-900 mb-2">Coming soon</h3>
-                <p className="text-gray-600 max-w-2xl mx-auto text-sm md:text-base">Our design protection services are nearly ready. Stay tuned!</p>
-                <div className="mt-6">
-                  <Button variant="outline" className="border-neutral-200" onClick={() => scrollToSection('patent-services')}>
-                    Explore Patent Services
-                  </Button>
-                  {/* Removed duplicate Admin Dashboard button (header provides access) */}
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+                {designServices.map((service) => (
+                  <Card key={service.title} className="bg-white hover:shadow-lg transition-shadow">
+                    <CardContent className="p-5 md:p-7">
+                      <div className="flex items-start gap-3 justify-between">
+                        <div className="p-2 md:p-3 bg-orange-100 rounded-full">
+                          {service.icon}
+                        </div>
+                      </div>
+                      <h3 className="text-lg md:text-xl font-semibold text-gray-900 mt-4">{service.title}</h3>
+                      <p className="text-sm md:text-base text-gray-600 mt-2 leading-relaxed">{service.description}</p>
+                      <div className="flex items-center justify-between mt-4 md:mt-6 pt-4 border-t">
+                        <span className="text-xl md:text-2xl font-bold text-orange-600">
+                          {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(service.price)}
+                        </span>
+                        <Button onClick={() => openOptionsForService(service.title, 'Design')} size="sm" className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded">Select</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             </div>
           </section>
@@ -5250,6 +5331,170 @@ if (showQuotePage) {
                       })
                       
                       setShowTrademarkFilingModal(false)
+                    }}
+                    className="w-full"
+                  >
+                    Add to Cart
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            
+            {/* Design Filing Modal */}
+            <Dialog open={showDesignFilingModal} onOpenChange={setShowDesignFilingModal}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Options for: Design Filing</DialogTitle>
+                  <DialogDescription>Select the options for this service.</DialogDescription>
+                  
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">Select Applicant Type</Label>
+                    <Select value={designFilingApplicantType} onValueChange={(v) => setDesignFilingApplicantType(v as 'individual' | 'startup_msme' | 'large_entity')}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Choose applicant type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="individual">Individual — ₹11,000</SelectItem>
+                        <SelectItem value="startup_msme">Startup or MSME — ₹12,000</SelectItem>
+                        <SelectItem value="large_entity">Large Entity — ₹14,000</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="rounded-md border p-3 bg-gray-50 mt-4">
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Professional Fee</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(10000)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Government Fee</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                        designFilingApplicantType === 'individual' ? 1000 : designFilingApplicantType === 'startup_msme' ? 2000 : 4000
+                      )}</span>
+                    </div>
+                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                      <span>Total</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                        10000 + (designFilingApplicantType === 'individual' ? 1000 : designFilingApplicantType === 'startup_msme' ? 2000 : 4000)
+                      )}</span>
+                    </div>
+                  </div>
+                </DialogHeader>
+                
+                <DialogFooter>
+                  <Button
+                    onClick={() => {
+                      const professionalFee = 10000
+                      const govFee = designFilingApplicantType === 'individual' ? 1000 : designFilingApplicantType === 'startup_msme' ? 2000 : 4000
+                      const totalPrice = professionalFee + govFee
+                      
+                      const applicantText = designFilingApplicantType === 'individual' 
+                        ? 'Individual' 
+                        : designFilingApplicantType === 'startup_msme'
+                          ? 'Startup or MSME'
+                          : 'Large Entity'
+                      const details = applicantText
+                      
+                      const newItem = {
+                        id: `design-filing-${Date.now()}`,
+                        name: 'Design Filing',
+                        service_id: 10,
+                        price: totalPrice,
+                        category: 'Design',
+                        details: details,
+                        type: 'design_filing',
+                        application_type: designFilingApplicantType
+                      }
+                      
+                      setCartItems((prev) => {
+                        const next = [...prev, newItem]
+                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+                        return next
+                      })
+                      
+                      setShowDesignFilingModal(false)
+                    }}
+                    className="w-full"
+                  >
+                    Add to Cart
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            
+            {/* Design Cancellation Modal */}
+            <Dialog open={showDesignCancellationModal} onOpenChange={setShowDesignCancellationModal}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Options for: Cancellation</DialogTitle>
+                  <DialogDescription>Select the options for this service.</DialogDescription>
+                  
+                  <div>
+                    <Label className="text-sm font-medium text-gray-700">Select Applicant Type</Label>
+                    <Select value={designCancellationApplicantType} onValueChange={(v) => setDesignCancellationApplicantType(v as 'individual' | 'startup_msme' | 'large_entity')}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder="Choose applicant type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="individual">Individual — ₹16,500</SelectItem>
+                        <SelectItem value="startup_msme">Startup or MSME — ₹18,000</SelectItem>
+                        <SelectItem value="large_entity">Large Entity — ₹21,000</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="rounded-md border p-3 bg-gray-50 mt-4">
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Professional Fee</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(15000)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Government Fee</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                        designCancellationApplicantType === 'individual' ? 1500 : designCancellationApplicantType === 'startup_msme' ? 3000 : 6000
+                      )}</span>
+                    </div>
+                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                      <span>Total</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
+                        15000 + (designCancellationApplicantType === 'individual' ? 1500 : designCancellationApplicantType === 'startup_msme' ? 3000 : 6000)
+                      )}</span>
+                    </div>
+                  </div>
+                </DialogHeader>
+                
+                <DialogFooter>
+                  <Button
+                    onClick={() => {
+                      const professionalFee = 15000
+                      const govFee = designCancellationApplicantType === 'individual' ? 1500 : designCancellationApplicantType === 'startup_msme' ? 3000 : 6000
+                      const totalPrice = professionalFee + govFee
+                      
+                      const applicantText = designCancellationApplicantType === 'individual' 
+                        ? 'Individual' 
+                        : designCancellationApplicantType === 'startup_msme'
+                          ? 'Startup or MSME'
+                          : 'Large Entity'
+                      const details = applicantText
+                      
+                      const newItem = {
+                        id: `design-cancellation-${Date.now()}`,
+                        name: 'Cancellation',
+                        service_id: 15,
+                        price: totalPrice,
+                        category: 'Design',
+                        details: details,
+                        type: 'design_cancellation',
+                        application_type: designCancellationApplicantType
+                      }
+                      
+                      setCartItems((prev) => {
+                        const next = [...prev, newItem]
+                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+                        return next
+                      })
+                      
+                      setShowDesignCancellationModal(false)
                     }}
                     className="w-full"
                   >

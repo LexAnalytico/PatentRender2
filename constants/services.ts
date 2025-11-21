@@ -51,15 +51,19 @@ export const copyrightServices: Omit<Service, "icon">[] = [
 
 export const designServices: Omit<Service, "icon">[] = [
   {
-    title: "Design Registration",
-    description: "Protect your unique designs and visual elements",
+    title: "Design Filing",
+    description: "Complete design registration filing to protect your unique product designs and visual elements with strategic compliance across jurisdictions",
   },
   {
-    title: "Design Search",
-    description: "Comprehensive design prior art search services",
+    title: "Response to FER",
+    description: "Expert responses to First Examination Reports for design applications, addressing examiner objections with technical and legal precision",
   },
   {
-    title: "Design Portfolio",
-    description: "Strategic design portfolio development and management",
+    title: "Hearing",
+    description: "Professional representation at design application hearings, presenting evidence and arguments to support your registration",
+  },
+  {
+    title: "Cancellation",
+    description: "Strategic cancellation proceedings to challenge or defend design registrations, protecting your design rights and market position",
   },
 ]
