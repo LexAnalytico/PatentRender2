@@ -172,10 +172,13 @@ const openSingleOrderForm = (o: any) => {
                 </div>
                 <button
                   onClick={startTour}
-                  className="px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20 rounded-md transition-colors border border-white/30"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-md transition-colors shadow-sm"
                   title="Start payment screen tour"
                 >
-                  📖 Tour
+                  <span className="flex items-center justify-center w-5 h-5 bg-white rounded-full">
+                    <span className="text-orange-500 text-base">👉</span>
+                  </span>
+                  Tour
                 </button>
               </div>
             </div>

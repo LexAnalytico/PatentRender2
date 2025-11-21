@@ -121,6 +121,25 @@ export function AppTour({ run, onComplete, tourType = 'main' }: AppTourProps) {
       placement: 'top',
     },
     {
+      target: 'body',
+      content: (
+        <div>
+          <h3 className="text-lg font-semibold mb-2">Understanding Order Status 🔄</h3>
+          <p className="mb-3">Each order goes through the following stages:</p>
+          <ul className="space-y-2 text-sm">
+            <li><strong className="text-yellow-600">Pending:</strong> Payment received, awaiting form submission</li>
+            <li><strong className="text-blue-600">Processing:</strong> Forms submitted, under review by our team. If you see a chat icon 💬, click it to read and respond to messages</li>
+            <li><strong className="text-purple-600">In Progress:</strong> Application filed, awaiting official response</li>
+            <li><strong className="text-green-600">Completed:</strong> Process finished successfully</li>
+          </ul>
+          <p className="mt-3 text-sm text-gray-600">
+            <strong>Actions:</strong> Click "Open Form" to submit application details. Use "Download Invoice" to get your payment receipt.
+          </p>
+        </div>
+      ),
+      placement: 'center',
+    },
+    {
       target: '[data-tour="forms-button"]',
       content: (
         <div>

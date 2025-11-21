@@ -3921,10 +3921,13 @@ if (showQuotePage) {
                   {quoteView === 'orders' && (
                     <button
                       onClick={() => setShowOrdersTour(true)}
-                      className="px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors border border-blue-200"
+                      className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-md transition-colors shadow-sm"
                       title="Start orders screen tour"
                     >
-                      📖 Tour Guide
+                      <span className="flex items-center justify-center w-6 h-6 bg-white rounded-full">
+                        <span className="text-orange-500 text-lg">👉</span>
+                      </span>
+                      Tour Guide
                     </button>
                   )}
                 </div>
@@ -4538,10 +4541,13 @@ if (showQuotePage) {
         {/* Tour Guide Button */}
         <button
           onClick={() => startTour('main')}
-          className="px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors border border-blue-200"
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-md transition-colors shadow-sm"
           title="Start guided tour"
         >
-          📖 Tour Guide
+          <span className="flex items-center justify-center w-6 h-6 bg-white rounded-full">
+            <span className="text-orange-500 text-lg">👉</span>
+          </span>
+          Tour Guide
         </button>
         <div className="relative">
           <button onClick={toggleMenu} className="focus:outline-none" data-tour="login-button">
@@ -4863,9 +4869,9 @@ if (showQuotePage) {
             </div>
             <div className="space-y-2">
               <Button 
-                className="w-full bg-gray-400 hover:bg-gray-400 cursor-not-allowed" 
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white" 
                 onClick={goToQuotePage}
-                disabled={true}
+                disabled={false}
               >
                 Go To Payments
               </Button>

@@ -114,10 +114,13 @@ const FormsPanelComponent: React.FC<FormsPanelProps> = ({
       <div className="flex gap-2">
         <button
           onClick={startTour}
-          className="px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors border border-blue-200"
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-md transition-colors shadow-sm"
           title="Start forms screen tour"
         >
-          📖 Tour Guide
+          <span className="flex items-center justify-center w-6 h-6 bg-white rounded-full">
+            <span className="text-orange-500 text-lg">👉</span>
+          </span>
+          Tour Guide
         </button>
         <Button variant="outline" onClick={goToOrders}>Back to Orders</Button>
         <Button variant="outline" onClick={backToServices}>Back to Selected Services</Button>
