@@ -5428,6 +5428,7 @@ if (showQuotePage) {
                 
                 <DialogFooter>
                   <Button
+                    className="bg-orange-600 hover:bg-orange-700"
                     onClick={() => {
                       const professionalFee = 10000
                       const govFee = designFilingApplicantType === 'individual' ? 1000 : designFilingApplicantType === 'startup_msme' ? 2000 : 4000
@@ -5459,11 +5460,12 @@ if (showQuotePage) {
                       
                       setShowDesignFilingModal(false)
                     }}
-                    className="w-full"
                   >
-                    Add to Cart
+                    Add
                   </Button>
+                  <Button variant="outline" onClick={() => setShowDesignFilingModal(false)}>Cancel</Button>
                 </DialogFooter>
+                <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
               </DialogContent>
             </Dialog>
             
@@ -5541,11 +5543,13 @@ if (showQuotePage) {
                       
                       setShowDesignCancellationModal(false)
                     }}
-                    className="w-full"
+                    className="bg-orange-600 hover:bg-orange-700"
                   >
-                    Add to Cart
+                    Add
                   </Button>
+                  <Button variant="outline" onClick={() => setShowDesignCancellationModal(false)}>Cancel</Button>
                 </DialogFooter>
+                <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
               </DialogContent>
             </Dialog>
             
@@ -5595,6 +5599,7 @@ if (showQuotePage) {
                 
                 <DialogFooter>
                   <Button
+                    className="bg-purple-600 hover:bg-purple-700"
                     onClick={() => {
                       const professionalFee = 7000
                       const govFee = copyrightWorkType === 'film' ? 5000 : copyrightWorkType === 'sound' ? 2000 : 500
@@ -5630,11 +5635,12 @@ if (showQuotePage) {
                       
                       setShowCopyrightFilingModal(false)
                     }}
-                    className="w-full"
                   >
-                    Add to Cart
+                    Add
                   </Button>
+                  <Button variant="outline" onClick={() => setShowCopyrightFilingModal(false)}>Cancel</Button>
                 </DialogFooter>
+                <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
               </DialogContent>
             </Dialog>
             
@@ -5680,6 +5686,7 @@ if (showQuotePage) {
                 
                 <DialogFooter>
                   <Button
+                    className="bg-purple-600 hover:bg-purple-700"
                     onClick={() => {
                       const workTypeMap = {
                         'literary': { label: 'Literary', serviceId: 22 },
@@ -5711,11 +5718,12 @@ if (showQuotePage) {
                       
                       setShowCopyrightDiscrepancyModal(false)
                     }}
-                    className="w-full"
                   >
-                    Add to Cart
+                    Add
                   </Button>
+                  <Button variant="outline" onClick={() => setShowCopyrightDiscrepancyModal(false)}>Cancel</Button>
                 </DialogFooter>
+                <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
               </DialogContent>
             </Dialog>
             
@@ -5748,6 +5756,7 @@ if (showQuotePage) {
                 
                 <DialogFooter>
                   <Button
+                    className="bg-purple-600 hover:bg-purple-700"
                     onClick={() => {
                       const newItem = {
                         id: `copyright-noc-${Date.now()}`,
@@ -5767,11 +5776,12 @@ if (showQuotePage) {
                       
                       setShowCopyrightNOCModal(false)
                     }}
-                    className="w-full"
                   >
-                    Add to Cart
+                    Add
                   </Button>
+                  <Button variant="outline" onClick={() => setShowCopyrightNOCModal(false)}>Cancel</Button>
                 </DialogFooter>
+                <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
               </DialogContent>
             </Dialog>
             
