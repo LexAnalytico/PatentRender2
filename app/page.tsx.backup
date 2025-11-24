@@ -395,13 +395,6 @@ const openFirstFormEmbedded = () => {
   // Copyright Filing specific state
   const [showCopyrightFilingModal, setShowCopyrightFilingModal] = useState(false)
   const [copyrightWorkType, setCopyrightWorkType] = useState<'literary' | 'dramatic' | 'musical' | 'artistic' | 'film' | 'sound'>('literary')
-  
-  // Copyright Discrepancy specific state
-  const [showCopyrightDiscrepancyModal, setShowCopyrightDiscrepancyModal] = useState(false)
-  const [copyrightDiscrepancyWorkType, setCopyrightDiscrepancyWorkType] = useState<'literary' | 'dramatic' | 'musical' | 'artistic' | 'film' | 'sound'>('literary')
-  
-  // Copyright NOC Response specific state
-  const [showCopyrightNOCModal, setShowCopyrightNOCModal] = useState(false)
 
  
   const [activeServiceTab, setActiveServiceTab] = useState("patent") // State for active tab
@@ -1673,7 +1666,7 @@ const patentServices = [
       price: 7500,
     },
     {
-      title: "Response to Copyright Discrepancy Letter",
+      title: "Response to Discrepancy",
       description: "Expert responses to copyright discrepancy letters for all work types",
       icon: <Shield className="h-8 w-8 text-purple-600" />,
       price: 3000,
@@ -2679,16 +2672,43 @@ const patentServices = [
       return
     }
     
-    // Special handling for Response to Copyright Discrepancy Letter
-    if (serviceName === 'Response to Copyright Discrepancy Letter' && category === 'Copyright') {
-      setShowCopyrightDiscrepancyModal(true)
-      setCopyrightDiscrepancyWorkType('literary')
+    // Special handling for Response to Discrepancy (Copyright) - directly add to cart
+    if (serviceName === 'Response to Discrepancy' && category === 'Copyright') {
+      const newItem = {
+        id: `copyright-discrepancy-${Date.now()}`,
+        name: 'Response to Discrepancy',
+        service_id: 22,
+        price: 3000,
+        category: 'Copyright',
+        details: 'Single Service',
+        type: 'copyright_discrepancy_response'
+      }
+      
+      setCartItems((prev) => {
+        const next = [...prev, newItem]
+        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+        return next
+      })
       return
     }
     
-    // Special handling for NOC Response (Copyright) - show modal
+    // Special handling for NOC Response (Copyright) - directly add to cart
     if (serviceName === 'NOC Response' && category === 'Copyright') {
-      setShowCopyrightNOCModal(true)
+      const newItem = {
+        id: `copyright-noc-${Date.now()}`,
+        name: 'NOC Response',
+        service_id: 28,
+        price: 10000,
+        category: 'Copyright',
+        details: 'Artistic Work',
+        type: 'copyright_noc_response'
+      }
+      
+      setCartItems((prev) => {
+        const next = [...prev, newItem]
+        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+        return next
+      })
       return
     }
     
@@ -4672,28 +4692,17 @@ if (showQuotePage) {
                 <h2 className="text-2xl md:text-4xl font-bold text-gray-900">Copyright Services</h2>
                 <p className="text-base md:text-lg text-gray-600 max-w-3xl">Safeguard creative works with registration, licensing, and enforcement support.</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
-                {copyrightServices.map((service) => (
-                  <Card key={service.title} className="bg-white hover:shadow-lg transition-shadow">
-                    <CardContent className="p-5 md:p-7">
-                      <div className="flex items-start gap-3 justify-between">
-                        <div className="p-2 md:p-3 bg-purple-100 rounded-full">
-                          <span className="inline-flex items-center justify-center h-6 w-6 md:h-8 md:w-8 text-purple-600">{service.icon}</span>
-                        </div>
-                        <h3 className="text-lg md:text-xl font-semibold text-gray-900">{service.title}</h3>
-                      </div>
-                      <p className="text-gray-600 mt-3 md:mt-4 text-sm md:text-base">
-                        {service.description} Our team provides comprehensive support for copyright registration, discrepancy resolution, and NOC preparation to ensure your creative works are fully protected.
-                      </p>
-                      <div className="flex items-center justify-between mt-3 md:mt-4">
-                        <span className="text-xl md:text-2xl font-bold text-purple-600">
-                          {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(service.price)}
-                        </span>
-                        <Button onClick={() => openOptionsForService(service.title, 'Copyright')} size="sm" className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">Select</Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              <div className="text-center py-10 md:py-12">
+                <div className="mx-auto mb-6 w-14 h-14 md:w-16 md:h-16 rounded-full bg-neutral-100 ring-2 ring-neutral-200 flex items-center justify-center">
+                  <Clock className="h-7 w-7 md:h-8 md:w-8 text-neutral-600" />
+                </div>
+                <h3 className="text-xl md:text-2xl font-semibold text-gray-900 mb-2">Coming soon</h3>
+                <p className="text-gray-600 max-w-2xl mx-auto text-sm md:text-base">We’re crafting copyright solutions to protect your creative work. Check back shortly.</p>
+                <div className="mt-6">
+                  <Button variant="outline" className="border-neutral-200" onClick={() => scrollToSection('patent-services')}>
+                    Explore Patent Services
+                  </Button>
+                </div>
               </div>
             </div>
           </section>
@@ -5629,143 +5638,6 @@ if (showQuotePage) {
                       })
                       
                       setShowCopyrightFilingModal(false)
-                    }}
-                    className="w-full"
-                  >
-                    Add to Cart
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            
-            {/* Copyright Discrepancy Modal */}
-            <Dialog open={showCopyrightDiscrepancyModal} onOpenChange={setShowCopyrightDiscrepancyModal}>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Options for: Response to Copyright Discrepancy Letter</DialogTitle>
-                  <DialogDescription>Choose one of the services listed below</DialogDescription>
-                  
-                  <div>
-                    <Label className="text-sm font-medium text-gray-700">Choose one of the services listed below</Label>
-                    <Select value={copyrightDiscrepancyWorkType} onValueChange={(v) => setCopyrightDiscrepancyWorkType(v as 'literary' | 'dramatic' | 'musical' | 'artistic' | 'film' | 'sound')}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Choose work type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="literary">Literary — ₹3,000</SelectItem>
-                        <SelectItem value="dramatic">Dramatic — ₹3,000</SelectItem>
-                        <SelectItem value="musical">Musical — ₹3,000</SelectItem>
-                        <SelectItem value="artistic">Artistic work — ₹3,000</SelectItem>
-                        <SelectItem value="film">Cinematograph Film — ₹3,000</SelectItem>
-                        <SelectItem value="sound">Sound recording — ₹3,000</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="rounded-md border p-3 bg-gray-50 mt-4">
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Professional Fee</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(3000)}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span>Government Fee</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(0)}</span>
-                    </div>
-                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
-                      <span>Total</span>
-                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(3000)}</span>
-                    </div>
-                  </div>
-                </DialogHeader>
-                
-                <DialogFooter>
-                  <Button
-                    onClick={() => {
-                      const workTypeMap = {
-                        'literary': { label: 'Literary', serviceId: 22 },
-                        'dramatic': { label: 'Dramatic', serviceId: 23 },
-                        'musical': { label: 'Musical', serviceId: 24 },
-                        'artistic': { label: 'Artistic work', serviceId: 25 },
-                        'film': { label: 'Cinematograph Film', serviceId: 26 },
-                        'sound': { label: 'Sound recording', serviceId: 27 }
-                      }
-                      
-                      const workInfo = workTypeMap[copyrightDiscrepancyWorkType]
-                      
-                      const newItem = {
-                        id: `copyright-discrepancy-${Date.now()}`,
-                        name: 'Response to Copyright Discrepancy Letter',
-                        service_id: workInfo.serviceId,
-                        price: 3000,
-                        category: 'Copyright',
-                        details: workInfo.label,
-                        type: 'copyright_discrepancy_response',
-                        work_type: copyrightDiscrepancyWorkType
-                      }
-                      
-                      setCartItems((prev) => {
-                        const next = [...prev, newItem]
-                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
-                        return next
-                      })
-                      
-                      setShowCopyrightDiscrepancyModal(false)
-                    }}
-                    className="w-full"
-                  >
-                    Add to Cart
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-            
-            {/* Copyright NOC Response Modal */}
-            <Dialog open={showCopyrightNOCModal} onOpenChange={setShowCopyrightNOCModal}>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Selected Service</DialogTitle>
-                  <DialogDescription>NOC Response - Artistic Work</DialogDescription>
-                  
-                  <div className="rounded-md border p-4 bg-gray-50 mt-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-base font-medium text-gray-900">Artistic work</span>
-                      <span className="text-lg font-semibold text-gray-900">
-                        {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(10000)}
-                      </span>
-                    </div>
-                    <div className="border-t pt-2 space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Professional Fee</span>
-                        <span className="text-gray-900">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(10000)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">Government Fee</span>
-                        <span className="text-gray-900">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(0)}</span>
-                      </div>
-                    </div>
-                  </div>
-                </DialogHeader>
-                
-                <DialogFooter>
-                  <Button
-                    onClick={() => {
-                      const newItem = {
-                        id: `copyright-noc-${Date.now()}`,
-                        name: 'NOC Response',
-                        service_id: 28,
-                        price: 10000,
-                        category: 'Copyright',
-                        details: 'Artistic Work',
-                        type: 'copyright_noc_response'
-                      }
-                      
-                      setCartItems((prev) => {
-                        const next = [...prev, newItem]
-                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
-                        return next
-                      })
-                      
-                      setShowCopyrightNOCModal(false)
                     }}
                     className="w-full"
                   >

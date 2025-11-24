@@ -14,6 +14,9 @@ export const servicePricing = {
   "Response to FER": 5000,
   "Hearing": 5000,
   "Cancellation": 16500,
+  "Copyright Filing": 7500,
+  "Response to Discrepancy": 3000,
+  "NOC Response": 10000,
 }
 
 export const bannerSlides: BannerSlide[] = [

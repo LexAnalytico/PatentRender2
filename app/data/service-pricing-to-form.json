@@ -42,5 +42,15 @@
   "design_cancellation": "design_cancellation",
   "design_cancellation_individual": "design_cancellation",
   "design_cancellation_startup_msme": "design_cancellation",
-  "design_cancellation_others": "design_cancellation"
+  "design_cancellation_others": "design_cancellation",
+
+  "copyright_filing": "copyright_filing",
+  "copyright_filing_literary": "copyright_filing",
+  "copyright_filing_dramatic": "copyright_filing",
+  "copyright_filing_musical": "copyright_filing",
+  "copyright_filing_artistic": "copyright_filing",
+  "copyright_filing_film": "copyright_filing",
+  "copyright_filing_sound": "copyright_filing",
+  "copyright_discrepancy_response": "copyright_discrepancy_response",
+  "copyright_noc_response": "copyright_noc_response"
 }

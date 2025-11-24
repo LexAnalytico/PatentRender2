@@ -36,16 +36,16 @@ export const trademarkServices: Omit<Service, "icon">[] = [
 
 export const copyrightServices: Omit<Service, "icon">[] = [
   {
-    title: "Copyright Registration",
-    description: "Secure copyright protection for your creative works",
+    title: "Copyright Filing",
+    description: "Professional copyright registration for literary, dramatic, musical, artistic works, films, and sound recordings",
   },
   {
-    title: "DMCA Services",
-    description: "Digital Millennium Copyright Act compliance and enforcement",
+    title: "Response to Discrepancy",
+    description: "Expert responses to copyright discrepancy letters for all work types",
   },
   {
-    title: "Copyright Licensing",
-    description: "Strategic licensing agreements for your copyrighted works",
+    title: "NOC Response",
+    description: "No Objection Certificate response for artistic copyright works",
   },
 ]
 
