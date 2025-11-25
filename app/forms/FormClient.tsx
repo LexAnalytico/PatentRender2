@@ -62,7 +62,9 @@ type FormField = {
   pct_filing: string
   ps_cs: string
   fer_response: string
- 
+  trademark: string
+  copyrights: string
+  design: string
 }
 
 const applicationTypes = [
@@ -73,7 +75,9 @@ const applicationTypes = [
   { key: "pct_filing", label: "PCT Filing" },
   { key: "ps_cs", label: "PS CS" },
   { key: "fer_response", label: "FER Response" },
- 
+  { key: "trademark", label: "Trademark Registration" },
+  { key: "copyrights", label: "Copyright Registration" },
+  { key: "design", label: "Design Filing" },
 ]
 
 // Fast lookup map for user-friendly labels

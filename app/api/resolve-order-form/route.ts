@@ -50,6 +50,9 @@ export async function GET(req: Request) {
       'PS-CS': 'ps_cs',
       'PS CS': 'ps_cs',
       'FER Response': 'fer_response',
+      'Trademark Registration': 'trademark',
+      'Copyright Registration': 'copyrights',
+      'Design Filing': 'design',
     }
     if (svcName && mapping[svcName]) return NextResponse.json({ resolved: mapping[svcName], source: 'service.name', name: svcName })
 

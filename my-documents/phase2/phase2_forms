@@ -1,0 +1,86 @@
+field_title	copyrights	design	
+Client Reference Number	FALSE	FALSE	
+Proposed Patent Title	FALSE	FALSE	
+Technical Field	FALSE	FALSE	
+Brief Summary of Invention	FALSE	FALSE	
+Problem Statement	FALSE	FALSE	
+Proposed Solution	FALSE	FALSE	
+Key Novel Features	FALSE	FALSE	
+Closest Known Solutions (if any)	FALSE	FALSE	
+Inventor/Applicant Name(s)	FALSE	FALSE	
+Disclosure Document	FALSE	FALSE	
+Drawings / Figures	FALSE	FALSE	
+Comments / Additional Instructions	FALSE	FALSE	
+Applicant Full Legal Name(s)	TRUE	FALSE	
+Applicant Type	TRUE	TRUE	
+Applicant Nationality	FALSE	TRUE	
+Applicant Address	FALSE	FALSE	
+Inventor Name(s)	FALSE	FALSE	
+Inventor Address	FALSE	FALSE	
+Inventor Nationality	FALSE	FALSE	
+Is Inventor also Applicant?	FALSE	FALSE	
+Specification Document	FALSE	FALSE	
+Drawings / Figures	FALSE	FALSE	
+Claims	FALSE	FALSE	
+Abstract	FALSE	FALSE	
+Number of Pages in Specification	FALSE	FALSE	
+Priority Claim Details	FALSE	FALSE	
+LexAnalytico Reference Number	FALSE	FALSE	
+Receiving Office	FALSE	FALSE	
+ISA Chosen	FALSE	FALSE	
+Language of Filing	FALSE	FALSE	
+Contact Person Name	TRUE	TRUE	
+Contact Number	TRUE	TRUE	
+Address	TRUE	TRUE	
+Email ID	TRUE	TRUE	
+User Claiming Prior Use?	FALSE	FALSE	
+Type of Entity	FALSE	FALSE	
+Udyam / DPIIT Certificate	FALSE	FALSE	
+Address of Business / Residence	FALSE	FALSE	
+Type of Trademark Mark	FALSE	FALSE	
+Power of Attorney (TM-48) Upload	FALSE	FALSE	
+MSME / Startup Certificate Upload	FALSE	FALSE	
+Proof of Use Upload	FALSE	FALSE	
+Logo/Sound Mark Images & MP3 Upload	FALSE	FALSE	
+Payment Method	TRUE	TRUE	
+Select Type of work	TRUE	FALSE	
+Applicant Status	TRUE	TRUE	
+Nationality / Country of Incorporation	TRUE	TRUE	
+Principal Place of Business / Residence	TRUE	TRUE	
+Author Name	TRUE	FALSE	
+Author Address	TRUE	FALSE	
+Author Nationality	TRUE	FALSE	
+Date of Death (if applicable)	TRUE	FALSE	
+Nature of Applicant's Interest	TRUE	FALSE	
+Title of Work	TRUE	FALSE	
+Work Language	TRUE	FALSE	
+Work Published?	TRUE	FALSE	
+Work Description (optional)	TRUE	FALSE	
+NOC from Author	TRUE	FALSE	
+NOC from Publisher	TRUE	FALSE	
+NOC from TM Office	TRUE	FALSE	
+Person If Portrait Used In The Work	TRUE	FALSE	
+Number of submission copies	TRUE	FALSE	
+Software Source Code	TRUE	FALSE	
+Search Certificate	TRUE	FALSE	
+I confirm that all information provided is true and accurate.	TRUE	FALSE	
+Class & Goods/Services	FALSE	TRUE	
+Full Address with PIN Code Place of Business/Residence	FALSE	TRUE	
+Legal Document (Startup/MSME Certificate)	FALSE	TRUE	
+Article Title (e.g., Chair, Bottle)	FALSE	TRUE	
+Description (Material, Use)	FALSE	TRUE	
+Drawings / Photos (Upload FrontSide-View)	FALSE	TRUE	
+Drawings / Photos (Upload BackSide-View)	FALSE	TRUE	
+Drawings / Photos (Upload LeftSide-View)	FALSE	TRUE	
+Drawings / Photos (Upload RightSide-View)	FALSE	TRUE	
+Drawings / Photos (Upload Perspective-View)	FALSE	TRUE	
+Novelty Statement	FALSE	TRUE	
+Country of First Filing	FALSE	TRUE	
+Date of First Filing	FALSE	TRUE	
+Priority Application No.	FALSE	TRUE	
+Certified Copy/English Translation	FALSE	TRUE	
+Disclaimer (Mechanical/Functional Features Not Claimed)	FALSE	TRUE	
+Trademark/Words/Markings/etc.	FALSE	TRUE	
+Signed Power of Attorney / Form 21	FALSE	TRUE	
+Further Instructions	FALSE	TRUE	
+Translation & Transliteration of Mark (if not English/Hindi)	FALSE	FALSE	

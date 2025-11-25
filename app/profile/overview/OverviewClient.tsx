@@ -16,9 +16,9 @@ const applicationTypes = [
   { key: "complete_provisional_filing", label: "Complete Provisional Filing" },
   { key: "pct_filing", label: "PCT Filing" },
   { key: "ps_cs", label: "PS CS" },
-  { key: "trademark", label: "Trademark" },
-  { key: "copyrights", label: "Copyrights" },
-  { key: "design", label: "Design" },
+  { key: "trademark", label: "Trademark Registration" },
+  { key: "copyrights", label: "Copyright Registration" },
+  { key: "design", label: "Design Filing" },
 ]
 
 export default function ProfileOverviewClient() {
@@ -194,6 +194,9 @@ export default function ProfileOverviewClient() {
         'PS-CS': 'ps_cs',
         'PS CS': 'ps_cs',
         'FER Response': 'fer_response',
+        'Trademark Registration': 'trademark',
+        'Copyright Registration': 'copyrights',
+        'Design Filing': 'design',
       }
       if (svcName && mapping[svcName]) t = mapping[svcName]
     }

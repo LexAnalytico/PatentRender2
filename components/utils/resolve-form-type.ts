@@ -8,12 +8,19 @@ const CANONICAL_MAP: Record<string,string> = {
   pct_filing: 'pct_filing',
   ps_cs: 'ps_cs',
   fer_response: 'fer_response',
+  trademark: 'trademark',
+  copyrights: 'copyrights',
+  copyright: 'copyrights',
+  design: 'design',
   // Common legacy / alternative tokens
   // Map human-facing labels to canonical types
   'patent application filing': 'complete_non_provisional_filing',
   'patentability search': 'patentability_search',
   'first examination response': 'fer_response',
   'complete provisional filing': 'complete_non_provisional_filing',
+  'trademark registration': 'trademark',
+  'copyright registration': 'copyrights',
+  'design filing': 'design',
   basic: 'patentability_search', // example mapping; adjust if needed
   premium: 'drafting',           // example mapping; adjust if needed
   enterprise: 'pct_filing',      // example mapping; adjust if needed
