@@ -402,6 +402,12 @@ const openFirstFormEmbedded = () => {
   
   // Copyright NOC Response specific state
   const [showCopyrightNOCModal, setShowCopyrightNOCModal] = useState(false)
+  
+  // Design FER Response specific state
+  const [showDesignFERModal, setShowDesignFERModal] = useState(false)
+  
+  // Design Hearing specific state
+  const [showDesignHearingModal, setShowDesignHearingModal] = useState(false)
 
  
   const [activeServiceTab, setActiveServiceTab] = useState("patent") // State for active tab
@@ -2632,43 +2638,15 @@ const patentServices = [
       return
     }
     
-    // Special handling for Response to FER (Design) - directly add to cart
+    // Special handling for Response to FER (Design) - show modal
     if (serviceName === 'Response to FER' && category === 'Design') {
-      const newItem = {
-        id: `design-fer-${Date.now()}`,
-        name: 'Response to FER',
-        service_id: 13,
-        price: 5000,
-        category: 'Design',
-        details: 'Single Service',
-        type: 'design_fer_response'
-      }
-      
-      setCartItems((prev) => {
-        const next = [...prev, newItem]
-        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
-        return next
-      })
+      setShowDesignFERModal(true)
       return
     }
     
-    // Special handling for Hearing (Design) - directly add to cart
+    // Special handling for Hearing (Design) - show modal
     if (serviceName === 'Hearing' && category === 'Design') {
-      const newItem = {
-        id: `design-hearing-${Date.now()}`,
-        name: 'Hearing',
-        service_id: 14,
-        price: 5000,
-        category: 'Design',
-        details: 'Single Service',
-        type: 'design_hearing'
-      }
-      
-      setCartItems((prev) => {
-        const next = [...prev, newItem]
-        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
-        return next
-      })
+      setShowDesignHearingModal(true)
       return
     }
     
@@ -5780,6 +5758,122 @@ if (showQuotePage) {
                     Add
                   </Button>
                   <Button variant="outline" onClick={() => setShowCopyrightNOCModal(false)}>Cancel</Button>
+                </DialogFooter>
+                <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
+              </DialogContent>
+            </Dialog>
+            
+            {/* Design FER Response Modal */}
+            <Dialog open={showDesignFERModal} onOpenChange={setShowDesignFERModal}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Selected Service</DialogTitle>
+                  <DialogDescription>Response to FER</DialogDescription>
+                  
+                  <div className="rounded-md border p-4 bg-gray-50 mt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-base font-medium text-gray-900">Response to FER</span>
+                      <span className="text-lg font-semibold text-gray-900">
+                        {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(5000)}
+                      </span>
+                    </div>
+                    <div className="border-t pt-2 space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Professional Fee</span>
+                        <span className="text-gray-900">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(5000)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Government Fee</span>
+                        <span className="text-gray-900">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(0)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </DialogHeader>
+                
+                <DialogFooter>
+                  <Button
+                    className="bg-orange-600 hover:bg-orange-700"
+                    onClick={() => {
+                      const newItem = {
+                        id: `design-fer-${Date.now()}`,
+                        name: 'Response to FER',
+                        service_id: 13,
+                        price: 5000,
+                        category: 'Design',
+                        details: 'Single Service',
+                        type: 'design_fer_response'
+                      }
+                      
+                      setCartItems((prev) => {
+                        const next = [...prev, newItem]
+                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+                        return next
+                      })
+                      
+                      setShowDesignFERModal(false)
+                    }}
+                  >
+                    Add
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowDesignFERModal(false)}>Cancel</Button>
+                </DialogFooter>
+                <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
+              </DialogContent>
+            </Dialog>
+            
+            {/* Design Hearing Modal */}
+            <Dialog open={showDesignHearingModal} onOpenChange={setShowDesignHearingModal}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Selected Service</DialogTitle>
+                  <DialogDescription>Hearing</DialogDescription>
+                  
+                  <div className="rounded-md border p-4 bg-gray-50 mt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-base font-medium text-gray-900">Hearing</span>
+                      <span className="text-lg font-semibold text-gray-900">
+                        {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(5000)}
+                      </span>
+                    </div>
+                    <div className="border-t pt-2 space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Professional Fee</span>
+                        <span className="text-gray-900">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(5000)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Government Fee</span>
+                        <span className="text-gray-900">{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(0)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </DialogHeader>
+                
+                <DialogFooter>
+                  <Button
+                    className="bg-orange-600 hover:bg-orange-700"
+                    onClick={() => {
+                      const newItem = {
+                        id: `design-hearing-${Date.now()}`,
+                        name: 'Hearing',
+                        service_id: 14,
+                        price: 5000,
+                        category: 'Design',
+                        details: 'Single Service',
+                        type: 'design_hearing'
+                      }
+                      
+                      setCartItems((prev) => {
+                        const next = [...prev, newItem]
+                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+                        return next
+                      })
+                      
+                      setShowDesignHearingModal(false)
+                    }}
+                  >
+                    Add
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowDesignHearingModal(false)}>Cancel</Button>
                 </DialogFooter>
                 <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
               </DialogContent>

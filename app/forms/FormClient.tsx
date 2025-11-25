@@ -10,6 +10,7 @@ import { ALLOWED_MIME, MAX_FILE_BYTES, uploadFigure, deleteFigure } from '@/util
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useToast } from "@/components/hooks/use-toast"
 import formData from "../data/forms-fields.json"
@@ -981,7 +982,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
         return lm || null
       }
       for (const f of relevantFields) {
-        const isDrawingsField = /^drawings\s*\/\s*figures$/i.test(f.field_title.trim())
+        const isDrawingsField = /^drawings\s*\/\s*(figures|photos\s*\(upload\s+(frontside|backside|leftside|rightside|perspective)-view\))$/i.test(f.field_title.trim())
         const category = inferAttachmentCategoryFromField(f.field_title)
         const limitMeta = limitMetaFor(f.field_title)
         const isUpload = isDrawingsField || (limitMeta && limitMeta.kind === 'upload') || !!category
@@ -1442,10 +1443,13 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                 <div className={styleTokens.grid}>
                   {relevantFields.map((field, index) => {
                     const lower = field.field_title.toLowerCase()
-                    const isLong = /(description|comment|instruction|statement|summary|problem|solution|features|abstract|claims|specification)/.test(lower)
-                    const isDrawingsField = /^drawings\s*\/\s*figures$/i.test(field.field_title.trim())
+                    const isLong = /(description|comment|instruction|statement|summary|problem|solution|features|abstract|claims|specification)/.test(lower) || /^full\s+address\s+with\s+pin\s+code/i.test(field.field_title.trim())
+                    const isDrawingsField = /^drawings\s*\/\s*(figures|photos\s*\(upload\s+(frontside|backside|leftside|rightside|perspective)-view\))$/i.test(field.field_title.trim())
                     const category = inferAttachmentCategoryFromField(field.field_title)
                     const isApplicantField = /^(inventor\s*\/\s*)?applicant.*name\(s\)|^(inventor|applicant).*name(s)?$/.test(field.field_title.trim().toLowerCase())
+                    const isApplicantTypeField = /^applicant\s+type$/i.test(field.field_title.trim())
+                    const isInventorAlsoApplicantField = /^Is Inventor also Applicant\??$/i.test(field.field_title.trim())
+                    const isConfirmationCheckbox = /^I confirm that all information provided is true and accurate\.?$/i.test(field.field_title.trim())
                     // Determine if this field is an upload or comment-like (thus NOT mandatory)
                     const limitMeta = (() => {
                       // Normalize: lowercase, remove spaces around slashes, remove punctuation except underscores, collapse to single underscores
@@ -1469,7 +1473,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                       lower.includes('instructions') ||
                       lower.includes('message')
                     )
-                    const isRequired = !isUpload && !isCommentLike
+                    const isRequired = !isUpload && !isCommentLike || isConfirmationCheckbox
                     const forceFullWidth = [
                       'technical field',
                       'brief summary of invention',
@@ -1492,7 +1496,8 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                       if (limitMeta.kind === 'words' && typeof limitMeta.max === 'number') return limitMeta.max > 50
                       return false
                     })()
-                    const wrapperClass = (isDrawingsField || forceFullWidth || (limitBasedWide && !isDrawingsField && !isApplicantField)) ? 'col-span-2 space-y-2' : styleTokens.fieldBlock
+                    const shouldSpanFullWidth = isDrawingsField || forceFullWidth || (limitBasedWide && !isDrawingsField && !isApplicantField) || isLong || /^full\s+address\s+with\s+pin\s+code/i.test(field.field_title.trim()) || isConfirmationCheckbox
+                    const wrapperClass = shouldSpanFullWidth ? 'col-span-2 space-y-2' : styleTokens.fieldBlock
                     return (
                       <div key={index} className={wrapperClass}>
                         <Label htmlFor={`field-${index}`} className={styleTokens.label}>
@@ -1624,6 +1629,66 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                 })}
                               </div>
                             </div>
+                          ) : isApplicantTypeField ? (
+                            <Select
+                              value={formValues[field.field_title] || ""}
+                              onValueChange={(val) => handleInputChange(field.field_title, val)}
+                              disabled={readOnly}
+                            >
+                              <SelectTrigger 
+                                id={`field-${index}`}
+                                className={styleTokens.input}
+                                aria-required={isRequired}
+                                style={{ fontSize: formFontSize, fontWeight: formFontBold ? 600 : 400 }}
+                              >
+                                <SelectValue placeholder="Select applicant type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Individual">Individual</SelectItem>
+                                <SelectItem value="Startup or MSME">Startup or MSME</SelectItem>
+                                <SelectItem value="Large Entity">Large Entity</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : isInventorAlsoApplicantField ? (
+                            <Select
+                              value={formValues[field.field_title] || ""}
+                              onValueChange={(val) => handleInputChange(field.field_title, val)}
+                              disabled={readOnly}
+                            >
+                              <SelectTrigger 
+                                id={`field-${index}`}
+                                className={styleTokens.input}
+                                aria-required={isRequired}
+                                style={{ fontSize: formFontSize, fontWeight: formFontBold ? 600 : 400 }}
+                              >
+                                <SelectValue placeholder="Select Yes or No" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Yes">Yes</SelectItem>
+                                <SelectItem value="No">No</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : isConfirmationCheckbox ? (
+                            <div className="flex items-start space-x-3 py-2">
+                              <Checkbox
+                                id={`field-${index}`}
+                                checked={formValues[field.field_title] === 'true'}
+                                onCheckedChange={(checked) => {
+                                  handleInputChange(field.field_title, checked ? 'true' : '')
+                                }}
+                                disabled={readOnly}
+                                required={isRequired}
+                                aria-required={isRequired}
+                                className="mt-1"
+                              />
+                              <label
+                                htmlFor={`field-${index}`}
+                                className="text-sm font-medium leading-relaxed text-gray-700 cursor-pointer select-none"
+                                style={{ fontSize: formFontSize, fontWeight: formFontBold ? 600 : 400 }}
+                              >
+                                {field.field_title.replace(/^I confirm that /, '')}
+                              </label>
+                            </div>
                           ) : isApplicantField ? (
                             <div className="space-y-3">
                               <div className="flex gap-2 flex-wrap">
@@ -1639,7 +1704,7 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                                     })
                                   }}
                                   className="h-8 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                                >+ Author</Button>
+                                >+ Inventor/Applicant</Button>
                                 <p className="text-[10px] text-gray-500 self-center">Add each inventor/applicant separately; they will be saved together.</p>
                               </div>
                               <div className="space-y-2">
@@ -1686,18 +1751,25 @@ export default function IPFormBuilderClient({ orderIdProp, typeProp, onPrefillSt
                             </div>
                           ) : (
                             (isLong || limitBasedWide) ? (
-                              <Textarea
-                                id={`field-${index}`}
-                                placeholder={`Enter ${lower}`}
-                                value={formValues[field.field_title] || ""}
-                                onChange={(e) => handleInputChange(field.field_title, e.target.value)}
-                                readOnly={readOnly}
-                                disabled={readOnly}
-                                className={`${styleTokens.textarea} whitespace-pre-wrap break-words`}
-                                aria-required={isRequired}
-                                required={isRequired}
-                                style={{ fontSize: formFontSize, fontWeight: formFontBold ? 600 : 400 }}
-                              />
+                              <div className="w-full">
+                                <Textarea
+                                  id={`field-${index}`}
+                                  placeholder={`Enter ${lower}`}
+                                  value={formValues[field.field_title] || ""}
+                                  onChange={(e) => handleInputChange(field.field_title, e.target.value)}
+                                  readOnly={readOnly}
+                                  disabled={readOnly}
+                                  className={`${styleTokens.textarea} whitespace-pre-wrap break-words leading-relaxed`}
+                                  aria-required={isRequired}
+                                  required={isRequired}
+                                  style={{ 
+                                    fontSize: formFontSize, 
+                                    fontWeight: formFontBold ? 600 : 400,
+                                    lineHeight: '1.6',
+                                    minHeight: '120px'
+                                  }}
+                                />
+                              </div>
                             ) : (
                               <Input
                                 id={`field-${index}`}
