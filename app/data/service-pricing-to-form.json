@@ -60,5 +60,12 @@
   "trademark_registration_others": "trademark",
   "trademark_monitoring": "trademark",
   "trademark_response": "trademark",
-  "trademark_renewal": "trademark"
+  "trademark_renewal": "trademark",
+  
+  "trademark_search": "trademark",
+  "trademark_filing": "trademark",
+  "trademark_examination_response": "trademark",
+  "trademark_hearing": "trademark",
+  "trademark_opposition": "trademark",
+  "trademark_opposition_hearing": "trademark"
 }

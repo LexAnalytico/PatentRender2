@@ -1667,7 +1667,7 @@ const patentServices = [
       title: "Renewal of Registration",
       description: "Trademark renewal maintains your registration and ongoing protection. We track renewal deadlines, prepare required documentation, and ensure timely submissions to prevent lapses in coverage. Our proactive renewal management keeps your trademark rights active, avoiding costly re-filing and maintaining your brand's legal protection without interruption.",
       icon: <Clock className="h-8 w-8 text-green-600" />,
-      price: 1500,
+      price: 11500,
     },
   ]
 
@@ -5002,8 +5002,9 @@ if (showQuotePage) {
                       
                       const newItem = {
                         id: `renewal-${Date.now()}`,
+                        type: 'trademark_renewal',
                         name: 'Renewal of Registration',
-                        service_id: null,
+                        service_id: 39,
                         price: price,
                         category: 'Trademark',
                         details: details
@@ -5117,10 +5118,12 @@ if (showQuotePage) {
                       
                       const selectedLabels = oppositionTypes.map(t => typeLabels[t]).join(', ')
                       
+                      // Use service_id 36 (Opposition - Notice) as primary
                       const newItem = {
                         id: `opposition-${Date.now()}`,
+                        type: 'trademark_opposition',
                         name: 'Opposition',
-                        service_id: null,
+                        service_id: 36,
                         price: totalPrice,
                         category: 'Trademark',
                         details: `Types: ${selectedLabels}`
@@ -5181,8 +5184,9 @@ if (showQuotePage) {
                     onClick={() => {
                       const newItem = {
                         id: `opposition-hearing-${Date.now()}`,
+                        type: 'trademark_opposition_hearing',
                         name: 'Opposition Hearing',
-                        service_id: null,
+                        service_id: 38,
                         price: 4000,
                         category: 'Trademark',
                         details: 'Timeline: One month'
@@ -5241,8 +5245,9 @@ if (showQuotePage) {
                     onClick={() => {
                       const newItem = {
                         id: `response-examination-${Date.now()}`,
+                        type: 'trademark_examination_response',
                         name: 'Response To Examination Report',
-                        service_id: null,
+                        service_id: 34,
                         price: 4000,
                         category: 'Trademark',
                         details: 'Due within 7 days'
@@ -5338,10 +5343,18 @@ if (showQuotePage) {
                         : 'Others'
                       const details = `${affidavitText} | ${applicantText}`
                       
+                      // Determine service_id based on selections:
+                      // With Affidavit + Individual/MSME = 31, With Affidavit + Others = 32, Without Affidavit = 33
+                      let serviceId = 33 // Default: Without Affidavit
+                      if (trademarkFilingAffidavit === 'with') {
+                        serviceId = trademarkFilingApplicantType === 'individual' ? 31 : 32
+                      }
+                      
                       const newItem = {
                         id: `trademark-filing-${Date.now()}`,
+                        type: 'trademark_filing',
                         name: 'Trademark Filing',
-                        service_id: null,
+                        service_id: serviceId,
                         price: totalPrice,
                         category: 'Trademark',
                         details: details
@@ -5931,10 +5944,14 @@ if (showQuotePage) {
                         ? 'Expedited (5-7 Days)'
                         : 'Rush (1-2 Days)'
                       
+                      // Determine service_id: Expedited = 29, Rush = 30
+                      const serviceId = trademarkSearchTurnaround === 'expedited' ? 29 : 30
+                      
                       const newItem = {
                         id: `trademark-search-${Date.now()}`,
+                        type: 'trademark_search',
                         name: 'Trademark Search',
-                        service_id: null,
+                        service_id: serviceId,
                         price: price,
                         category: 'Trademark',
                         details: details
