@@ -109,9 +109,6 @@ function ServicesPanelComponent({
             className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-md transition-colors shadow-sm"
             title="Start services screen tour"
           >
-            <span className="flex items-center justify-center w-6 h-6 bg-white rounded-full">
-              <span className="text-orange-500 text-lg">👉</span>
-            </span>
             Tour Guide
           </button>
         </div>
@@ -157,7 +154,7 @@ function ServicesPanelComponent({
             aria-live="polite"
             className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded px-3 py-2 max-w-lg text-center leading-snug"
           >
-            Connecting to Razorpay…
+            Connecting to Razorpay...
           </p>
         )}
         <Button
@@ -174,7 +171,7 @@ function ServicesPanelComponent({
           {isProcessing ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Starting payment…
+              Starting payment...
             </>
           ) : (
             <>
