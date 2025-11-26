@@ -1,0 +1,512 @@
+[
+  {
+    "field_title": "Client Reference Number",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Proposed Patent Title",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Technical Field",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Brief Summary of Invention",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Problem Statement",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Proposed Solution",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Key Novel Features",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Closest Known Solutions (if any)",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Inventor/Applicant Name(s)",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Disclosure Document",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Drawings / Figures",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Comments / Additional Instructions",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Applicant Full Legal Name(s)",
+    "trademark": "TRUE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Applicant Type",
+    "trademark": "TRUE",
+    "copyrights": "TRUE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Applicant Nationality",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Applicant Address",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Inventor Name(s)",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Inventor Address",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Inventor Nationality",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Is Inventor also Applicant?",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Specification Document",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Drawings / Figures",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Claims",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Abstract",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Number of Pages in Specification",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Priority Claim Details",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "LexAnalytico Reference Number",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Receiving Office",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "ISA Chosen",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Language of Filing",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Contact Person Name",
+    "trademark": "TRUE",
+    "copyrights": "TRUE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Contact Number",
+    "trademark": "TRUE",
+    "copyrights": "TRUE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Address",
+    "trademark": "TRUE",
+    "copyrights": "TRUE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Email ID",
+    "trademark": "TRUE",
+    "copyrights": "TRUE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "User Claiming Prior Use?",
+    "trademark": "TRUE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Type of Entity",
+    "trademark": "TRUE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Udyam / DPIIT Certificate",
+    "trademark": "TRUE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Address of Business / Residence",
+    "trademark": "TRUE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Type of Trademark Mark",
+    "trademark": "TRUE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Power of Attorney (TM-48) Upload",
+    "trademark": "TRUE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "MSME / Startup Certificate Upload",
+    "trademark": "TRUE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Proof of Use Upload",
+    "trademark": "TRUE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Logo/Sound Mark Images & MP3 Upload",
+    "trademark": "TRUE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Payment Method",
+    "trademark": "TRUE",
+    "copyrights": "TRUE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Select Type of work",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Applicant Status",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Nationality / Country of Incorporation",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Principal Place of Business / Residence",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Author Name",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Author Address",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Author Nationality",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Date of Death (if applicable)",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Nature of Applicant's Interest",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Title of Work",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Work Language",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Work Published?",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Work Description (optional)",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "NOC from Author",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "NOC from Publisher",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "NOC from TM Office",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Person If Portrait Used In The Work",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Number of submission copies",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Software Source Code",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Search Certificate",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "I confirm that all information provided is true and accurate.",
+    "trademark": "FALSE",
+    "copyrights": "TRUE",
+    "design": "FALSE"
+  },
+  {
+    "field_title": "Class & Goods/Services",
+    "trademark": "TRUE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Full Address with PIN Code Place of Business/Residence",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Legal Document (Startup/MSME Certificate)",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Article Title (e.g., Chair, Bottle)",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Description (Material, Use)",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Drawings / Photos (Upload FrontSide-View)",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Drawings / Photos (Upload BackSide-View)",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Drawings / Photos (Upload LeftSide-View)",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Drawings / Photos (Upload RightSide-View)",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Drawings / Photos (Upload Perspective-View)",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Novelty Statement",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Country of First Filing",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Date of First Filing",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Priority Application No.",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Certified Copy/English Translation",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Disclaimer (Mechanical/Functional Features Not Claimed)",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Trademark/Words/Markings/etc.",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Signed Power of Attorney / Form 21",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Further Instructions",
+    "trademark": "FALSE",
+    "copyrights": "FALSE",
+    "design": "TRUE"
+  },
+  {
+    "field_title": "Translation & Transliteration of Mark (if not English/Hindi)",
+    "trademark": "TRUE",
+    "copyrights": "FALSE",
+    "design": "FALSE"
+  }
+]

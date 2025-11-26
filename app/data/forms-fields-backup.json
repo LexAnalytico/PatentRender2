@@ -1,0 +1,329 @@
+[
+  {
+    "field_title": "Client Reference Number",
+    "patentability_search": "TRUE",
+    "drafting": "TRUE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE",
+    "copyright_filing": "FALSE",
+    "copyright_discrepancy_response": "FALSE",
+    "copyright_noc_response": "FALSE",
+    "design_filing": "FALSE",
+    "design_fer_response": "FALSE",
+    "design_hearing": "FALSE",
+    "design_cancellation": "FALSE"
+  },
+  {
+    "field_title": "Proposed Patent Title",
+    "patentability_search": "TRUE",
+    "drafting": "TRUE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Technical Field",
+    "patentability_search": "TRUE",
+    "drafting": "TRUE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "FALSE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Brief Summary of Invention",
+    "patentability_search": "TRUE",
+    "drafting": "TRUE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "FALSE",
+    "ps_cs": "FALSE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Problem Statement",
+    "patentability_search": "TRUE",
+    "drafting": "TRUE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "FALSE",
+    "ps_cs": "FALSE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Proposed Solution",
+    "patentability_search": "TRUE",
+    "drafting": "TRUE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "FALSE",
+    "ps_cs": "FALSE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Key Novel Features",
+    "patentability_search": "TRUE",
+    "drafting": "TRUE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "FALSE",
+    "ps_cs": "FALSE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Closest Known Solutions (if any)",
+    "patentability_search": "TRUE",
+    "drafting": "TRUE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "FALSE",
+    "ps_cs": "FALSE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Inventor/Applicant Name(s)",
+    "patentability_search": "TRUE",
+    "drafting": "TRUE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "FALSE",
+    "ps_cs": "FALSE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Disclosure Document",
+    "patentability_search": "TRUE",
+    "drafting": "TRUE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "FALSE",
+    "ps_cs": "FALSE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Drawings / Figures",
+    "patentability_search": "TRUE",
+    "drafting": "TRUE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "FALSE",
+    "ps_cs": "FALSE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Comments / Additional Instructions",
+    "patentability_search": "TRUE",
+    "drafting": "TRUE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Applicant Full Legal Name(s)",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Applicant Type",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Applicant Nationality",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Applicant Address",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Inventor Name(s)",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Inventor Address",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Inventor Nationality",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Is Inventor also Applicant?",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Specification Document",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Drawings / Figures",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Claims",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Abstract",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Number of Pages in Specification",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "TRUE",
+    "ps_cs": "FALSE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Priority Claim Details",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "LexAnalytico Reference Number",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "TRUE",
+    "complete_non_provisional_filing": "TRUE",
+    "pct_filing": "TRUE",
+    "ps_cs": "TRUE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Receiving Office",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "TRUE",
+    "ps_cs": "FALSE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "ISA Chosen",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "TRUE",
+    "ps_cs": "FALSE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Language of Filing",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "TRUE",
+    "ps_cs": "FALSE",
+    "fer_response": "FALSE"
+  },
+  {
+    "field_title": "Indian Applicant Number",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "FALSE",
+    "ps_cs": "FALSE",
+    "fer_response": "TRUE"
+  },
+  {
+    "field_title": "Response Due",
+    "patentability_search": "FALSE",
+    "drafting": "FALSE",
+    "provisional_filing": "FALSE",
+    "complete_non_provisional_filing": "FALSE",
+    "pct_filing": "FALSE",
+    "ps_cs": "FALSE",
+    "fer_response": "TRUE"
+  }
+]

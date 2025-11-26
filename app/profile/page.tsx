@@ -338,6 +338,9 @@ function ProfilePageInner() {
       'PS CS': 'ps_cs',
       'PS-CS ': 'ps_cs',
       'FER Response': 'fer_response',
+      'Trademark Registration': 'trademark',
+      'Copyright Registration': 'copyrights',
+      'Design Filing': 'design',
     }
     return mapping[svcName] ?? null
   }
@@ -352,6 +355,9 @@ function ProfilePageInner() {
       pct_filing: 'PCT Filing',
       ps_cs: 'PS-CS',
       fer_response: 'FER Response',
+      trademark: 'Trademark Registration',
+      copyrights: 'Copyright Registration',
+      design: 'Design Filing',
     }
     return labels[k] ?? k
   }

@@ -446,6 +446,18 @@ export async function POST(req: NextRequest) {
               const row = serviceByName.get(String(it.name))
               svcId = row?.id ?? svcId
               catId = row?.category_id ?? null
+            } else if (it.name) {
+              // Fuzzy match: Try to find service by partial name match
+              const searchName = String(it.name).toLowerCase().trim()
+              for (const [dbName, svc] of serviceByName.entries()) {
+                const dbNameLower = dbName.toLowerCase()
+                // Match if cart name is contained in DB name or vice versa
+                if (dbNameLower.includes(searchName) || searchName.includes(dbNameLower.split(' - ')[0])) {
+                  svcId = svc.id ?? svcId
+                  catId = svc.category_id ?? null
+                  break
+                }
+              }
             }
             // Derive per-item canonical form type. Precedence:
             // 1) explicit cart item form_type / type
@@ -475,12 +487,44 @@ export async function POST(req: NextRequest) {
                 'pct filing': 'pct_filing',
                 'ps cs': 'ps_cs',
                 'first examination response': 'fer_response',
+                'trademark search': 'trademark_search',
+                'trademark filing': 'trademark_filing',
+                'response to examination report': 'trademark_examination_response',
+                'post examination hearing': 'trademark_hearing',
+                'opposition': 'trademark_opposition',
+                'opposition hearing': 'trademark_opposition_hearing',
+                'renewal of registration': 'trademark_renewal',
+                'copyright filing': 'copyright_filing',
+                'design filing': 'design',
+                'design response to fer': 'design_fer_response',
+                'design hearing': 'design_hearing',
               }
               if (nameMap[nameKey]) derivedType = nameMap[nameKey]
             }
             if (!derivedType && persistedPayment?.type) {
               derivedType = persistedPayment.type
             }
+            
+            // Fallback: infer category from type or item category field
+            if (!catId && derivedType) {
+              const typeToCat: Record<string, number> = {
+                'patentability_search': 1, 'drafting': 1, 'provisional_filing': 1, 
+                'complete_non_provisional_filing': 1, 'pct_filing': 1, 'ps_cs': 1, 'fer_response': 1,
+                'trademark_search': 2, 'trademark_filing': 2, 'trademark_examination_response': 2,
+                'trademark_hearing': 2, 'trademark_opposition': 2, 'trademark_opposition_hearing': 2, 'trademark_renewal': 2,
+                'design': 4, 'design_filing': 4, 'design_fer_response': 4, 'design_hearing': 4, 'design_cancellation': 4,
+                'copyright_filing': 5, 'copyright_discrepancy_response': 5, 'copyright_noc_response': 5, 'copyrights': 5,
+              }
+              catId = typeToCat[derivedType] ?? catId
+            }
+            if (!catId && it.category) {
+              const catName = String(it.category).toLowerCase().trim()
+              const catMap: Record<string, number> = {
+                'patent': 1, 'trademark': 2, 'copyright': 5, 'design': 4
+              }
+              catId = catMap[catName] ?? catId
+            }
+            
             return {
               user_id: persistedPayment.user_id,
               service_id: svcId ?? null,

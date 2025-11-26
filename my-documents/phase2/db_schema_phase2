@@ -1,0 +1,170 @@
+[
+  {
+    "Service Category": "TM Search",
+    "Service Sub Category": "Base Price",
+    "Sub-Sub Category": "",
+    "Estimated professional Fee": 500,
+    "Estimated Govt Fee": "",
+    "Total Fee": 500
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "Turnaround",
+    "Sub-Sub Category": "Expediated (5 - 7 Days)",
+    "Estimated professional Fee": 500,
+    "Estimated Govt Fee": "None",
+    "Total Fee": 500
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "",
+    "Sub-Sub Category": "Rush (1-2 days)",
+    "Estimated professional Fee": 800,
+    "Estimated Govt Fee": "None",
+    "Total Fee": 800
+  },
+  {
+    "Service Category": "TM filling",
+    "Service Sub Category": "Base Price",
+    "Sub-Sub Category": "",
+    "Estimated professional Fee": 3000,
+    "Estimated Govt Fee": "",
+    "Total Fee": 3000
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "Select Affidavit",
+    "Sub-Sub Category": "with user Affidavit",
+    "Estimated professional Fee": 4000,
+    "Estimated Govt Fee": "individual, startup and MSME(4500),",
+    "Total Fee": 8500
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "",
+    "Sub-Sub Category": "without user Affidavit",
+    "Estimated professional Fee": 3000,
+    "Estimated Govt Fee": "Others (9000)",
+    "Total Fee": "12,000"
+  },
+  {
+    "Service Category": "TM Response to Examination Report",
+    "Service Sub Category": "Base Price",
+    "Sub-Sub Category": "",
+    "Estimated professional Fee": "",
+    "Estimated Govt Fee": "",
+    "Total Fee": ""
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "due date to respond within 7 days",
+    "Sub-Sub Category": "",
+    "Estimated professional Fee": 4000,
+    "Estimated Govt Fee": "None",
+    "Total Fee": 4000
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "",
+    "Sub-Sub Category": "",
+    "Estimated professional Fee": "",
+    "Estimated Govt Fee": "",
+    "Total Fee": ""
+  },
+  {
+    "Service Category": "Post Examination (TLA) Hearing",
+    "Service Sub Category": "Base Price",
+    "Sub-Sub Category": "",
+    "Estimated professional Fee": 3000,
+    "Estimated Govt Fee": "None",
+    "Total Fee": 3000
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "",
+    "Sub-Sub Category": "",
+    "Estimated professional Fee": "",
+    "Estimated Govt Fee": "",
+    "Total Fee": ""
+  },
+  {
+    "Service Category": "Opposition",
+    "Service Sub Category": "Base Price",
+    "Sub-Sub Category": "",
+    "Estimated professional Fee": "",
+    "Estimated Govt Fee": "",
+    "Total Fee": ""
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "Select the Type of Opposition",
+    "Sub-Sub Category": "Notice of Opposition",
+    "Estimated professional Fee": "Customizable price",
+    "Estimated Govt Fee": 2700,
+    "Total Fee": 2700
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "",
+    "Sub-Sub Category": "Counter Statement",
+    "Estimated professional Fee": "Customizable price",
+    "Estimated Govt Fee": 2700,
+    "Total Fee": 2700
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "",
+    "Sub-Sub Category": "Affidavit in Support of Opposition",
+    "Estimated professional Fee": "Customizable price",
+    "Estimated Govt Fee": "None",
+    "Total Fee": "Customizable price"
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "",
+    "Sub-Sub Category": "Affidavit in Support of Application",
+    "Estimated professional Fee": "Customizable price",
+    "Estimated Govt Fee": "None",
+    "Total Fee": "Customizable price"
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "",
+    "Sub-Sub Category": "Reply Affidavit/ Relying Letter",
+    "Estimated professional Fee": "Customizable price",
+    "Estimated Govt Fee": "None",
+    "Total Fee": "Customizable price"
+  },
+  {
+    "Service Category": "Opposition Hearing",
+    "Service Sub Category": "Base Price",
+    "Sub-Sub Category": "",
+    "Estimated professional Fee": "",
+    "Estimated Govt Fee": "",
+    "Total Fee": ""
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "one month (time line)",
+    "Sub-Sub Category": "",
+    "Estimated professional Fee": 4000,
+    "Estimated Govt Fee": "None",
+    "Total Fee": 4000
+  },
+  {
+    "Service Category": "Renewal of Registration",
+    "Service Sub Category": "Base Price",
+    "Sub-Sub Category": "",
+    "Estimated professional Fee": "",
+    "Estimated Govt Fee": "",
+    "Total Fee": ""
+  },
+  {
+    "Service Category": "",
+    "Service Sub Category": "dropdown classes",
+    "Sub-Sub Category": "",
+    "Estimated professional Fee": 1500,
+    "Estimated Govt Fee": "10,000",
+    "Total Fee": "11,500"
+  }
+]

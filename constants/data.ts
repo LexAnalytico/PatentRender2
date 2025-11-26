@@ -10,9 +10,13 @@ export const servicePricing = {
   "Copyright Registration": 200,
   "DMCA Services": 350,
   "Copyright Licensing": 600,
-  "Design Registration": 450,
-  "Design Search": 250,
-  "Design Portfolio": 750,
+  "Design Filing": 11000,
+  "Response to FER": 5000,
+  "Hearing": 5000,
+  "Cancellation": 16500,
+  "Copyright Filing": 7500,
+  "Response to Discrepancy": 3000,
+  "NOC Response": 10000,
 }
 
 export const bannerSlides: BannerSlide[] = [

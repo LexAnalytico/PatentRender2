@@ -31,5 +31,41 @@
   "complete_specification_filing_others": "complete_non_provisional_filing",
   "pct_filing_others": "pct_filing",
   "provisional_filing_others": "provisional_filing",
-  "ps_cs_filing_others": "ps_cs"
+  "ps_cs_filing_others": "ps_cs",
+
+  "design_filing": "design",
+  "design_filing_individual": "design",
+  "design_filing_startup_msme": "design",
+  "design_filing_others": "design",
+  "design_fer_response": "design",
+  "design_hearing": "design",
+  "design_cancellation": "design",
+  "design_cancellation_individual": "design",
+  "design_cancellation_startup_msme": "design",
+  "design_cancellation_others": "design",
+
+  "copyright_filing": "copyrights",
+  "copyright_filing_literary": "copyrights",
+  "copyright_filing_dramatic": "copyrights",
+  "copyright_filing_musical": "copyrights",
+  "copyright_filing_artistic": "copyrights",
+  "copyright_filing_film": "copyrights",
+  "copyright_filing_sound": "copyrights",
+  "copyright_discrepancy_response": "copyrights",
+  "copyright_noc_response": "copyrights",
+
+  "trademark_registration": "trademark",
+  "trademark_registration_individual": "trademark",
+  "trademark_registration_startup_msme": "trademark",
+  "trademark_registration_others": "trademark",
+  "trademark_monitoring": "trademark",
+  "trademark_response": "trademark",
+  "trademark_renewal": "trademark",
+  
+  "trademark_search": "trademark",
+  "trademark_filing": "trademark",
+  "trademark_examination_response": "trademark",
+  "trademark_hearing": "trademark",
+  "trademark_opposition": "trademark",
+  "trademark_opposition_hearing": "trademark"
 }
