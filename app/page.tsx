@@ -380,6 +380,9 @@ const openFirstFormEmbedded = () => {
   // Opposition Hearing specific state
   const [showOppositionHearingModal, setShowOppositionHearingModal] = useState(false)
   
+  // Post Examination Hearing specific state
+  const [showPostExaminationHearingModal, setShowPostExaminationHearingModal] = useState(false)
+  
   // Opposition specific state
   const [showOppositionModal, setShowOppositionModal] = useState(false)
   const [oppositionTypes, setOppositionTypes] = useState<string[]>([])
@@ -846,6 +849,36 @@ const openFirstFormEmbedded = () => {
   useEffect(() => {
     if (showQuotePage) setQuoteView(initialQuoteView)
   }, [showQuotePage, initialQuoteView])
+
+  // Force cleanup of any lingering overflow locks when view changes
+  useEffect(() => {
+    // Only run cleanup if there's actually a lock
+    const hasLock = document.body.style.overflow === 'hidden' || 
+                    document.documentElement.style.overflow === 'hidden' ||
+                    document.body.style.pointerEvents === 'none' ||
+                    document.documentElement.style.pointerEvents === 'none'
+    
+    if (!hasLock) return
+    
+    // Clear overflow locks
+    document.body.style.overflow = ''
+    document.documentElement.style.overflow = ''
+    document.body.style.pointerEvents = ''
+    document.documentElement.style.pointerEvents = ''
+    void document.body.offsetHeight
+    
+    // Single cleanup pass
+    const cleanup = setTimeout(() => {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+      document.body.style.pointerEvents = ''
+      document.documentElement.style.pointerEvents = ''
+      void document.body.offsetHeight
+      try { window.dispatchEvent(new Event('resize')) } catch {}
+    }, 50)
+    
+    return () => clearTimeout(cleanup)
+  }, [quoteView, showQuotePage])
 
   // Reload key to force orders refresh when navigating back from forms or other contexts
   const [ordersReloadKey, setOrdersReloadKey] = useState(0)
@@ -2617,6 +2650,12 @@ const patentServices = [
       return
     }
     
+    // Special handling for Post Examination Hearing
+    if (serviceName === 'Post Examination Hearing') {
+      setShowPostExaminationHearingModal(true)
+      return
+    }
+    
     // Special handling for Opposition
     if (serviceName === 'Opposition') {
       setShowOppositionModal(true)
@@ -3597,6 +3636,62 @@ useEffect(() => {
 
   const handlePayment = async () => {
     try {
+      // Check if browser is in fullscreen mode
+      const isFullscreen = !!(document.fullscreenElement || (document as any).webkitFullscreenElement || 
+          (document as any).mozFullScreenElement || (document as any).msFullscreenElement)
+      
+      if (isFullscreen) {
+        // Show warning modal that payment requires exiting fullscreen
+        const confirmed = window.confirm(
+          '⚠️ Payment Window Resize Required\n\n' +
+          'The browser must exit fullscreen mode for payment processing.\n' +
+          'The payment window will be resized to normal size.\n\n' +
+          'Click OK to continue with payment, or Cancel to stay in fullscreen.'
+        )
+        
+        if (!confirmed) {
+          console.log('[Payment] User cancelled - staying in fullscreen')
+          return
+        }
+        
+        console.log('[Payment] User confirmed - exiting fullscreen...')
+        
+        // Show loading indicator
+        const loader = document.createElement('div')
+        loader.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(33,150,243,0.95);color:white;padding:24px 40px;border-radius:12px;z-index:999999;font-family:system-ui;font-size:18px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;'
+        loader.innerHTML = '<div style="margin-bottom:8px;">🔄</div><div>Resizing window for payment...</div><div style="font-size:14px;font-weight:400;margin-top:8px;opacity:0.9;">Please wait</div>'
+        document.body.appendChild(loader)
+        
+        try {
+          // Force exit fullscreen
+          if (document.exitFullscreen) {
+            await document.exitFullscreen()
+          } else if ((document as any).webkitExitFullscreen) {
+            (document as any).webkitExitFullscreen()
+          } else if ((document as any).mozCancelFullScreen) {
+            (document as any).mozCancelFullScreen()
+          } else if ((document as any).msExitFullscreen) {
+            (document as any).msExitFullscreen()
+          }
+          
+          // Wait for fullscreen transition to complete
+          await new Promise(resolve => setTimeout(resolve, 600))
+          console.log('[Payment] Fullscreen exited - ready for payment')
+          
+          // Show success message briefly
+          loader.innerHTML = '<div style="margin-bottom:8px;">✅</div><div>Window resized</div><div style="font-size:14px;font-weight:400;margin-top:8px;opacity:0.9;">Opening payment...</div>'
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+        } catch (err) {
+          console.error('[Payment] Failed to exit fullscreen:', err)
+          loader.remove()
+          alert('❌ Unable to resize window automatically.\n\nPlease press ESC to exit fullscreen mode, then try payment again.')
+          return
+        } finally {
+          loader.remove()
+        }
+      }
+      
       const ok = await loadRazorpayScript()
       if (!ok) { alert('Unable to load payment module. Check your network and try again.'); return }
       const paymentStartTs = performance.now()
@@ -3735,7 +3830,30 @@ if (showQuotePage) {
         showThankYou={showCheckoutThankYou}
         checkoutPayment={checkoutPayment}
         checkoutOrders={checkoutOrders}
-        onCloseThankYou={() => setShowCheckoutThankYou(false)}
+        onCloseThankYou={() => {
+          document.body.style.overflow = ''
+          document.documentElement.style.overflow = ''
+          document.body.style.pointerEvents = ''
+          document.documentElement.style.pointerEvents = ''
+          void document.body.offsetHeight
+          requestAnimationFrame(() => {
+            document.body.style.overflow = ''
+            document.documentElement.style.overflow = ''
+            document.body.style.pointerEvents = ''
+            document.documentElement.style.pointerEvents = ''
+            void document.body.offsetHeight
+          })
+          setTimeout(() => {
+            document.body.style.overflow = ''
+            document.documentElement.style.overflow = ''
+            document.body.style.pointerEvents = ''
+            document.documentElement.style.pointerEvents = ''
+            void document.body.offsetHeight
+            try { window.dispatchEvent(new Event('screen:ready')) } catch {}
+            try { window.dispatchEvent(new Event('resize')) } catch {}
+          }, 0)
+          setShowCheckoutThankYou(false)
+        }}
         onProceedSingle={openFormEmbedded}
         onProceedMultiple={(orders) => { if (orders && orders.length > 0) openMultipleFormsEmbedded(orders) }}
         onSignInAgain={() => setShowAuthModal(true)}
@@ -5018,7 +5136,7 @@ if (showQuotePage) {
                       
                       setShowRenewalModal(false)
                     }}
-                    className="w-full"
+                    className="bg-green-600 hover:bg-green-700 w-full"
                   >
                     Add to Cart
                   </Button>
@@ -5138,7 +5256,7 @@ if (showQuotePage) {
                       setShowOppositionModal(false)
                       setOppositionTypes([])
                     }}
-                    className="w-full"
+                    className="bg-green-600 hover:bg-green-700 w-full"
                     disabled={oppositionTypes.length === 0}
                   >
                     Add to Cart
@@ -5200,11 +5318,68 @@ if (showQuotePage) {
                       
                       setShowOppositionHearingModal(false)
                     }}
-                    className="w-full"
+                    className="bg-green-600 hover:bg-green-700 w-full"
                   >
                     Add to Cart
                   </Button>
                 </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            
+            {/* Post Examination Hearing Modal */}
+            <Dialog open={showPostExaminationHearingModal} onOpenChange={setShowPostExaminationHearingModal}>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Your Selected Service</DialogTitle>
+                  <DialogDescription>Post Examination Hearing</DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  {/* Price Display */}
+                  <div className="rounded-md border p-3 bg-gray-50">
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Professional Fee</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(3000)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span>Government Fee</span>
+                      <span>₹0</span>
+                    </div>
+                    <div className="flex items-center justify-between font-semibold border-t mt-2 pt-2">
+                      <span>Total</span>
+                      <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(3000)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <DialogFooter>
+                  <Button
+                    onClick={() => {
+                      const newItem = {
+                        id: `post-examination-hearing-${Date.now()}`,
+                        type: 'trademark_hearing',
+                        name: 'Post Examination Hearing',
+                        service_id: 35,
+                        price: 3000,
+                        category: 'Trademark',
+                        details: 'Professional representation at hearing'
+                      }
+                      
+                      setCartItems((prev) => {
+                        const next = [...prev, newItem]
+                        try { localStorage.setItem("cart_items_v1", JSON.stringify(next)) } catch {}
+                        return next
+                      })
+                      
+                      setShowPostExaminationHearingModal(false)
+                    }}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    Add
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowPostExaminationHearingModal(false)}>Cancel</Button>
+                </DialogFooter>
+                <p className="text-xs text-gray-500 mt-2 text-center">*Prices are estimates. Final costs may vary.</p>
               </DialogContent>
             </Dialog>
             
@@ -5261,7 +5436,7 @@ if (showQuotePage) {
                       
                       setShowResponseModal(false)
                     }}
-                    className="w-full"
+                    className="bg-green-600 hover:bg-green-700 w-full"
                   >
                     Add to Cart
                   </Button>
@@ -5368,7 +5543,7 @@ if (showQuotePage) {
                       
                       setShowTrademarkFilingModal(false)
                     }}
-                    className="w-full"
+                    className="bg-green-600 hover:bg-green-700 w-full"
                   >
                     Add to Cart
                   </Button>
@@ -5965,7 +6140,7 @@ if (showQuotePage) {
                       
                       setShowTrademarkSearchModal(false)
                     }}
-                    className="w-full"
+                    className="bg-green-600 hover:bg-green-700 w-full"
                   >
                     Add to Cart
                   </Button>

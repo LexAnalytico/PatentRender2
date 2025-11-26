@@ -154,7 +154,7 @@ function ServicesPanelComponent({
           )}
         </Button>
         <p id="make-payment-note" className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 max-w-lg text-center leading-snug">
-          Clicking on <span className="font-semibold">Make Payment</span> will open the secure Razorpay window. <strong>Do not switch tabs, minimize, or leave this screen until the payment is completed</strong> or you will be signed out and need to sign in again to retry.
+          Clicking on <span className="font-semibold">Make Payment</span> will open the secure Razorpay window. <strong>Do not switch tabs, minimize, resize the window, enter/exit fullscreen, or leave this screen until the payment is completed</strong> or the payment may fail and you will need to retry.
         </p>
       </div>
     </>
