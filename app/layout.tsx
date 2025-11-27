@@ -20,9 +20,46 @@ const inter = Inter({
   variable: '--font-inter'
 })
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.example.com";
+
 export const metadata: Metadata = {
-  title: "IP Protection India",
-  description: "IP Protection India app",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "IP Protection India",
+    template: "%s | IP Protection India",
+  },
+  description: "Affordable patent, trademark, and IP services in India.",
+  keywords: [
+    "patent",
+    "trademark",
+    "intellectual property",
+    "IP services",
+    "India",
+  ],
+  alternates: {
+    canonical: siteUrl,
+  },
+  openGraph: {
+    type: "website",
+    url: siteUrl,
+    title: "IP Protection India",
+    description: "Affordable patent, trademark, and IP services in India.",
+    siteName: "IP Protection India",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "IP Protection India",
+    description: "Affordable patent, trademark, and IP services in India.",
+    creator: "@ip_protection_india",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
 };
 
 export const viewport: Viewport = {

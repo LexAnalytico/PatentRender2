@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useMemo } from "react"
+import Script from "next/script"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -50,6 +51,7 @@ const articles = [
 export default function KnowledgeHubPage() {
   const [currentTrending, setCurrentTrending] = useState(0)
   const trending = articles.slice(0, 4)
+  const siteUrl = useMemo(() => process.env.NEXT_PUBLIC_SITE_URL || "https://www.example.com", [])
 
   useEffect(() => {
     if (trending.length <= 1) return
@@ -66,7 +68,7 @@ export default function KnowledgeHubPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top Bar */}
-      <header className="bg-white border-b sticky top-0 z-40">
+      <header className="bg-white border-b sticky top-0 z-40" role="banner">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/" className="inline-flex items-center text-sm font-medium text-blue-700 hover:text-blue-800">
@@ -76,20 +78,40 @@ export default function KnowledgeHubPage() {
             <Separator orientation="vertical" className="h-6" />
             <div className="flex items-center gap-2">
               <BookOpen className="h-6 w-6 text-blue-600" />
-              <span className="text-lg font-semibold">Knowledge Hub</span>
+              <span id="page-heading" className="text-lg font-semibold">Knowledge Hub</span>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10" role="main">
+        {/* Breadcrumbs */}
+        <nav aria-label="Breadcrumb" className="mb-4">
+          <ol className="flex flex-wrap gap-2 text-sm text-gray-500">
+            <li><Link href="/" className="hover:text-gray-900">Home</Link></li>
+            <li aria-hidden="true">/</li>
+            <li className="text-gray-900">Knowledge Hub</li>
+          </ol>
+        </nav>
+        {/* BreadcrumbList JSON-LD */}
+        <Script id="kh-breadcrumbs" type="application/ld+json" strategy="afterInteractive">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: siteUrl },
+              { "@type": "ListItem", position: 2, name: "Knowledge Hub", item: `${siteUrl}/knowledge-hub` },
+            ]
+          })}
+        </Script>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Learn about Intellectual Property</h1>
-            <p className="text-gray-600">Hand-picked primers to help you get oriented. You can replace these later.</p>
+            <h1 className="text-3xl font-bold text-gray-900">Learn About Intellectual Property</h1>
+            <p className="text-gray-700">Hand‑picked primers to help you get oriented. You can replace these later.</p>
           </div>
           <div className="w-64 hidden md:block">
-            <Input placeholder="Search articles..." className="bg-white" />
+            <label htmlFor="kh-search" className="sr-only">Search articles</label>
+            <Input id="kh-search" placeholder="Search articles..." className="bg-white" />
           </div>
         </div>
 
@@ -136,7 +158,7 @@ export default function KnowledgeHubPage() {
         {/* Sample content sections (anchors for now) */}
         <div className="mt-10 space-y-10">
           <section id="ip-basics" className="bg-white rounded-lg border p-6">
-            <h2 className="text-xl font-semibold mb-2">Intellectual Property Basics</h2>
+            <h2 className="text-2xl font-semibold mb-2">Intellectual Property Basics</h2>
             <p className="text-gray-700">
               Intellectual property (IP) is a category of property that includes intangible creations of the human mind.
               Common types include patents (inventions), trademarks (brands), copyrights (creative works), and designs
@@ -146,7 +168,7 @@ export default function KnowledgeHubPage() {
           </section>
 
           <section id="patent-vs-trademark" className="bg-white rounded-lg border p-6">
-            <h2 className="text-xl font-semibold mb-2">Patent vs. Trademark</h2>
+            <h2 className="text-2xl font-semibold mb-2">Patent vs. Trademark</h2>
             <p className="text-gray-700">
               Patents protect technical inventions (processes, machines, compositions of matter). Trademarks protect
               brand identifiers like names, logos, and slogans that distinguish goods or services. Use patents when you
@@ -155,7 +177,7 @@ export default function KnowledgeHubPage() {
           </section>
 
           <section id="copyright-online" className="bg-white rounded-lg border p-6">
-            <h2 className="text-xl font-semibold mb-2">Copyright in the Digital Age</h2>
+            <h2 className="text-2xl font-semibold mb-2">Copyright in the Digital Age</h2>
             <p className="text-gray-700">
               Copyright automatically protects original works like software, articles, photos, and videos. Online, it
               often involves licensing, fair use, and dealing with infringement (e.g., DMCA takedowns). Consider
@@ -164,13 +186,62 @@ export default function KnowledgeHubPage() {
           </section>
 
           <section id="filing-patent" className="bg-white rounded-lg border p-6">
-            <h2 className="text-xl font-semibold mb-2">Filing a Patent: A Simple Roadmap</h2>
+            <h2 className="text-2xl font-semibold mb-2">Filing a Patent: A Simple Roadmap</h2>
             <p className="text-gray-700">
-              Start with a prior art search, refine your invention’s novelty, prepare a detailed specification with
-              claims, and consider professional drafting. File with the appropriate patent office and monitor
-              prosecution (office actions, responses). Strategy and scope matter—focus claims on core value.
+              A patent application typically requires conducting a prior art search, preparing a detailed specification with claims, and filing with the appropriate patent office. Professional guidance is often recommended to ensure proper scope and protection.
             </p>
           </section>
+
+          {/* FAQ Section */}
+          <section id="faq" className="bg-white rounded-lg border p-6">
+                        <h2 className="text-2xl font-semibold mb-4">Frequently Asked Questions</h2>
+                        <div className="space-y-3">
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">What is the difference between patents and trademarks?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Patents protect inventions and how they work; trademarks protect brand identifiers like names and logos.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">Do I need to register copyright?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Copyright exists automatically upon creation, but registration helps assert rights and is useful in enforcement.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">How long does a patent application take?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Typical timelines range from 18–36+ months depending on the field, office workload, and how quickly objections are addressed.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">Is a trademark search necessary before filing?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Yes. A comprehensive search reduces the risk of objections and rejections, saving time and cost during prosecution.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">Can startups/MSMEs get reduced government fees?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Many IP categories in India offer reduced official fees for recognized startups and MSMEs. Documentation is required.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">Do designs protect functionality?</summary>
+                            <div className="mt-2 text-sm text-gray-700">No. Design registration protects the aesthetic appearance of products. Functional aspects are protected via patents.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">What is a DMCA takedown?</summary>
+                            <div className="mt-2 text-sm text-gray-700">A DMCA takedown is a formal notice to remove infringing content hosted online. It’s frequently used to enforce copyright.</div>
+                          </details>
+                        </div>
+                      </section>
+                      {/* FAQPage JSON-LD */}
+                      <Script id="kh-faq" type="application/ld+json" strategy="afterInteractive">
+                        {JSON.stringify({
+                          "@context": "https://schema.org",
+                          "@type": "FAQPage",
+                          mainEntity: [
+                            { "@type": "Question", name: "What is the difference between patents and trademarks?", acceptedAnswer: { "@type": "Answer", text: "Patents protect inventions and how they work; trademarks protect brand identifiers like names and logos." } },
+                            { "@type": "Question", name: "Do I need to register copyright?", acceptedAnswer: { "@type": "Answer", text: "Copyright exists automatically upon creation, but registration helps assert rights and is useful in enforcement." } }
+                            ,{ "@type": "Question", name: "How long does a patent application take?", acceptedAnswer: { "@type": "Answer", text: "Typical timelines range from 18–36+ months depending on the field, office workload, and how quickly objections are addressed." } }
+                            ,{ "@type": "Question", name: "Is a trademark search necessary before filing?", acceptedAnswer: { "@type": "Answer", text: "Yes. A comprehensive search reduces the risk of objections and rejections, saving time and cost during prosecution." } }
+                            ,{ "@type": "Question", name: "Can startups/MSMEs get reduced government fees?", acceptedAnswer: { "@type": "Answer", text: "Many IP categories in India offer reduced official fees for recognized startups and MSMEs. Documentation is required." } }
+                            ,{ "@type": "Question", name: "Do designs protect functionality?", acceptedAnswer: { "@type": "Answer", text: "No. Design registration protects the aesthetic appearance of products. Functional aspects are protected via patents." } }
+                            ,{ "@type": "Question", name: "What is a DMCA takedown?", acceptedAnswer: { "@type": "Answer", text: "A DMCA takedown is a formal notice to remove infringing content hosted online. It’s frequently used to enforce copyright." } }
+                          ]
+                        })}
+                      </Script>
         </div>
       </main>
     </div>
