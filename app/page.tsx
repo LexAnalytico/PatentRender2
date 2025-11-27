@@ -3982,8 +3982,14 @@ useEffect(() => {
       const order = await orderResp.json()
       const firstItem = cartItems[0]
       setIsProcessingPayment(true)
+      const razorpayKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || ''
+      if (!razorpayKeyId) {
+        alert('Payment configuration error. Please contact support.')
+        setIsProcessingPayment(false)
+        return
+      }
       await openRazorpayCheckout({
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        key: razorpayKeyId,
         amount: order.amount || amount,
         currency: order.currency || 'INR',
         name: 'IP Protection India',
