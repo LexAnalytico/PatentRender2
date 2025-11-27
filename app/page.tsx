@@ -202,124 +202,6 @@ export default function LegalIPWebsite() {
   // Global chat popup state (applies to orders table status -> Require Info)
   const [chatOrderId, setChatOrderId] = useState<number | null>(null)
 
- function OrdersScreen() {
-  const [orders, setOrders] = useState<any[]>([]);
-
-  async function loadOrders() {
-    console.log("Fetching orders...");
-    const res = await fetch("/api/orders");
-    const data = await res.json();
-    setOrders(data);
-  }
-
-  // ❌ DISABLED: useAutoRefreshOnFocus causes race condition with view restoration
-  // Orders are loaded manually via goToOrders() or user clicking Refresh button
-  // useAutoRefreshOnFocus(loadOrders, { runOnMount: true });
-
-  return (
-    <div>
-      {/* Breadcrumbs for better UX and internal linking */}
-      <nav aria-label="Breadcrumb" className="px-4 pt-3">
-        <ol className="flex flex-wrap gap-2 text-sm text-gray-500">
-          <li><a href="/" className="hover:text-gray-900">Home</a></li>
-          <li aria-hidden="true">/</li>
-          <li><a href="/knowledge-hub" className="hover:text-gray-900">Knowledge Hub</a></li>
-          <li aria-hidden="true">/</li>
-          <li className="text-gray-900">IP Services</li>
-        </ol>
-      </nav>
-
-      {/* BreadcrumbList structured data */}
-      <Script id="schema-breadcrumbs" type="application/ld+json" strategy="afterInteractive">
-        {JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "BreadcrumbList",
-          itemListElement: [
-            { "@type": "ListItem", position: 1, name: "Home", item: siteUrl },
-            { "@type": "ListItem", position: 2, name: "Knowledge Hub", item: `${siteUrl}/knowledge-hub` },
-            { "@type": "ListItem", position: 3, name: "IP Services", item: `${siteUrl}/` }
-          ]
-        })}
-      </Script>
-
-      {/* FAQ Section (visible content) */}
-      <div id="faq" className="px-4 py-8" role="region" aria-labelledby="faq-heading">
-        <h2 id="faq-heading" className="text-2xl font-semibold mb-4">Frequently Asked Questions</h2>
-        <div className="space-y-3">
-          <details className="group border rounded-md p-3">
-            <summary className="cursor-pointer font-medium">How long does a patent application take in India?</summary>
-            <div className="mt-2 text-sm text-gray-700">Timelines vary by case and workload. With correct filings and proactive responses to examination reports, grant can range from 1.5 to 3+ years. We streamline each step to reduce avoidable delays.</div>
-          </details>
-          <details className="group border rounded-md p-3">
-            <summary className="cursor-pointer font-medium">Do I need a trademark search before filing?</summary>
-            <div className="mt-2 text-sm text-gray-700">Yes. A comprehensive search reduces objections and helps choose a registrable mark. We check registries and common‑law sources to identify conflicts early.</div>
-          </details>
-          <details className="group border rounded-md p-3">
-            <summary className="cursor-pointer font-medium">Can startups and MSMEs get discounted fees?</summary>
-            <div className="mt-2 text-sm text-gray-700">Government fees are lower for startups/MSMEs in several categories. Our service pricing is transparent and optimized for early‑stage companies.</div>
-          </details>
-        </div>
-      </div>
-
-      {/* FAQPage structured data */}
-      <Script id="schema-faq" type="application/ld+json" strategy="afterInteractive">
-        {JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "FAQPage",
-          mainEntity: [
-            {
-              "@type": "Question",
-              name: "How long does a patent application take in India?",
-              acceptedAnswer: { "@type": "Answer", text: "Timelines vary by case and workload. With correct filings and proactive responses to examination reports, grant can range from 1.5 to 3+ years." }
-            },
-            {
-              "@type": "Question",
-              name: "Do I need a trademark search before filing?",
-              acceptedAnswer: { "@type": "Answer", text: "Yes. A comprehensive search reduces objections and helps choose a registrable mark. We check registries and common‑law sources to identify conflicts early." }
-            },
-            {
-              "@type": "Question",
-              name: "Can startups and MSMEs get discounted fees?",
-              acceptedAnswer: { "@type": "Answer", text: "Government fees are lower for startups/MSMEs in several categories. Our service pricing is transparent and optimized for early‑stage companies." }
-            }
-          ]
-        })}
-      </Script>
-      <Script id="schema-org-website" type="application/ld+json" strategy="afterInteractive">
-        {JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "WebSite",
-          url: siteUrl,
-          name: "IP Protection India",
-          potentialAction: {
-            "@type": "SearchAction",
-            target: `${siteUrl}/knowledge-hub?q={search_term_string}`,
-            "query-input": "required name=search_term_string"
-          }
-        })}
-      </Script>
-      <Script id="schema-org-organization" type="application/ld+json" strategy="afterInteractive">
-        {JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "Organization",
-          name: "IP Protection India",
-          url: siteUrl,
-          logo: `${siteUrl}/favicon.ico`,
-          sameAs: [
-            "https://www.linkedin.com/company/",
-            "https://x.com/"
-          ]
-        })}
-      </Script>
-      <h1>Orders</h1>
-      {orders.length === 0 ? <p>Loading…</p> : (
-        <ul>
-          {orders.map(o => <li key={o.id}>{o.name}</li>)}
-        </ul>
-      )}
-    </div>
-  );
-}  
   // Dummy state to trigger rerenders for external form prefill updates
   const [prefillAvailable, setPrefillAvailable] = useState(false)
   const [prefillApplyFn, setPrefillApplyFn] = useState<(() => void) | null>(null)
@@ -4097,6 +3979,27 @@ useEffect(() => {
   useEffect(() => {
     return () => { if (invoicePreviewUrl) { try { URL.revokeObjectURL(invoicePreviewUrl) } catch {} } }
   }, [invoicePreviewUrl])
+
+  // TEMP DEBUG: detect invalid <section> inside <p> causing hydration mismatch
+  useEffect(() => {
+    try {
+      if (typeof document !== 'undefined') {
+        const bad: string[] = []
+        document.querySelectorAll('section').forEach(sec => {
+          const parent = sec.parentElement
+          if (parent && parent.tagName.toLowerCase() === 'p') {
+            bad.push(sec.id || '[no-id]')
+            console.error('[InvalidMarkup] <section> is child of <p> ->', sec.id || '[no-id]', parent)
+          }
+        })
+        if (bad.length === 0) {
+          console.log('[InvalidMarkup] No <section> directly under <p> detected')
+        }
+      }
+    } catch (e) {
+      console.warn('[InvalidMarkup] debug scan failed', e)
+    }
+  }, [])
      
  
   /// Quote Page Component
@@ -4826,26 +4729,6 @@ if (showQuotePage) {
  }
 
  // Main marketing / landing view
- // TEMP DEBUG: detect invalid <section> inside <p> causing hydration mismatch
- useEffect(() => {
-   try {
-     if (typeof document !== 'undefined') {
-       const bad: string[] = []
-       document.querySelectorAll('section').forEach(sec => {
-         const parent = sec.parentElement
-         if (parent && parent.tagName.toLowerCase() === 'p') {
-           bad.push(sec.id || '[no-id]')
-           console.error('[InvalidMarkup] <section> is child of <p> ->', sec.id || '[no-id]', parent)
-         }
-       })
-       if (bad.length === 0) {
-         console.log('[InvalidMarkup] No <section> directly under <p> detected')
-       }
-     }
-   } catch (e) {
-     console.warn('[InvalidMarkup] debug scan failed', e)
-   }
- }, [])
  return (
     <div className="min-h-screen bg-white">
       {/* App Tour Guide */}
