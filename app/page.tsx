@@ -3650,6 +3650,17 @@ const stopFocusGuard = useCallback((label: string) => {
   setFocusGuardActive(false)
   if (focusBlurTimerRef.current) clearTimeout(focusBlurTimerRef.current)
   if (focusVisibilityTimerRef.current) clearTimeout(focusVisibilityTimerRef.current)
+  
+  // Clear any lingering overflow locks from Razorpay or other modals
+  try {
+    document.body.style.overflow = ''
+    document.documentElement.style.overflow = ''
+    document.body.style.pointerEvents = ''
+    document.documentElement.style.pointerEvents = ''
+    document.body.classList.remove('razorpay-payment-active')
+    void document.body.offsetHeight // Force reflow
+  } catch {}
+  
   debugLog('[FocusGuard] stopped', { label })
 }, [focusGuardActive])
 
@@ -3787,6 +3798,21 @@ useEffect(() => {
   return () => { window.removeEventListener('visibilitychange', handleVisibility) }
 }, [isProcessingPayment, focusGuardActive, interruptPayment])
 
+// Clear overflow locks when payment processing completes or is dismissed
+useEffect(() => {
+  if (!isProcessingPayment) {
+    // Ensure scroll is always restored when payment is not processing
+    try {
+      document.body.style.overflow = ''
+      document.documentElement.style.overflow = ''
+      document.body.style.pointerEvents = ''
+      document.documentElement.style.pointerEvents = ''
+      document.body.classList.remove('razorpay-payment-active')
+      void document.body.offsetHeight // Force reflow
+    } catch {}
+  }
+}, [isProcessingPayment])
+
 // (FocusGuardOverlay & PaymentInterruptionBanner moved to CheckoutLayer component)
 // Razorpay JIT loader now centralized in lib/razorpay
 
@@ -3848,33 +3874,60 @@ useEffect(() => {
         }
       }
       
-      const ok = await loadRazorpayScript()
-      if (!ok) { alert('Unable to load payment module. Check your network and try again.'); return }
-      const paymentStartTs = performance.now()
-      const amount = Math.round(calculateAdjustedTotal() * 100)
-      const userRes = await supabase.auth.getUser()
-      const user = (userRes && (userRes as any).data) ? (userRes as any).data.user : null
-      const selectedPricingKey = (typeof window !== 'undefined') ? (localStorage.getItem('selected_pricing_key') || null) : null
-      debugLog('[Checkout] Using pricing key', selectedPricingKey)
-      const orderResp = await fetch('/api/create-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount, currency: 'INR', user_id: user?.id || null, service_id: (cartItems[0] as any)?.service_id ?? null, type: selectedPricingKey }) })
-      if (!orderResp.ok) {
-        let reason = 'Unknown error'
-        try { const maybe = await orderResp.json(); reason = (maybe.error || maybe.message) || JSON.stringify(maybe) } catch { try { reason = await orderResp.text() } catch {} }
-        console.error('create-order failed:', reason)
-        alert(`Failed to start payment. ${reason || 'Please try again.'}`)
-        return
-      }
-      const order = await orderResp.json()
-      const firstItem = cartItems[0]
+      // Show "Connecting to Razorpay" loader
+      const razorpayLoader = document.createElement('div')
+      razorpayLoader.id = 'razorpay-connecting-loader'
+      razorpayLoader.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(33,150,243,0.96);color:white;padding:28px 48px;border-radius:12px;z-index:999999;font-family:system-ui,-apple-system,sans-serif;font-size:17px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;min-width:280px;'
+      razorpayLoader.innerHTML = '<div style="margin-bottom:12px;font-size:32px;">💳</div><div style="margin-bottom:8px;">Connecting to Razorpay</div><div style="font-size:14px;font-weight:400;opacity:0.92;">Please wait...</div><div style="margin-top:12px;"><div style="width:200px;height:3px;background:rgba(255,255,255,0.3);border-radius:2px;overflow:hidden;"><div style="width:30%;height:100%;background:white;border-radius:2px;animation:razorpay-progress 1.5s ease-in-out infinite;"></div></div></div><style>@keyframes razorpay-progress{0%,100%{transform:translateX(-100%)}50%{transform:translateX(300%)}}</style>'
+      document.body.appendChild(razorpayLoader)
       
-      // Validate payment configuration before proceeding
-      if (!RAZORPAY_KEY_ID) {
-        console.error('❌ RAZORPAY_KEY_ID is not configured. Check environment variables in Vercel/deployment.')
-        alert('Payment system is not configured. Please contact support or try again later.')
-        return
-      }
-      
-      setIsProcessingPayment(true)
+      try {
+        const ok = await loadRazorpayScript()
+        if (!ok) { 
+          razorpayLoader.remove()
+          alert('Unable to load payment module. Check your network and try again.') 
+          return 
+        }
+        const paymentStartTs = performance.now()
+        const amount = Math.round(calculateAdjustedTotal() * 100)
+        const userRes = await supabase.auth.getUser()
+        const user = (userRes && (userRes as any).data) ? (userRes as any).data.user : null
+        const selectedPricingKey = (typeof window !== 'undefined') ? (localStorage.getItem('selected_pricing_key') || null) : null
+        debugLog('[Checkout] Using pricing key', selectedPricingKey)
+        
+        // Update loader message
+        razorpayLoader.innerHTML = '<div style="margin-bottom:12px;font-size:32px;">⚡</div><div style="margin-bottom:8px;">Preparing Payment</div><div style="font-size:14px;font-weight:400;opacity:0.92;">Almost ready...</div><div style="margin-top:12px;"><div style="width:200px;height:3px;background:rgba(255,255,255,0.3);border-radius:2px;overflow:hidden;"><div style="width:60%;height:100%;background:white;border-radius:2px;animation:razorpay-progress 1s ease-in-out infinite;"></div></div></div><style>@keyframes razorpay-progress{0%,100%{transform:translateX(-100%)}50%{transform:translateX(300%)}}</style>'
+        
+        const orderResp = await fetch('/api/create-order', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount, currency: 'INR', user_id: user?.id || null, service_id: (cartItems[0] as any)?.service_id ?? null, type: selectedPricingKey }) })
+        if (!orderResp.ok) {
+          let reason = 'Unknown error'
+          try { const maybe = await orderResp.json(); reason = (maybe.error || maybe.message) || JSON.stringify(maybe) } catch { try { reason = await orderResp.text() } catch {} }
+          console.error('create-order failed:', reason)
+          razorpayLoader.remove()
+          alert(`Failed to start payment. ${reason || 'Please try again.'}`)
+          return
+        }
+        const order = await orderResp.json()
+        const firstItem = cartItems[0]
+        
+        // Validate payment configuration before proceeding
+        if (!RAZORPAY_KEY_ID) {
+          console.error('❌ RAZORPAY_KEY_ID is not configured. Check environment variables in Vercel/deployment.')
+          razorpayLoader.remove()
+          alert('Payment system is not configured. Please contact support or try again later.')
+          return
+        }
+        
+        // Update loader - final step
+        razorpayLoader.innerHTML = '<div style="margin-bottom:12px;font-size:32px;">✅</div><div style="margin-bottom:8px;">Opening Payment Gateway</div><div style="font-size:14px;font-weight:400;opacity:0.92;">Just a moment...</div>'
+        
+        // Small delay to show final message
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
+        // Remove loader before opening Razorpay
+        razorpayLoader.remove()
+        
+        setIsProcessingPayment(true)
       await openRazorpayCheckout({
         key: RAZORPAY_KEY_ID,
         amount: order.amount || amount,
@@ -3907,9 +3960,21 @@ useEffect(() => {
           }
         },
       })
-      setTimeout(() => startFocusGuard(), 120)
+        setTimeout(() => startFocusGuard(), 120)
+      } catch (err: any) {
+        console.error('handlePayment error:', err)
+        // Ensure loader is removed on error
+        const loader = document.getElementById('razorpay-connecting-loader')
+        if (loader) loader.remove()
+        alert('An error occurred while initiating payment.')
+        stopFocusGuard('init-error')
+        setIsProcessingPayment(false)
+      }
     } catch (err: any) {
-      console.error('handlePayment error:', err)
+      console.error('handlePayment outer error:', err)
+      // Ensure loader is removed on outer error
+      const loader = document.getElementById('razorpay-connecting-loader')
+      if (loader) loader.remove()
       alert('An error occurred while initiating payment.')
       stopFocusGuard('init-error')
       setIsProcessingPayment(false)
