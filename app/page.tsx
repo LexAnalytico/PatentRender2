@@ -10,6 +10,9 @@ import { isTestMode } from '@/lib/testMode'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { fetchOrdersMerged, invalidateOrdersCache } from '@/lib/orders'
 import { loadRazorpayScript, openRazorpayCheckout } from '@/lib/razorpay'
+
+// Payment configuration - must be set at build time
+const RAZORPAY_KEY_ID = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID
 import { fetchServicePricingRules, computePriceFromRules, ensurePatentrenderCache } from "@/utils/pricing";
 import { computePatentabilityPrice } from '@/utils/pricing/services/patentabilitySearch'
 import { computeDraftingPrice as draftingPriceHelper } from '@/utils/pricing/services/drafting'
@@ -3981,15 +3984,17 @@ useEffect(() => {
       }
       const order = await orderResp.json()
       const firstItem = cartItems[0]
-      setIsProcessingPayment(true)
-      const razorpayKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || ''
-      if (!razorpayKeyId) {
-        alert('Payment configuration error. Please contact support.')
-        setIsProcessingPayment(false)
+      
+      // Validate payment configuration before proceeding
+      if (!RAZORPAY_KEY_ID) {
+        console.error('❌ RAZORPAY_KEY_ID is not configured. Check environment variables in Vercel/deployment.')
+        alert('Payment system is not configured. Please contact support or try again later.')
         return
       }
+      
+      setIsProcessingPayment(true)
       await openRazorpayCheckout({
-        key: razorpayKeyId,
+        key: RAZORPAY_KEY_ID,
         amount: order.amount || amount,
         currency: order.currency || 'INR',
         name: 'IP Protection India',
