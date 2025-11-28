@@ -25,16 +25,23 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.example.com";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "IP Protection India",
+    default: "IP Protection India | Patent, Trademark & Copyright Services",
     template: "%s | IP Protection India",
   },
-  description: "Affordable patent, trademark, and IP services in India.",
+  description: "Expert patent filing, trademark registration, copyright protection, and design filing services in India. Affordable IP solutions for startups, MSMEs, and enterprises. Professional guidance from search to grant.",
   keywords: [
-    "patent",
-    "trademark",
-    "intellectual property",
-    "IP services",
-    "India",
+    "patent filing india",
+    "trademark registration india",
+    "copyright registration",
+    "design filing",
+    "intellectual property services",
+    "patent drafting",
+    "trademark search",
+    "IP protection",
+    "patent attorney india",
+    "trademark attorney",
+    "startup ip services",
+    "msme patent filing",
   ],
   alternates: {
     canonical: siteUrl,
@@ -42,14 +49,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: siteUrl,
-    title: "IP Protection India",
-    description: "Affordable patent, trademark, and IP services in India.",
+    title: "IP Protection India | Patent, Trademark & Copyright Services",
+    description: "Expert patent filing, trademark registration, copyright protection, and design filing services in India. Affordable IP solutions for startups, MSMEs, and enterprises.",
     siteName: "IP Protection India",
+    locale: "en_IN",
   },
   twitter: {
     card: "summary_large_image",
-    title: "IP Protection India",
-    description: "Affordable patent, trademark, and IP services in India.",
+    title: "IP Protection India | Patent, Trademark & Copyright Services",
+    description: "Expert patent filing, trademark registration, copyright protection, and design filing services in India. Professional IP solutions for innovators and brands.",
     creator: "@ip_protection_india",
   },
   robots: {
@@ -70,7 +78,48 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
-      <head />
+      <head>
+        <meta name="google-site-verification" content="Ch7rOvvSFu6vmASxSecCat0uH6Ya8OWQZddSC4Q0S5c" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: "IP Protection India",
+              url: siteUrl,
+              logo: `${siteUrl}/logo.png`,
+              description: "Professional patent, trademark, copyright, and design filing services in India",
+              address: {
+                "@type": "PostalAddress",
+                addressCountry: "IN"
+              },
+              sameAs: [
+                "https://twitter.com/ip_protection_india"
+              ]
+            })
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "IP Protection India",
+              url: siteUrl,
+              potentialAction: {
+                "@type": "SearchAction",
+                target: {
+                  "@type": "EntryPoint",
+                  urlTemplate: `${siteUrl}/knowledge-hub?q={search_term_string}`
+                },
+                "query-input": "required name=search_term_string"
+              }
+            })
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <Navbar />
         <AutoLogout />

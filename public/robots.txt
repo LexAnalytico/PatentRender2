@@ -1,0 +1,14 @@
+# robots.txt for IP Protection India
+User-agent: *
+Allow: /
+Disallow: /profile
+Disallow: /orders
+Disallow: /reset-password
+Disallow: /api/
+Disallow: /admin/
+
+# Sitemap location
+Sitemap: https://www.example.com/sitemap.xml
+
+# Crawl delay (optional, adjust as needed)
+Crawl-delay: 1

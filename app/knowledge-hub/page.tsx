@@ -54,6 +54,15 @@ export default function KnowledgeHubPage() {
   const siteUrl = useMemo(() => process.env.NEXT_PUBLIC_SITE_URL || "https://www.example.com", [])
 
   useEffect(() => {
+    // Set page title and meta dynamically for client component
+    document.title = "Knowledge Hub - IP Education & Resources | IP Protection India"
+    const metaDesc = document.querySelector('meta[name="description"]')
+    if (metaDesc) {
+      metaDesc.setAttribute('content', 'Learn about patents, trademarks, copyrights, and design registration. Comprehensive guides, FAQs, and resources for intellectual property protection in India.')
+    }
+  }, [])
+
+  useEffect(() => {
     if (trending.length <= 1) return
     const id = setInterval(() => {
       setCurrentTrending((i) => (i + 1) % trending.length)
@@ -106,8 +115,8 @@ export default function KnowledgeHubPage() {
         </Script>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Learn About Intellectual Property</h1>
-            <p className="text-gray-700">Hand‑picked primers to help you get oriented. You can replace these later.</p>
+            <h1 className="text-3xl font-bold text-gray-900">Intellectual Property Knowledge Hub</h1>
+            <p className="text-gray-700 mt-2">Comprehensive guides on patents, trademarks, copyrights, and design registration in India. Learn from experts and protect your innovations.</p>
           </div>
           <div className="w-64 hidden md:block">
             <label htmlFor="kh-search" className="sr-only">Search articles</label>
