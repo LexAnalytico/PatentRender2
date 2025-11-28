@@ -80,10 +80,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={inter.variable}>
       <head>
         <meta name="google-site-verification" content="Ch7rOvvSFu6vmASxSecCat0uH6Ya8OWQZddSC4Q0S5c" />
-        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+        <link rel="icon" type="image/svg+xml" href="/logo.svg" />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/logo.svg" />
         <link rel="manifest" href="/site.webmanifest" />
         <script
           type="application/ld+json"
@@ -93,7 +93,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               "@type": "Organization",
               name: "IP Protection India",
               url: siteUrl,
-              logo: `${siteUrl}/logo.png`,
+              logo: `${siteUrl}/logo.svg`,
               description: "Professional patent, trademark, copyright, and design filing services in India",
               address: {
                 "@type": "PostalAddress",
