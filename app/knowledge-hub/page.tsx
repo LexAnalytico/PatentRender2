@@ -231,7 +231,52 @@ export default function KnowledgeHubPage() {
                           </details>
                           <details className="group border rounded-md p-3">
                             <summary className="cursor-pointer font-medium">What is a DMCA takedown?</summary>
-                            <div className="mt-2 text-sm text-gray-700">A DMCA takedown is a formal notice to remove infringing content hosted online. It’s frequently used to enforce copyright.</div>
+                            <div className="mt-2 text-sm text-gray-700">A DMCA takedown is a formal notice to remove infringing content hosted online. It's frequently used to enforce copyright.</div>
+                          </details>
+                          
+                          <div className="pt-4 mt-4 border-t">
+                            <h3 className="font-semibold text-lg mb-3 text-gray-800">About Our Online Services</h3>
+                          </div>
+                          
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">How does online IP filing work?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Our platform lets you select services, fill forms online, upload documents, and make secure payments. Our experts review your submission, prepare professional applications, and file them with the appropriate IP office. You receive updates throughout the process via your dashboard.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">Is online filing as reliable as visiting an attorney's office?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Yes. Our platform is designed by IP attorneys and all applications are professionally reviewed before filing. You get the same quality service with added convenience of online access, transparent pricing, and real-time tracking.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">What documents do I need to upload for patent/trademark filing?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Requirements vary by service. Typically: identification proof, invention/design details, technical drawings, and supporting documents. Our forms guide you through exactly what's needed for your specific filing.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">How long does it take to get started after I place an order?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Once you complete payment and submit required forms, our team begins review within 24-48 hours. You'll receive confirmation and next steps via email and your dashboard.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">Can I track my application status online?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Yes. Your dashboard shows real-time status updates for all your orders—from initial review to filing confirmation to examination responses. You'll also receive email notifications at key milestones.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">What payment methods do you accept?</summary>
+                            <div className="mt-2 text-sm text-gray-700">We accept credit cards, debit cards, UPI, net banking, and digital wallets through our secure payment gateway powered by Razorpay. All transactions are encrypted and PCI-DSS compliant.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">Do you provide refunds if my application is rejected?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Our professional fees cover application preparation and filing services. Government fees are non-refundable. If an application faces objections, we offer response preparation services to address them and improve approval chances.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">Can I consult with an attorney before filing?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Yes. We offer consultation services where you can discuss your IP needs with our attorneys. This helps determine the best protection strategy before you commit to filing.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">What if I need help filling out the forms?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Our forms include helpful tooltips and guidance. If you need assistance, our support team is available via email or chat to guide you through the process. You can also save partial progress and return later.</div>
+                          </details>
+                          <details className="group border rounded-md p-3">
+                            <summary className="cursor-pointer font-medium">Is my data secure on your platform?</summary>
+                            <div className="mt-2 text-sm text-gray-700">Absolutely. We use bank-grade encryption (SSL/TLS), secure cloud storage, and strict access controls. Your sensitive information and documents are protected with industry-standard security measures and regular audits.</div>
                           </details>
                         </div>
                       </section>
@@ -247,7 +292,12 @@ export default function KnowledgeHubPage() {
                             ,{ "@type": "Question", name: "Is a trademark search necessary before filing?", acceptedAnswer: { "@type": "Answer", text: "Yes. A comprehensive search reduces the risk of objections and rejections, saving time and cost during prosecution." } }
                             ,{ "@type": "Question", name: "Can startups/MSMEs get reduced government fees?", acceptedAnswer: { "@type": "Answer", text: "Many IP categories in India offer reduced official fees for recognized startups and MSMEs. Documentation is required." } }
                             ,{ "@type": "Question", name: "Do designs protect functionality?", acceptedAnswer: { "@type": "Answer", text: "No. Design registration protects the aesthetic appearance of products. Functional aspects are protected via patents." } }
-                            ,{ "@type": "Question", name: "What is a DMCA takedown?", acceptedAnswer: { "@type": "Answer", text: "A DMCA takedown is a formal notice to remove infringing content hosted online. It’s frequently used to enforce copyright." } }
+                            ,{ "@type": "Question", name: "What is a DMCA takedown?", acceptedAnswer: { "@type": "Answer", text: "A DMCA takedown is a formal notice to remove infringing content hosted online. It's frequently used to enforce copyright." } }
+                            ,{ "@type": "Question", name: "How does online IP filing work?", acceptedAnswer: { "@type": "Answer", text: "Our platform lets you select services, fill forms online, upload documents, and make secure payments. Our experts review your submission and file with the appropriate IP office." } }
+                            ,{ "@type": "Question", name: "Is online filing as reliable as visiting an attorney's office?", acceptedAnswer: { "@type": "Answer", text: "Yes. Our platform is designed by IP attorneys and all applications are professionally reviewed before filing." } }
+                            ,{ "@type": "Question", name: "Can I track my application status online?", acceptedAnswer: { "@type": "Answer", text: "Yes. Your dashboard shows real-time status updates for all your orders from initial review to filing confirmation." } }
+                            ,{ "@type": "Question", name: "What payment methods do you accept?", acceptedAnswer: { "@type": "Answer", text: "We accept credit cards, debit cards, UPI, net banking, and digital wallets through our secure payment gateway." } }
+                            ,{ "@type": "Question", name: "Is my data secure on your platform?", acceptedAnswer: { "@type": "Answer", text: "Yes. We use bank-grade encryption, secure cloud storage, and strict access controls to protect your information." } }
                           ]
                         })}
                       </Script>
