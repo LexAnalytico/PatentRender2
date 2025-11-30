@@ -5014,12 +5014,12 @@ if (showQuotePage) {
                     </CardContent>
                   </Card>
                 ))}
-                <p className="text-gray-600 max-w-2xl mx-auto text-sm md:text-base">We’re polishing our trademark offerings. Meanwhile, explore our fully available patent services.</p>
+                {/*<p className="text-gray-600 max-w-2xl mx-auto text-sm md:text-base">We’re polishing our trademark offerings. Meanwhile, explore our fully available patent services.</p>
                 <div className="mt-6">
                   <Button variant="outline" className="border-neutral-200" onClick={() => scrollToSection('patent-services')}>
                     Explore Patent Services
                   </Button>
-                </div>
+                </div>*/}
               </div>
             </div>
           </section>
