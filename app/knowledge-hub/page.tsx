@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, BookOpen, Lightbulb, Scale, Shield, FileText } from "lucide-react"
+import { Footer } from "@/components/layout/Footer"
 
 const articles = [
   {
@@ -315,6 +316,8 @@ export default function KnowledgeHubPage() {
                       </Script>
         </div>
       </main>
+      
+      <Footer />
     </div>
   )
 }
