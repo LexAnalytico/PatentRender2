@@ -1,0 +1,338 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Mail, Phone, MapPin, Instagram, Linkedin, Clock, Send } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.example.com";
+
+export const metadata: Metadata = {
+  title: "Contact Patent Attorneys in Bangalore | Online IP Services India",
+  description: "Contact leading patent attorneys in Bangalore for online IP services. Expert patent filing, trademark registration, and IP consulting services in Bengaluru. Get free consultation from top IP law firm.",
+  keywords: [
+    "patent attorneys bangalore",
+    "patent filing bangalore",
+    "online ip services india",
+    "ip law firm bangalore",
+    "trademark attorney bangalore",
+    "patent lawyer bangalore",
+    "ip consultant bangalore",
+    "online patent filing india",
+    "bangalore patent services",
+    "intellectual property attorney bangalore",
+    "online trademark registration",
+    "ip services bengaluru",
+  ],
+  alternates: {
+    canonical: `${siteUrl}/contact`,
+  },
+  openGraph: {
+    type: "website",
+    url: `${siteUrl}/contact`,
+    title: "Contact Us | IP Protection India",
+    description: "Get in touch with our IP experts for patent, trademark, copyright, and design filing services.",
+    siteName: "IP Protection India",
+  },
+};
+
+export default function ContactPage() {
+  return (
+    <>
+      {/* JSON-LD Schema for ContactPage */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "ContactPage",
+            "name": "Contact IP Protection India",
+            "description": "Contact page for IP Protection India - Patent, Trademark, Copyright, and Design services",
+            "url": `${siteUrl}/contact`,
+            "mainEntity": {
+              "@type": "ProfessionalService",
+              "name": "IP Protection India",
+              "telephone": "+91-99161-93248",
+              "email": "info@lexanalytico.com",
+              "address": {
+                "@type": "PostalAddress",
+                "streetAddress": "8th Floor, A 10, Shilpitha Tech Park- iSprout, Devarabisanahalli Rd, Kariyammana Agrahara",
+                "addressLocality": "Bellandur, Bengaluru",
+                "addressRegion": "Karnataka",
+                "postalCode": "560103",
+                "addressCountry": "IN"
+              }
+            }
+          })
+        }}
+      />
+
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
+        {/* Hero Section */}
+        <section className="container mx-auto px-4 py-16">
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+              Contact Leading Patent Attorneys in Bangalore
+            </h1>
+            <p className="text-xl text-gray-600 mb-8 leading-relaxed">
+              Looking for expert patent attorneys in Bangalore or online IP services? We're here to help with patent filing, trademark registration, and comprehensive IP consulting across India. Reach out for a free consultation.
+            </p>
+            <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-600">
+              <span className="bg-blue-50 px-4 py-2 rounded-full">✓ Patent Filing Bangalore</span>
+              <span className="bg-blue-50 px-4 py-2 rounded-full">✓ Online IP Services</span>
+              <span className="bg-blue-50 px-4 py-2 rounded-full">✓ Trademark Registration</span>
+              <span className="bg-blue-50 px-4 py-2 rounded-full">✓ IP Law Firm Bengaluru</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Contact Information Cards */}
+        <section className="container mx-auto px-4 py-8">
+          <div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-6 mb-12">
+            <Card className="text-center">
+              <CardHeader>
+                <div className="flex justify-center mb-4">
+                  <div className="bg-blue-100 p-4 rounded-full">
+                    <MapPin className="h-8 w-8 text-blue-600" />
+                  </div>
+                </div>
+                <CardTitle className="text-lg">Visit Our Bangalore Office</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  8th Floor, A 10, Shilpitha Tech Park- iSprout<br />
+                  Devarabisanahalli Rd, Kariyammana Agrahara<br />
+                  Bellandur, Bengaluru<br />
+                  Karnataka 560103
+                </p>
+                <p className="text-sm text-blue-600 mt-3 font-medium">
+                  Top Patent Law Firm in Bangalore
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center">
+              <CardHeader>
+                <div className="flex justify-center mb-4">
+                  <div className="bg-green-100 p-4 rounded-full">
+                    <Phone className="h-8 w-8 text-green-600" />
+                  </div>
+                </div>
+                <CardTitle className="text-lg">Call Our Patent Attorneys</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 mb-2">
+                  <a href="tel:+919916193248" className="text-blue-600 hover:text-blue-700 font-medium">
+                    +91 99161 93248
+                  </a>
+                </p>
+                <p className="text-sm text-gray-500">
+                  <Clock className="h-4 w-4 inline mr-1" />
+                  Mon-Fri: 9:00 AM - 6:00 PM IST
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Free IP Consultation Available
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center">
+              <CardHeader>
+                <div className="flex justify-center mb-4">
+                  <div className="bg-purple-100 p-4 rounded-full">
+                    <Mail className="h-8 w-8 text-purple-600" />
+                  </div>
+                </div>
+                <CardTitle className="text-lg">Email for Online Services</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 mb-4">
+                  <a href="mailto:info@lexanalytico.com" className="text-blue-600 hover:text-blue-700 font-medium">
+                    info@lexanalytico.com
+                  </a>
+                </p>
+                <p className="text-sm text-gray-500">
+                  Online patent filing & IP services
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Response within 24 hours
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* Social Media Section */}
+        <section className="container mx-auto px-4 py-8">
+          <div className="max-w-4xl mx-auto">
+            <Card>
+              <CardHeader className="text-center">
+                <CardTitle className="text-2xl">Connect With Us</CardTitle>
+                <CardDescription>
+                  Follow us on social media for updates, tips, and industry insights
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-center gap-6">
+                  <a
+                    href="https://www.instagram.com/lexanalytico_consulting/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col items-center gap-2 p-6 rounded-lg hover:bg-gray-50 transition-colors group"
+                  >
+                    <div className="bg-gradient-to-br from-purple-500 to-pink-500 p-4 rounded-full group-hover:scale-110 transition-transform">
+                      <Instagram className="h-8 w-8 text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">Instagram</span>
+                    <span className="text-xs text-gray-500">@lexanalytico_consulting</span>
+                  </a>
+
+                  <a
+                    href="https://www.linkedin.com/company/lexanalytico-consulting/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col items-center gap-2 p-6 rounded-lg hover:bg-gray-50 transition-colors group"
+                  >
+                    <div className="bg-blue-600 p-4 rounded-full group-hover:scale-110 transition-transform">
+                      <Linkedin className="h-8 w-8 text-white" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">LinkedIn</span>
+                    <span className="text-xs text-gray-500">LexAnalytico Consulting</span>
+                  </a>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* Map Section - Placeholder */}
+        <section className="container mx-auto px-4 py-8">
+          <div className="max-w-6xl mx-auto">
+            <Card>
+              <CardHeader>
+                <CardTitle>Find Our IP Law Firm in Bangalore</CardTitle>
+                <CardDescription>Patent attorneys conveniently located in Bengaluru's tech hub - Bellandur. Serving clients across India with online IP services.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="w-full h-96 bg-gray-200 rounded-lg flex items-center justify-center">
+                  <div className="text-center">
+                    <MapPin className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 mb-2 font-medium">
+                      Patent Attorneys Office - Bangalore
+                    </p>
+                    <p className="text-gray-600 mb-4 text-sm">
+                      8th Floor, Shilpitha Tech Park, Bellandur, Bengaluru
+                    </p>
+                    <Button asChild variant="outline">
+                      <a
+                        href="https://www.google.com/maps/search/?api=1&query=8th+Floor+A+10+Shilpitha+Tech+Park+Bellandur+Bengaluru+560103"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Open in Google Maps
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
+        {/* Quick Services Overview */}
+        <section className="container mx-auto px-4 py-16">
+          <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">IP Services in Bangalore & Online Across India</h2>
+              <p className="text-gray-600">
+                Leading patent attorneys in Bangalore offering comprehensive online IP services for startups, MSMEs, and enterprises across India
+              </p>
+            </div>
+            <div className="grid md:grid-cols-4 gap-6">
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="text-lg">Patent Filing Bangalore</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Expert patent attorneys for search, drafting, filing, and examination response. Online and offline services available.
+                  </p>
+                  <Link href="/services/patent-filing" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                    Learn More →
+                  </Link>
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="text-lg">Online Trademark Registration</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Complete online trademark search, registration, monitoring, and protection services across India
+                  </p>
+                  <Link href="/#trademark-services" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                    Learn More →
+                  </Link>
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="text-lg">Copyright Services</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Registration and protection for creative works
+                  </p>
+                  <Link href="/#copyright-services" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                    Learn More →
+                  </Link>
+                </CardContent>
+              </Card>
+
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="text-lg">Design Services</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Design registration and protection services
+                  </p>
+                  <Link href="/#design-services" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+                    Learn More →
+                  </Link>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="container mx-auto px-4 py-16">
+          <div className="max-w-4xl mx-auto bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl p-12 text-center">
+            <h2 className="text-3xl md:text-4xl font-bold mb-6">
+              Need Patent Attorneys in Bangalore?
+            </h2>
+            <p className="text-xl mb-8 opacity-90">
+              Get started with expert patent filing and online IP services today. Free consultation available for startups!
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button size="lg" variant="secondary" asChild>
+                <Link href="/#services" className="flex items-center gap-2">
+                  <Send className="h-5 w-5" />
+                  Start Patent Filing
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" className="bg-transparent border-white text-white hover:bg-white hover:text-blue-600" asChild>
+                <a href="tel:+919916193248" className="flex items-center gap-2">
+                  <Phone className="h-5 w-5" />
+                  Call Now
+                </a>
+              </Button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </>
+  );
+}

@@ -7,6 +7,7 @@ import AutoLogout from '@/components/AutoLogout'
 import PointerEventsReset from "@/components/PointerEventsReset";
 import OverlayInspector from "@/components/OverlayInspector";
 import FocusProvider from '@/components/FocusProvider'
+import { Footer } from '@/components/layout/Footer'
 import { Analytics } from "@vercel/analytics/react"
 import "./globals.css";
 import { Inter } from 'next/font/google'
@@ -124,6 +125,120 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             })
           }}
         />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "ProfessionalService",
+              name: "IP Protection India",
+              image: `${siteUrl}/logo.svg`,
+              "@id": siteUrl,
+              url: siteUrl,
+              telephone: "+91-XXXXXXXXXX",
+              priceRange: "₹₹",
+              address: {
+                "@type": "PostalAddress",
+                addressCountry: "IN"
+              },
+              geo: {
+                "@type": "GeoCoordinates",
+                latitude: 28.6139,
+                longitude: 77.2090
+              },
+              openingHoursSpecification: [{
+                "@type": "OpeningHoursSpecification",
+                dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+                opens: "09:00",
+                closes: "18:00"
+              }],
+              sameAs: [
+                "https://twitter.com/ip_protection_india"
+              ],
+              hasOfferCatalog: {
+                "@type": "OfferCatalog",
+                name: "IP Protection Services",
+                itemListElement: [
+                  {
+                    "@type": "Offer",
+                    itemOffered: {
+                      "@type": "Service",
+                      name: "Patent Filing Services",
+                      description: "Complete patent filing services in India including patentability search, drafting, and application filing"
+                    }
+                  },
+                  {
+                    "@type": "Offer",
+                    itemOffered: {
+                      "@type": "Service",
+                      name: "Trademark Registration",
+                      description: "Professional trademark registration and monitoring services in India"
+                    }
+                  },
+                  {
+                    "@type": "Offer",
+                    itemOffered: {
+                      "@type": "Service",
+                      name: "Copyright Registration",
+                      description: "Copyright registration and protection services for all work types"
+                    }
+                  },
+                  {
+                    "@type": "Offer",
+                    itemOffered: {
+                      "@type": "Service",
+                      name: "Design Filing",
+                      description: "Design registration filing and protection services in India"
+                    }
+                  }
+                ]
+              }
+            })
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              mainEntity: [
+                {
+                  "@type": "Question",
+                  name: "How long does patent filing take in India?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "Patent filing in India typically takes 3-5 years from application to grant, depending on the complexity and examination timeline. Expedited examination is available for startups and certain categories."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  name: "What is the cost of trademark registration in India?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "Trademark registration costs vary based on applicant type and number of classes. Government fees start from ₹4,500 for individuals and startups, with professional services additional."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  name: "Do I need a patent attorney for filing?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "While not mandatory, patent attorneys ensure proper drafting, broader claim scope, and higher success rates. Professional guidance significantly reduces objections and rejection risks."
+                  }
+                },
+                {
+                  "@type": "Question",
+                  name: "Can I file for international patent protection?",
+                  acceptedAnswer: {
+                    "@type": "Answer",
+                    text: "Yes, through PCT (Patent Cooperation Treaty) filing, you can seek protection in over 150 countries with a single international application, followed by national phase entries."
+                  }
+                }
+              ]
+            })
+          }}
+        />
       </head>
       <body className={inter.className}>
         <Navbar />
@@ -144,9 +259,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </FocusProvider>
 
         <RefreshAppButton />
-        <footer style={{padding:12,borderTop:'1px solid #eee',marginTop:20}}>
-          <small>IP Protection India</small>
-        </footer>
+        <Footer />
         <Analytics />
       </body>
     </html>

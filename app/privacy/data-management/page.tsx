@@ -128,8 +128,6 @@ export default function DataManagementPage() {
           </CardContent>
         </Card>
       </main>
-
-      <Footer />
     </div>
   )
 }

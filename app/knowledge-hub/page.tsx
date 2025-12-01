@@ -316,8 +316,6 @@ export default function KnowledgeHubPage() {
                       </Script>
         </div>
       </main>
-      
-      <Footer />
     </div>
   )
 }

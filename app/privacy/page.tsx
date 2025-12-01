@@ -748,8 +748,6 @@ export default function PrivacyPolicyPage() {
           </Card>
         </section>
       </div>
-
-      <Footer />
     </div>
   )
 }

@@ -2,6 +2,7 @@
 
 import { Scale } from 'lucide-react'
 import Link from "next/link"
+import { Instagram, Linkedin } from 'lucide-react'
 
 export function Footer() {
   const goSection = (id: string) => {
@@ -63,7 +64,11 @@ export function Footer() {
               </li>
               <li><span className="cursor-default">Terms of Service</span></li>
               <li><span className="cursor-default">Careers</span></li>
-              <li><span className="cursor-default">Contact</span></li>
+              <li>
+                <Link href="/contact" className="hover:text-white transition-colors">
+                  Contact
+                </Link>
+              </li>
             </ul>
           </div>
           <div>
@@ -72,6 +77,26 @@ export function Footer() {
               <p>8th Floor, A 10, Shilpitha Tech Park- iSprout, Devarabisanahalli Rd, Kariyammana Agrahara, Bellandur, Bengaluru, Karnataka 560103</p>
               <p>Phone: +91 99161 93248</p>
               <p>Email: info@lexanalytico.com</p>
+              <div className="flex gap-4 mt-4">
+                <a 
+                  href="https://www.instagram.com/lexanalytico_consulting/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="hover:text-white transition-colors"
+                  aria-label="Follow us on Instagram"
+                >
+                  <Instagram className="h-6 w-6" />
+                </a>
+                <a 
+                  href="https://www.linkedin.com/company/lexanalytico-consulting/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="hover:text-white transition-colors"
+                  aria-label="Follow us on LinkedIn"
+                >
+                  <Linkedin className="h-6 w-6" />
+                </a>
+              </div>
             </div>
           </div>
         </div>

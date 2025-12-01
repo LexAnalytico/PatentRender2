@@ -6501,11 +6501,6 @@ if (showQuotePage) {
         </div>
       </section>
 
-      {/* Footer */}
-      <div data-tour="features-section">
-        <Footer />
-      </div>
-
       {/* Inline Quotation Preview Dialog */}
       <Dialog open={showQuotePreview} onOpenChange={(open) => { if (!open) setShowQuotePreview(false) }}>
         <DialogContent className="max-w-5xl h-[80vh] flex flex-col p-0">
