@@ -336,6 +336,17 @@ const openFirstFormEmbedded = () => {
   // Orders screen tour state (separate from main tour)
   const [showOrdersTour, setShowOrdersTour] = useState(false)
   
+  // Listen for mobile menu auth trigger
+  useEffect(() => {
+    const handleMobileAuth = (e: Event) => {
+      const customEvent = e as CustomEvent<{ mode: 'signin' | 'signup' }>
+      setAuthMode(customEvent.detail?.mode || 'signin')
+      setShowAuthModal(true)
+    }
+    window.addEventListener('mobile-auth-trigger', handleMobileAuth)
+    return () => window.removeEventListener('mobile-auth-trigger', handleMobileAuth)
+  }, [])
+  
   const handleTourComplete = () => {
     setShowTour(false)
   }

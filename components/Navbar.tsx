@@ -208,8 +208,17 @@ export default function Navbar() {
                     type="button"
                     onClick={async () => {
                       setMobileOpen(false);
-                      // Trigger auth modal or navigate to auth page
-                      window.dispatchEvent(new CustomEvent('open-auth-modal'));
+                      // If not on main page, navigate there first
+                      if (pathname !== '/' && pathname !== '/main') {
+                        router.push('/');
+                        // Delay event dispatch to allow navigation
+                        setTimeout(() => {
+                          window.dispatchEvent(new CustomEvent('mobile-auth-trigger', { detail: { mode: 'signin' } }));
+                        }, 500);
+                      } else {
+                        // Already on main page, trigger auth immediately
+                        window.dispatchEvent(new CustomEvent('mobile-auth-trigger', { detail: { mode: 'signin' } }));
+                      }
                     }}
                     className="w-full px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
                   >
