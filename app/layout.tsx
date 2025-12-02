@@ -22,7 +22,7 @@ const inter = Inter({
   variable: '--font-inter'
 })
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.example.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://ipprotectionindia.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

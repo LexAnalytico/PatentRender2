@@ -12,9 +12,6 @@ const nextConfig = {
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     minimumCacheTTL: 60,
   },
-  experimental: {
-    optimizeFonts: true,
-  },
   // Optional: use in-memory webpack cache in dev to avoid FS rename issues
   webpack: (config, { dev }) => {
     if (dev && process.env.NEXT_DEV_MEMORY_CACHE === '1') {

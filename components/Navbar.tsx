@@ -155,12 +155,82 @@ export default function Navbar() {
                 ✕
               </button>
             </div>
-            <nav className="p-3 space-y-1">
-              <button type="button" onClick={() => { setMobileOpen(false); goSection('patent-services') }} className="w-full text-left px-3 py-2 rounded hover:bg-blue-50">Patent Services</button>
-              <button type="button" onClick={() => { setMobileOpen(false); goSection('trademark-services') }} className="w-full text-left px-3 py-2 rounded hover:bg-blue-50">Trademark Services</button>
-              <button type="button" onClick={() => { setMobileOpen(false); goSection('design-services') }} className="w-full text-left px-3 py-2 rounded hover:bg-blue-50">Design Services</button>
-              <button type="button" onClick={() => { setMobileOpen(false); goSection('copyright-services') }} className="w-full text-left px-3 py-2 rounded hover:bg-blue-50">Copyright Services</button>
-              <a href="/knowledge-hub" className="block w-full px-3 py-2 rounded hover:bg-gray-50">Knowledge Hub</a>
+            <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-80px)]">
+              {/* User Section - Show if logged in */}
+              {user && (
+                <div className="pb-3 mb-3 border-b border-gray-200">
+                  <div className="px-3 py-2 text-sm text-gray-500">Signed in as</div>
+                  <div className="px-3 py-1 text-sm font-medium text-gray-900 truncate">{user.email}</div>
+                  <a href="/profile" onClick={() => setMobileOpen(false)} className="block w-full px-3 py-2 mt-2 rounded hover:bg-blue-50 text-blue-600 font-medium">
+                    My Profile
+                  </a>
+                  <a href="/orders" onClick={() => setMobileOpen(false)} className="block w-full px-3 py-2 rounded hover:bg-blue-50 text-blue-600 font-medium">
+                    My Orders
+                  </a>
+                </div>
+              )}
+              
+              {/* Services Section */}
+              <div className="pb-3 mb-3 border-b border-gray-200">
+                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Services</div>
+                <button type="button" onClick={() => { setMobileOpen(false); goSection('patent-services') }} className="w-full text-left px-3 py-2 rounded hover:bg-blue-50">
+                  Patent Services
+                </button>
+                <button type="button" onClick={() => { setMobileOpen(false); goSection('trademark-services') }} className="w-full text-left px-3 py-2 rounded hover:bg-blue-50">
+                  Trademark Services
+                </button>
+                <button type="button" onClick={() => { setMobileOpen(false); goSection('design-services') }} className="w-full text-left px-3 py-2 rounded hover:bg-blue-50">
+                  Design Services
+                </button>
+                <button type="button" onClick={() => { setMobileOpen(false); goSection('copyright-services') }} className="w-full text-left px-3 py-2 rounded hover:bg-blue-50">
+                  Copyright Services
+                </button>
+              </div>
+
+              {/* Resources Section */}
+              <div className="pb-3 mb-3 border-b border-gray-200">
+                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Resources</div>
+                <a href="/knowledge-hub" onClick={() => setMobileOpen(false)} className="block w-full px-3 py-2 rounded hover:bg-gray-50">
+                  Knowledge Hub
+                </a>
+                <a href="/contact" onClick={() => setMobileOpen(false)} className="block w-full px-3 py-2 rounded hover:bg-gray-50">
+                  Contact Us
+                </a>
+                <a href="/privacy" onClick={() => setMobileOpen(false)} className="block w-full px-3 py-2 rounded hover:bg-gray-50">
+                  Privacy Policy
+                </a>
+              </div>
+
+              {/* Auth Section */}
+              {!user ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setMobileOpen(false);
+                      // Trigger auth modal or navigate to auth page
+                      window.dispatchEvent(new CustomEvent('open-auth-modal'));
+                    }}
+                    className="w-full px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
+                  >
+                    Sign In / Sign Up
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setMobileOpen(false);
+                      await supabase.auth.signOut();
+                      router.push('/');
+                    }}
+                    className="w-full px-3 py-2 text-red-600 rounded hover:bg-red-50 font-medium"
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              )}
             </nav>
           </div>
         </div>

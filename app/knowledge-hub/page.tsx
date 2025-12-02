@@ -7,45 +7,69 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, BookOpen, Lightbulb, Scale, Shield, FileText } from "lucide-react"
+import { ArrowLeft, BookOpen, Lightbulb, Scale, Shield, FileText, Rocket } from "lucide-react"
 import { Footer } from "@/components/layout/Footer"
 
 const articles = [
   {
-    slug: "ip-basics",
-    title: "Intellectual Property Basics",
+    slug: "how-to-file-patent-india-2025",
+    title: "How to File a Patent in India 2025 - Complete Guide",
     excerpt:
-      "A high-level overview of patents, trademarks, copyrights, and designs—what they protect and when to use each.",
-    icon: <Lightbulb className="h-5 w-5 text-blue-700" />,
-    readTime: "5 min read",
-    tag: "Fundamentals",
+      "Complete step-by-step guide to filing patents in India. Learn the process, documents needed, costs, timeline, and expert tips for startups.",
+    icon: <FileText className="h-5 w-5 text-blue-700" />,
+    readTime: "15 min read",
+    tag: "Patent Guide",
+    href: "/knowledge-hub/how-to-file-patent-india-2025",
   },
   {
-    slug: "patent-vs-trademark",
-    title: "Patent vs. Trademark: Key Differences",
+    slug: "what-can-be-patented-in-india",
+    title: "What Can Be Patented in India? Complete Guide 2025",
     excerpt:
-      "Understand how patents protect inventions while trademarks protect brand identity such as names and logos.",
+      "Learn patentability criteria in India. Understand what inventions qualify for patent protection, exclusions under Section 3, and examples with expert guidance.",
+    icon: <Shield className="h-5 w-5 text-teal-700" />,
+    readTime: "12 min read",
+    tag: "Patent Guide",
+    href: "/knowledge-hub/what-can-be-patented-in-india",
+  },
+  {
+    slug: "startup-patent-filing-guide-india",
+    title: "Complete Patent Filing Guide for Startups",
+    excerpt:
+      "Strategic patent filing guide for Indian startups. Learn SIPP benefits, provisional patents, costs, investor requirements, and expert tips from attorneys.",
+    icon: <Rocket className="h-5 w-5 text-purple-700" />,
+    readTime: "14 min read",
+    tag: "Startup Guide",
+    href: "/knowledge-hub/startup-patent-filing-guide-india",
+  },
+  {
+    slug: "patent-filing-cost-india-startups",
+    title: "Patent Filing Cost in India for Startups",
+    excerpt:
+      "Detailed breakdown of patent filing costs for startups in 2025. Government fees, professional charges, SIPP benefits, and cost-saving strategies.",
     icon: <Scale className="h-5 w-5 text-green-700" />,
-    readTime: "6 min read",
-    tag: "Comparisons",
+    readTime: "10 min read",
+    tag: "Cost Guide",
+    href: "/knowledge-hub/patent-filing-cost-india-startups",
   },
   {
-    slug: "copyright-online",
-    title: "Copyright in the Digital Age",
+    slug: "trademark-registration-bangalore",
+    title: "Trademark Registration Process in Bangalore",
     excerpt:
-      "Explore how copyright applies to online content, software, and media—plus essential DMCA considerations.",
+      "Complete guide to trademark registration in Bangalore. Expert attorneys in Bellandur for brand protection, search, filing, and registration.",
     icon: <Shield className="h-5 w-5 text-purple-700" />,
-    readTime: "7 min read",
-    tag: "Guides",
+    readTime: "8 min read",
+    tag: "Trademark Guide",
+    href: "/knowledge-hub/trademark-registration-bangalore",
   },
   {
-    slug: "filing-patent",
-    title: "Filing a Patent: A Simple Roadmap",
+    slug: "patent-vs-trademark-differences",
+    title: "Difference Between Patent and Trademark",
     excerpt:
-      "From prior art searching to drafting and submission—follow this step-by-step outline to get started.",
-    icon: <FileText className="h-5 w-5 text-orange-700" />,
-    readTime: "8 min read",
-    tag: "How-To",
+      "Understand key differences between patents and trademarks. Learn which IP protection is right for your business with examples and expert advice.",
+    icon: <Lightbulb className="h-5 w-5 text-orange-700" />,
+    readTime: "7 min read",
+    tag: "Comparisons",
+    href: "/knowledge-hub/patent-vs-trademark-differences",
   },
 ]
 
@@ -71,14 +95,10 @@ export default function KnowledgeHubPage() {
     return () => clearInterval(id)
   }, [trending.length])
 
-  const scrollTo = (slug: string) => {
-    const el = document.getElementById(slug)
-    if (el) el.scrollIntoView({ behavior: "smooth" })
-  }
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Top Bar */}
-      <header className="bg-white border-b sticky top-0 z-40" role="banner">
+      {/* Top Bar - Non-sticky since main navbar is already sticky */}
+      <header className="bg-white border-b" role="banner">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/" className="inline-flex items-center text-sm font-medium text-blue-700 hover:text-blue-800">
@@ -131,22 +151,22 @@ export default function KnowledgeHubPage() {
             <span className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide">Trending</span>
             <div className="relative h-6 flex-1">
               {trending.map((a, idx) => (
-                <button
+                <Link
                   key={a.slug}
-                  onClick={() => scrollTo(a.slug)}
+                  href={a.href}
                   className={`absolute inset-0 flex items-center text-sm text-blue-800 hover:underline transition-all duration-500 ${idx === currentTrending ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-2"}`}
                   aria-label={`Go to ${a.title}`}
                 >
                   • {a.title}
-                </button>
+                </Link>
               ))}
             </div>
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
           {articles.map((a) => (
-            <Card key={a.slug} className="bg-white border hover:shadow-md transition-shadow">
+            <Card key={a.slug} className="bg-white border hover:shadow-lg transition-shadow">
               <CardHeader className="space-y-1">
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   {a.icon}
@@ -158,51 +178,83 @@ export default function KnowledgeHubPage() {
               <CardContent className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">{a.readTime}</span>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href={`#${a.slug}`}>Read</Link>
+                  <Link href={a.href}>Read Article →</Link>
                 </Button>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {/* Sample content sections (anchors for now) */}
+        {/* Quick Links to Popular Topics */}
+        <div className="mt-10 mb-10">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Popular Topics</h2>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link href="/knowledge-hub/how-to-file-patent-india-2025" className="group">
+              <Card className="h-full border-2 hover:border-blue-600 hover:shadow-lg transition-all">
+                <CardContent className="pt-6">
+                  <FileText className="h-8 w-8 text-blue-600 mb-3 group-hover:scale-110 transition-transform" />
+                  <h3 className="font-semibold text-gray-900 mb-2">Patent Filing Guide</h3>
+                  <p className="text-sm text-gray-600">Complete process for 2025</p>
+                </CardContent>
+              </Card>
+            </Link>
+            
+            <Link href="/knowledge-hub/patent-filing-cost-india-startups" className="group">
+              <Card className="h-full border-2 hover:border-green-600 hover:shadow-lg transition-all">
+                <CardContent className="pt-6">
+                  <Scale className="h-8 w-8 text-green-600 mb-3 group-hover:scale-110 transition-transform" />
+                  <h3 className="font-semibold text-gray-900 mb-2">Patent Costs</h3>
+                  <p className="text-sm text-gray-600">Startup fee breakdown</p>
+                </CardContent>
+              </Card>
+            </Link>
+            
+            <Link href="/knowledge-hub/trademark-registration-bangalore" className="group">
+              <Card className="h-full border-2 hover:border-purple-600 hover:shadow-lg transition-all">
+                <CardContent className="pt-6">
+                  <Shield className="h-8 w-8 text-purple-600 mb-3 group-hover:scale-110 transition-transform" />
+                  <h3 className="font-semibold text-gray-900 mb-2">Trademark Registration</h3>
+                  <p className="text-sm text-gray-600">Bangalore process guide</p>
+                </CardContent>
+              </Card>
+            </Link>
+            
+            <Link href="/knowledge-hub/patent-vs-trademark-differences" className="group">
+              <Card className="h-full border-2 hover:border-orange-600 hover:shadow-lg transition-all">
+                <CardContent className="pt-6">
+                  <Lightbulb className="h-8 w-8 text-orange-600 mb-3 group-hover:scale-110 transition-transform" />
+                  <h3 className="font-semibold text-gray-900 mb-2">Patent vs Trademark</h3>
+                  <p className="text-sm text-gray-600">Key differences explained</p>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+        </div>
+
+        {/* CTA Section */}
+        <div className="mt-10 mb-10">
+          <Card className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-0 shadow-xl">
+            <CardContent className="pt-8 pb-8">
+              <div className="text-center max-w-3xl mx-auto">
+                <h2 className="text-3xl font-bold mb-4">Need Expert IP Protection Services?</h2>
+                <p className="text-lg mb-6 opacity-90">
+                  Our experienced attorneys in Bellandur, Bangalore provide comprehensive patent, trademark, and copyright services for startups and businesses across India.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <Button size="lg" variant="secondary" asChild className="font-semibold">
+                    <Link href="/contact">Get Free Consultation</Link>
+                  </Button>
+                  <Button size="lg" variant="outline" className="bg-transparent border-2 border-white text-white hover:bg-white hover:text-blue-600 font-semibold" asChild>
+                    <Link href="/services/patent-filing">View All Services</Link>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* FAQ Section */}
         <div className="mt-10 space-y-10">
-          <section id="ip-basics" className="bg-white rounded-lg border p-6">
-            <h2 className="text-2xl font-semibold mb-2">Intellectual Property Basics</h2>
-            <p className="text-gray-700">
-              Intellectual property (IP) is a category of property that includes intangible creations of the human mind.
-              Common types include patents (inventions), trademarks (brands), copyrights (creative works), and designs
-              (aesthetic features of products). IP rights encourage innovation by granting creators limited exclusive
-              rights to their works, typically in exchange for public disclosure.
-            </p>
-          </section>
-
-          <section id="patent-vs-trademark" className="bg-white rounded-lg border p-6">
-            <h2 className="text-2xl font-semibold mb-2">Patent vs. Trademark</h2>
-            <p className="text-gray-700">
-              Patents protect technical inventions (processes, machines, compositions of matter). Trademarks protect
-              brand identifiers like names, logos, and slogans that distinguish goods or services. Use patents when you
-              want to protect how something works; use trademarks to protect how customers recognize your brand.
-            </p>
-          </section>
-
-          <section id="copyright-online" className="bg-white rounded-lg border p-6">
-            <h2 className="text-2xl font-semibold mb-2">Copyright in the Digital Age</h2>
-            <p className="text-gray-700">
-              Copyright automatically protects original works like software, articles, photos, and videos. Online, it
-              often involves licensing, fair use, and dealing with infringement (e.g., DMCA takedowns). Consider
-              attaching explicit licenses and using monitoring tools if content protection is a priority.
-            </p>
-          </section>
-
-          <section id="filing-patent" className="bg-white rounded-lg border p-6">
-            <h2 className="text-2xl font-semibold mb-2">Filing a Patent: A Simple Roadmap</h2>
-            <p className="text-gray-700">
-              A patent application typically requires conducting a prior art search, preparing a detailed specification with claims, and filing with the appropriate patent office. Professional guidance is often recommended to ensure proper scope and protection.
-            </p>
-          </section>
-
-          {/* FAQ Section */}
           <section id="faq" className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-100 p-8 shadow-sm">
                         <div className="flex items-center gap-3 mb-6">
                           <div className="h-10 w-1 bg-blue-600 rounded-full"></div>
@@ -316,6 +368,8 @@ export default function KnowledgeHubPage() {
                       </Script>
         </div>
       </main>
+
+      <Footer />
     </div>
   )
 }
