@@ -9,7 +9,7 @@ import OverlayInspector from "@/components/OverlayInspector";
 import FocusProvider from '@/components/FocusProvider'
 import { Footer } from '@/components/layout/Footer'
 import { Analytics } from "@vercel/analytics/react"
-import { GoogleAnalytics } from '@next/third-parties/next'
+import { GoogleAnalytics } from '@next/third-parties/google'
 import "./globals.css";
 import { Inter } from 'next/font/google'
 
@@ -262,9 +262,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <RefreshAppButton />
         <Footer />
         <Analytics />
-        {process.env.NEXT_PUBLIC_GA_ID && (
-          <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID} />
-        )}
+        <GoogleAnalytics gaId="G-XXXXXXXXXX" />
       </body>
     </html>
   )
