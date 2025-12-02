@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { bannerSlides } from "@/constants/data"
 
@@ -80,11 +81,17 @@ export function Banner() {
                   <div className="relative">
                     <div className="relative z-10">
                       <div className="bg-white/10 backdrop-blur-lg rounded-md p-2.5 border border-white/20 shadow">
-                        <img
-                          src={slide.image || "/placeholder.svg"}
-                          alt={slide.title}
-                          className="w-full h-20 md:h-24 object-cover rounded-md shadow-lg"
-                        />
+                        <div className="relative w-full h-20 md:h-24 rounded-md shadow-lg overflow-hidden">
+                          <Image
+                            src={slide.image || "/placeholder.svg"}
+                            alt={`${slide.title} - Patent filing and trademark registration services in Bangalore India`}
+                            fill
+                            className="object-cover rounded-md"
+                            priority={index === currentSlide}
+                            sizes="(max-width: 768px) 100vw, 50vw"
+                            quality={85}
+                          />
+                        </div>
                       </div>
                     </div>
 

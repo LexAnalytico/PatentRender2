@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Mail, Phone, MapPin, Instagram, Linkedin, Clock, Send } from "lucide-react";
+import { Mail, Phone, MapPin, Instagram, Linkedin, Clock, Send, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -67,6 +67,16 @@ export default function ContactPage() {
       />
 
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
+        {/* Top Navigation Bar */}
+        <header className="bg-white border-b sticky top-0 z-40">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center">
+            <Link href="/" className="inline-flex items-center text-sm font-medium text-blue-700 hover:text-blue-800 transition-colors">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Home
+            </Link>
+          </div>
+        </header>
+
         {/* Hero Section */}
         <section className="container mx-auto px-4 py-16">
           <div className="max-w-4xl mx-auto text-center">

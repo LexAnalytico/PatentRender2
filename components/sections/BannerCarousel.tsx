@@ -1,5 +1,6 @@
 "use client"
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import Image from 'next/image'
 // Chevron icons removed since arrows are not used
 import { bannerSlides as staticBannerSlides } from '@/constants/data'
 
@@ -142,19 +143,14 @@ export function BannerCarousel({ featureFlag = process.env.NEXT_PUBLIC_ENABLE_BA
                     <div className="relative w-[320px] h-[210px] md:w-[420px] md:h-[280px] lg:w-[520px] lg:h-[340px] rounded-2xl bg-white/5 border border-white/20 backdrop-blur-md shadow-2xl overflow-hidden flex items-center justify-center">
                       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/10 via-white/5 to-transparent" />
                       <div className="relative w-[84%] h-[74%] rounded-xl bg-neutral-100 border border-neutral-200 shadow-inner overflow-hidden flex items-center justify-center">
-                        <img
+                        <Image
                           src={slide.image}
-                          alt={slide.title || 'Slide image'}
-                          className="absolute inset-0 w-full h-full object-cover"
-                          loading={index === 0 ? 'eager' : 'lazy'}
-                          decoding="async"
-                          onError={(e) => {
-                            const el = e.currentTarget as HTMLImageElement
-                            // Prevent infinite loop if placeholder also fails
-                            if (el.dataset.fallbackApplied === '1') return
-                            el.dataset.fallbackApplied = '1'
-                            el.src = '/img_1.jpg'
-                          }}
+                          alt={`Patent and trademark services India - ${slide.title || 'IP protection services for startups and businesses'}`}
+                          fill
+                          className="object-cover"
+                          priority={index === 0}
+                          sizes="(max-width: 768px) 0px, (max-width: 1024px) 420px, 520px"
+                          quality={85}
                         />
                         <span className="absolute top-3 right-3 block h-3 w-3 rounded-full bg-blue-400 shadow ring-2 ring-white/70" />
                       </div>

@@ -9,14 +9,15 @@ import OverlayInspector from "@/components/OverlayInspector";
 import FocusProvider from '@/components/FocusProvider'
 import { Footer } from '@/components/layout/Footer'
 import { Analytics } from "@vercel/analytics/react"
+import { GoogleAnalytics } from '@next/third-parties/google'
 import "./globals.css";
 import { Inter } from 'next/font/google'
 
-// Configure the font with proper optimization - reduced preload to avoid unused warning
+// Configure the font with proper optimization for best performance
 const inter = Inter({ 
   subsets: ['latin'],
   display: 'swap',
-  preload: false, // Disable preload to avoid unused font warning
+  preload: true, // Enable preload for faster font loading
   fallback: ['system-ui', 'arial'], // Ensure immediate text rendering
   variable: '--font-inter'
 })
@@ -261,6 +262,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <RefreshAppButton />
         <Footer />
         <Analytics />
+        {process.env.NEXT_PUBLIC_GA_ID && (
+          <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_ID} />
+        )}
       </body>
     </html>
   )
