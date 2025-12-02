@@ -14,7 +14,6 @@ const nextConfig = {
   },
   experimental: {
     optimizeFonts: true,
-    optimizeCss: true,
   },
   // Optional: use in-memory webpack cache in dev to avoid FS rename issues
   webpack: (config, { dev }) => {
