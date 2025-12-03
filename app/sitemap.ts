@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next'
 
 // Use production URL directly to avoid build-time environment variable issues
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://ipprotectionindia.com'
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.ipprotectionindia.com'
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const routes = [
