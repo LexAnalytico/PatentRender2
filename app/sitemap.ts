@@ -14,6 +14,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/knowledge-hub/patent-filing-cost-india-startups', priority: 0.8, changeFreq: 'monthly' as const },
     { path: '/knowledge-hub/trademark-registration-bangalore', priority: 0.8, changeFreq: 'monthly' as const },
     { path: '/knowledge-hub/patent-vs-trademark-differences', priority: 0.8, changeFreq: 'monthly' as const },
+    { path: '/knowledge-hub/smell-trademark-olfactory-mark-registration-india', priority: 0.8, changeFreq: 'monthly' as const },
     { path: '/forms', priority: 0.7, changeFreq: 'monthly' as const },
     { path: '/privacy', priority: 0.5, changeFreq: 'monthly' as const },
   ]

@@ -70,6 +70,16 @@ const articles = [
     tag: "Comparisons",
     href: "/knowledge-hub/patent-vs-trademark-differences",
   },
+  {
+    slug: "smell-trademark-olfactory-mark-registration-india",
+    title: "Smell as Trademark: Olfactory Mark Registration Challenges in India",
+    excerpt:
+      "Legal analysis of India's first smell trademark registration. Learn about olfactory mark challenges, graphical representation requirements, and enforcement issues under Trade Marks Act 1999.",
+    icon: <Scale className="h-5 w-5 text-indigo-700" />,
+    readTime: "18 min read",
+    tag: "Legal Analysis",
+    href: "/knowledge-hub/smell-trademark-olfactory-mark-registration-india",
+  },
 ]
 
 export default function KnowledgeHubPage() {
