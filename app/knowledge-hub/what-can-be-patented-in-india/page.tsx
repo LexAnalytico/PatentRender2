@@ -219,7 +219,7 @@ export default function WhatCanBePatentedPage() {
                     </ul>
                     <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mt-3">
                       <p className="text-sm text-yellow-900">
-                        <AlertCircle className="h-4 w-4 inline mr-2" />
+                        <span className="text-lg font-bold mr-2">*</span>
                         <strong>Note:</strong> Pure software/algorithms "per se" are NOT patentable. The software must have a technical application or effect beyond the algorithm itself.
                       </p>
                     </div>

@@ -152,7 +152,6 @@ export function BannerCarousel({ featureFlag = process.env.NEXT_PUBLIC_ENABLE_BA
                           sizes="(max-width: 768px) 0px, (max-width: 1024px) 420px, 520px"
                           quality={85}
                         />
-                        <span className="absolute top-3 right-3 block h-3 w-3 rounded-full bg-blue-400 shadow ring-2 ring-white/70" />
                       </div>
                       <div className="absolute -top-10 -right-10 w-40 h-40 bg-blue-600/30 rounded-full blur-3xl pointer-events-none" />
                       <div className="absolute -bottom-14 -left-10 w-56 h-56 bg-indigo-500/30 rounded-full blur-3xl pointer-events-none" />

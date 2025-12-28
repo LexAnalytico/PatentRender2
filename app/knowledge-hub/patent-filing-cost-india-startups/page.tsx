@@ -199,7 +199,7 @@ export default function PatentCostGuidePage() {
               <Card className="bg-yellow-50 border-yellow-200">
                 <CardContent className="pt-6">
                   <p className="text-sm text-yellow-900">
-                    <AlertCircle className="h-4 w-4 inline mr-2" />
+                    <span className="text-lg font-bold mr-2">*</span>
                     <strong>Startup Benefit:</strong> DPIIT-recognized startups save ₹32,000 in government fees (80% discount) compared to large entities!
                   </p>
                 </CardContent>

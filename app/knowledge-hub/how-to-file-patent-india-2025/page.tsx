@@ -321,7 +321,7 @@ export default function PatentFilingGuidePage() {
                     </ul>
                     <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-4">
                       <p className="text-sm text-yellow-900">
-                        <AlertCircle className="h-4 w-4 inline mr-2" />
+                        <span className="text-lg font-bold mr-2">*</span>
                         <strong>Important:</strong> Claims define your patent scope. Poorly drafted claims = weak protection. Always hire an experienced patent attorney for drafting.
                       </p>
                     </div>
@@ -686,70 +686,55 @@ export default function PatentFilingGuidePage() {
               <div className="space-y-4">
                 <Card className="border-l-4 border-l-red-500">
                   <CardContent className="pt-6">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-1" />
-                      <div>
-                        <h3 className="font-semibold text-gray-900 mb-2">Public Disclosure Before Filing</h3>
-                        <p className="text-sm text-gray-700">
-                          Never disclose your invention publicly (publications, conferences, social media) before filing. It destroys novelty and makes it unpatentable.
-                        </p>
-                      </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-2">Public Disclosure Before Filing</h3>
+                      <p className="text-sm text-gray-700">
+                        Never disclose your invention publicly (publications, conferences, social media) before filing. It destroys novelty and makes it unpatentable.
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
 
                 <Card className="border-l-4 border-l-red-500">
                   <CardContent className="pt-6">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-1" />
-                      <div>
-                        <h3 className="font-semibold text-gray-900 mb-2">DIY Patent Drafting</h3>
-                        <p className="text-sm text-gray-700">
-                          Poorly drafted patents = weak protection. Claims are legal documents requiring expertise. Always hire a qualified patent attorney.
-                        </p>
-                      </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-2">DIY Patent Drafting</h3>
+                      <p className="text-sm text-gray-700">
+                        Poorly drafted patents = weak protection. Claims are legal documents requiring expertise. Always hire a qualified patent attorney.
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
 
                 <Card className="border-l-4 border-l-red-500">
                   <CardContent className="pt-6">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-1" />
-                      <div>
-                        <h3 className="font-semibold text-gray-900 mb-2">Missing Deadlines</h3>
-                        <p className="text-sm text-gray-700">
-                          Missing RFE deadline (48 months) or FER response deadline (6 months) leads to application abandonment. Set reminders!
-                        </p>
-                      </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-2">Missing Deadlines</h3>
+                      <p className="text-sm text-gray-700">
+                        Missing RFE deadline (48 months) or FER response deadline (6 months) leads to application abandonment. Set reminders!
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
 
                 <Card className="border-l-4 border-l-red-500">
                   <CardContent className="pt-6">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-1" />
-                      <div>
-                        <h3 className="font-semibold text-gray-900 mb-2">Inadequate Prior Art Search</h3>
-                        <p className="text-sm text-gray-700">
-                          Skipping search leads to rejection. Invest in comprehensive search to identify obstacles early.
-                        </p>
-                      </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-2">Inadequate Prior Art Search</h3>
+                      <p className="text-sm text-gray-700">
+                        Skipping search leads to rejection. Invest in comprehensive search to identify obstacles early.
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
 
                 <Card className="border-l-4 border-l-red-500">
                   <CardContent className="pt-6">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="h-6 w-6 text-red-500 flex-shrink-0 mt-1" />
-                      <div>
-                        <h3 className="font-semibold text-gray-900 mb-2">Not Paying Renewal Fees</h3>
-                        <p className="text-sm text-gray-700">
-                          Patents require annual renewal from year 3. Missing renewals = patent lapses and becomes public domain.
-                        </p>
-                      </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 mb-2">Not Paying Renewal Fees</h3>
+                      <p className="text-sm text-gray-700">
+                        Patents require annual renewal from year 3. Missing renewals = patent lapses and becomes public domain.
+                      </p>
                     </div>
                   </CardContent>
                 </Card>

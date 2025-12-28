@@ -131,7 +131,6 @@ export function Banner() {
 
       {/* Floating Elements */}
   <div className="absolute top-5 left-5 w-1.5 h-1.5 bg-white/30 rounded-full animate-pulse"></div>
-  <div className="absolute top-10 right-8 w-2 h-2 bg-blue-400/40 rounded-full animate-pulse delay-1000"></div>
   <div className="absolute bottom-6 left-8 w-1 h-1 bg-white/40 rounded-full animate-pulse delay-2000"></div>
     </section>
   )

@@ -88,7 +88,7 @@ export default function SmellTrademarkIndia() {
 
             <div className="bg-blue-50 border-l-4 border-blue-600 p-6 mb-8">
               <div className="flex items-start gap-3">
-                <AlertCircle className="h-6 w-6 text-blue-600 flex-shrink-0 mt-1" />
+                <span className="text-2xl font-bold text-blue-600 flex-shrink-0">*</span>
                 <div>
                   <h3 className="font-bold text-blue-900 mb-2">Recent Development</h3>
                   <p className="text-sm text-blue-800">
@@ -169,7 +169,7 @@ export default function SmellTrademarkIndia() {
               <Card className="mb-6 bg-yellow-50 border-yellow-200">
                 <CardContent className="pt-6">
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="h-6 w-6 text-yellow-600 flex-shrink-0" />
+                    <span className="text-2xl font-bold text-yellow-600 flex-shrink-0">*</span>
                     <div>
                       <h4 className="font-bold text-gray-900 mb-2">Key Issues:</h4>
                       <ul className="space-y-2 text-sm text-gray-700">
@@ -319,29 +319,17 @@ export default function SmellTrademarkIndia() {
                 <CardContent className="pt-6">
                   <h4 className="font-bold text-red-900 mb-4">Major Enforcement Challenges:</h4>
                   <div className="space-y-3 text-sm text-gray-700">
-                    <div className="flex gap-3">
-                      <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <strong>No Standardized Metric:</strong> A scent cannot be reliably compared in a courtroom without a standardized and objective olfactory metric, which currently does not exist.
-                      </div>
+                    <div>
+                      <strong>No Standardized Metric:</strong> A scent cannot be reliably compared in a courtroom without a standardized and objective olfactory metric, which currently does not exist.
                     </div>
-                    <div className="flex gap-3">
-                      <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <strong>Similarity Determination:</strong> Determining similarity or likelihood of confusion among consumers becomes highly problematic for a subjective and variably perceived olfactory mark.
-                      </div>
+                    <div>
+                      <strong>Similarity Determination:</strong> Determining similarity or likelihood of confusion among consumers becomes highly problematic for a subjective and variably perceived olfactory mark.
                     </div>
-                    <div className="flex gap-3">
-                      <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <strong>Chemical vs. Perceptual Similarity:</strong> Two scents with different chemical compositions may smell alike, while chemically similar compositions may be perceived differently.
-                      </div>
+                    <div>
+                      <strong>Chemical vs. Perceptual Similarity:</strong> Two scents with different chemical compositions may smell alike, while chemically similar compositions may be perceived differently.
                     </div>
-                    <div className="flex gap-3">
-                      <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <strong>Consumer Perception Unreliability:</strong> Courts cannot depend solely on consumer perception due to its high degree of subjectivity, influenced by physiological differences and environmental conditions.
-                      </div>
+                    <div>
+                      <strong>Consumer Perception Unreliability:</strong> Courts cannot depend solely on consumer perception due to its high degree of subjectivity, influenced by physiological differences and environmental conditions.
                     </div>
                   </div>
                 </CardContent>

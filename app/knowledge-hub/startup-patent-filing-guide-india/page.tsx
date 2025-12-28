@@ -237,7 +237,7 @@ export default function StartupPatentGuidePage() {
                     <li><strong>5.</strong> Get facilitator assigned (optional but recommended)</li>
                   </ol>
                   <p className="text-xs text-gray-600 mt-3">
-                    <AlertCircle className="h-3 w-3 inline mr-1" />
+                    <span className="text-sm font-bold mr-1">*</span>
                     SIPP benefits apply automatically once DPIIT certificate is verified by patent office.
                   </p>
                 </CardContent>
@@ -279,7 +279,7 @@ export default function StartupPatentGuidePage() {
 
                     <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                       <h4 className="font-bold text-red-800 mb-2 flex items-center gap-2">
-                        <AlertCircle className="h-5 w-5" />
+                        <span className="text-xl font-bold">*</span>
                         Important Limitations
                       </h4>
                       <ul className="text-sm text-gray-700 space-y-1">
@@ -388,7 +388,7 @@ export default function StartupPatentGuidePage() {
 
                   <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-4">
                     <p className="text-sm text-yellow-900">
-                      <AlertCircle className="h-4 w-4 inline mr-2" />
+                      <span className="text-lg font-bold mr-2">*</span>
                       <strong>Without SIPP:</strong> Total cost would be ₹2.5L - ₹4.0L. SIPP saves 50-60% overall.
                     </p>
                   </div>
@@ -575,8 +575,7 @@ export default function StartupPatentGuidePage() {
               <div className="space-y-4">
                 <Card className="border-l-4 border-l-red-600">
                   <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5 text-red-600" />
+                    <CardTitle className="text-lg">
                       Public Disclosure Before Filing
                     </CardTitle>
                   </CardHeader>
@@ -592,8 +591,7 @@ export default function StartupPatentGuidePage() {
 
                 <Card className="border-l-4 border-l-red-600">
                   <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5 text-red-600" />
+                    <CardTitle className="text-lg">
                       Missing Provisional Deadline
                     </CardTitle>
                   </CardHeader>
@@ -609,8 +607,7 @@ export default function StartupPatentGuidePage() {
 
                 <Card className="border-l-4 border-l-red-600">
                   <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5 text-red-600" />
+                    <CardTitle className="text-lg">
                       Unclear IP Ownership
                     </CardTitle>
                   </CardHeader>
@@ -626,8 +623,7 @@ export default function StartupPatentGuidePage() {
 
                 <Card className="border-l-4 border-l-red-600">
                   <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5 text-red-600" />
+                    <CardTitle className="text-lg">
                       DIY Patent Drafting
                     </CardTitle>
                   </CardHeader>
@@ -643,8 +639,7 @@ export default function StartupPatentGuidePage() {
 
                 <Card className="border-l-4 border-l-red-600">
                   <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <AlertCircle className="h-5 w-5 text-red-600" />
+                    <CardTitle className="text-lg">
                       Ignoring International Protection
                     </CardTitle>
                   </CardHeader>

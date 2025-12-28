@@ -1796,7 +1796,7 @@ useEffect(() => {
 const patentServices = [
     {
       title: "Patentability Search",
-      description: "A patentability (novelty) search identifies whether your invention meets patent criteria—novelty, utility, and non-obviousness. It reviews prior patents, applications, and publications that could affect protection. Our experts conduct detailed analysis, prepare clear reports, and guide you through the process to strengthen your innovation and maximize its protection potential.",
+      description: "A patentability (novelty) search identifies whether your invention meets patent criteria - novelty, utility, and non-obviousness. It reviews prior patents, applications, and publications that could affect protection. Our experts conduct detailed analysis, prepare clear reports, and guide you through the process to strengthen your innovation and maximize its protection potential.",
       icon: <Scale className="h-8 w-8 text-blue-600" />,
     },
     {
@@ -1806,7 +1806,7 @@ const patentServices = [
     },
     {
       title: "Patent Application Filing",
-      description: "Patent filing is the formal step toward securing protection for your invention. We handle documentation, jurisdiction-specific requirements, and complete submission to patent offices. Our team ensures accuracy, compliance, and timely filing—streamlining your path from application to patent grant with minimal hassle.",
+      description: "Patent filing is the formal step toward securing protection for your invention. We handle documentation, jurisdiction-specific requirements, and complete submission to patent offices. Our team ensures accuracy, compliance, and timely filing - streamlining your path from application to patent grant with minimal hassle.",
       icon: <Award className="h-8 w-8 text-blue-600" />,
     },
     {
@@ -1820,43 +1820,43 @@ const patentServices = [
     {
       title: "Trademark Search",
       description: "A trademark search is essential before filing to ensure your mark is unique and available for registration. We conduct comprehensive searches across trademark databases, business registries, and common law sources to identify potential conflicts. Our detailed reports help you assess registration prospects, minimize objections, and make informed branding decisions with confidence.",
-      icon: <Scale className="h-8 w-8 text-green-600" />,
+      icon: <Scale className="h-8 w-8 text-blue-600" />,
       price: 500,
     },
     {
       title: "Trademark Filing",
       description: "Trademark filing establishes your legal claim to a brand name, logo, or slogan. We prepare and submit applications with accurate classifications, complete documentation, and strategic descriptions. Our team ensures compliance with trademark office requirements, optimizes your application for approval, and manages the entire filing process smoothly from start to finish.",
-      icon: <Shield className="h-8 w-8 text-green-600" />,
+      icon: <Shield className="h-8 w-8 text-blue-600" />,
       price: 3000,
     },
     {
       title: "Response To Examination Report",
       description: "The examination report outlines objections raised by the trademark examiner. Our experts analyze each objection, prepare persuasive legal arguments, and submit comprehensive responses with supporting evidence. We address concerns regarding similarity, descriptiveness, or documentation to overcome objections and advance your application toward successful registration.",
-      icon: <FileText className="h-8 w-8 text-green-600" />,
+      icon: <FileText className="h-8 w-8 text-blue-600" />,
       price: 4000,
     },
     {
       title: "Post Examination Hearing",
       description: "When written responses aren't sufficient, a post-examination hearing provides an opportunity to present your case directly to the trademark office. Our attorneys represent you at hearings, present compelling arguments, clarify misunderstandings, and negotiate solutions. We ensure your interests are strongly advocated throughout the hearing process.",
-      icon: <Briefcase className="h-8 w-8 text-green-600" />,
+      icon: <Briefcase className="h-8 w-8 text-blue-600" />,
       price: 3000,
     },
     {
       title: "Opposition",
       description: "Trademark opposition allows you to challenge applications that may infringe on your rights or cause market confusion. We file detailed oppositions with legal grounds, evidence, and strong arguments. Our team protects your brand by preventing conflicting registrations and safeguarding your market position through strategic opposition proceedings.",
-      icon: <AlertCircle className="h-8 w-8 text-green-600" />,
+      icon: <AlertCircle className="h-8 w-8 text-blue-600" />,
       price: 2700,
     },
     {
       title: "Opposition Hearing",
       description: "Opposition hearings require skilled representation to defend or challenge trademark applications. Our experienced attorneys present evidence, cross-examine witnesses, and deliver persuasive legal arguments before trademark boards. We prepare thoroughly to maximize your chances of a favorable outcome and protect your trademark interests effectively.",
-      icon: <Users className="h-8 w-8 text-green-600" />,
+      icon: <Users className="h-8 w-8 text-blue-600" />,
       price: 4000,
     },
     {
       title: "Renewal of Registration",
       description: "Trademark renewal maintains your registration and ongoing protection. We track renewal deadlines, prepare required documentation, and ensure timely submissions to prevent lapses in coverage. Our proactive renewal management keeps your trademark rights active, avoiding costly re-filing and maintaining your brand's legal protection without interruption.",
-      icon: <Clock className="h-8 w-8 text-green-600" />,
+      icon: <Clock className="h-8 w-8 text-blue-600" />,
       price: 11500,
     },
   ]
@@ -1865,19 +1865,19 @@ const patentServices = [
     {
       title: "Copyright Filing",
       description: "Professional copyright registration for literary, dramatic, musical, artistic works, films, and sound recordings",
-      icon: <Copyright className="h-8 w-8 text-purple-600" />,
+      icon: <Copyright className="h-8 w-8 text-blue-600" />,
       price: 7500,
     },
     {
       title: "Response to Copyright Discrepancy Letter",
       description: "Expert responses to copyright discrepancy letters for all work types",
-      icon: <Shield className="h-8 w-8 text-purple-600" />,
+      icon: <Shield className="h-8 w-8 text-blue-600" />,
       price: 3000,
     },
     {
       title: "NOC Response",
       description: "No Objection Certificate response for artistic copyright works",
-      icon: <Award className="h-8 w-8 text-purple-600" />,
+      icon: <Award className="h-8 w-8 text-blue-600" />,
       price: 10000,
     },
   ]
@@ -1886,25 +1886,25 @@ const patentServices = [
     {
       title: "Design Filing",
       description: "Complete design registration filing to protect your unique product designs and visual elements. We handle applications, documentation, and compliance for individual applicants, startups, MSMEs, and large entities.",
-      icon: <Palette className="h-8 w-8 text-orange-600" />,
+      icon: <Palette className="h-8 w-8 text-blue-600" />,
       price: 11000,
     },
     {
       title: "Response to FER",
       description: "Expert responses to First Examination Reports for design applications. We address examiner objections with technical precision, preparing detailed clarifications to guide your application toward successful registration.",
-      icon: <FileText className="h-8 w-8 text-orange-600" />,
+      icon: <FileText className="h-8 w-8 text-blue-600" />,
       price: 5000,
     },
     {
       title: "Hearing",
       description: "Professional representation at design application hearings. Our attorneys present evidence and deliver persuasive arguments before registration boards to protect your design rights effectively.",
-      icon: <Users className="h-8 w-8 text-orange-600" />,
+      icon: <Users className="h-8 w-8 text-blue-600" />,
       price: 5000,
     },
     {
       title: "Cancellation",
       description: "Strategic design cancellation proceedings to challenge or defend registrations. We file detailed petitions with legal grounds and evidence, protecting your market position and design rights.",
-      icon: <XCircle className="h-8 w-8 text-orange-600" />,
+      icon: <XCircle className="h-8 w-8 text-blue-600" />,
       price: 16500,
     },
   ]
@@ -4997,7 +4997,7 @@ if (showQuotePage) {
 
 
           {/* Trademark Services */}
-          <section id="trademark-services" className="bg-green-50 py-6 md:py-8 rounded-lg mt-6 md:mt-8 scroll-mt-24">
+          <section id="trademark-services" className="bg-blue-50 py-6 md:py-8 rounded-lg mt-6 md:mt-8 scroll-mt-24">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
                 <h2 className="text-2xl md:text-4xl font-bold text-gray-900">Trademark Services</h2>
@@ -5008,8 +5008,8 @@ if (showQuotePage) {
                   <Card key={service.title} className="bg-white hover:shadow-lg transition-shadow">
                     <CardContent className="p-5 md:p-7">
                       <div className="flex items-start gap-3 justify-between">
-                        <div className="p-2 md:p-3 bg-green-100 rounded-full">
-                          <span className="inline-flex items-center justify-center h-6 w-6 md:h-8 md:w-8 text-green-600">{service.icon}</span>
+                        <div className="p-2 md:p-3 bg-blue-100 rounded-full">
+                          <span className="inline-flex items-center justify-center h-6 w-6 md:h-8 md:w-8 text-blue-600">{service.icon}</span>
                         </div>
                         <h3 className="text-lg md:text-xl font-semibold text-gray-900">{service.title}</h3>
                       </div>
@@ -5017,10 +5017,10 @@ if (showQuotePage) {
                         {service.description}
                       </p>
                       <div className="flex items-center justify-between mt-3 md:mt-4">
-                        <span className="text-xl md:text-2xl font-bold text-green-600">
+                        <span className="text-xl md:text-2xl font-bold text-blue-600">
                           {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(service.price)}
                         </span>
-                        <Button onClick={() => openOptionsForService(service.title, 'Trademark')} size="sm" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Select</Button>
+                        <Button onClick={() => openOptionsForService(service.title, 'Trademark')} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Select</Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -5036,7 +5036,7 @@ if (showQuotePage) {
           </section>
 
           {/* Design Services (moved above Copyright) */}
-          <section id="design-services" className="bg-orange-50 py-6 md:py-8 rounded-lg mt-6 md:mt-8 scroll-mt-24">
+          <section id="design-services" className="bg-blue-50 py-6 md:py-8 rounded-lg mt-6 md:mt-8 scroll-mt-24">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
                 <h2 className="text-2xl md:text-4xl font-bold text-gray-900">Design Services</h2>
@@ -5047,17 +5047,17 @@ if (showQuotePage) {
                   <Card key={service.title} className="bg-white hover:shadow-lg transition-shadow">
                     <CardContent className="p-5 md:p-7">
                       <div className="flex items-start gap-3 justify-between">
-                        <div className="p-2 md:p-3 bg-orange-100 rounded-full">
+                        <div className="p-2 md:p-3 bg-blue-100 rounded-full">
                           {service.icon}
                         </div>
                       </div>
                       <h3 className="text-lg md:text-xl font-semibold text-gray-900 mt-4">{service.title}</h3>
                       <p className="text-sm md:text-base text-gray-600 mt-2 leading-relaxed">{service.description}</p>
                       <div className="flex items-center justify-between mt-4 md:mt-6 pt-4 border-t">
-                        <span className="text-xl md:text-2xl font-bold text-orange-600">
+                        <span className="text-xl md:text-2xl font-bold text-blue-600">
                           {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(service.price)}
                         </span>
-                        <Button onClick={() => openOptionsForService(service.title, 'Design')} size="sm" className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded">Select</Button>
+                        <Button onClick={() => openOptionsForService(service.title, 'Design')} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Select</Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -5067,7 +5067,7 @@ if (showQuotePage) {
           </section>
 
           {/* Copyright Services (moved to last) */}
-          <section id="copyright-services" className="bg-purple-50 py-6 md:py-8 rounded-lg mt-6 md:mt-8 scroll-mt-24">
+          <section id="copyright-services" className="bg-blue-50 py-6 md:py-8 rounded-lg mt-6 md:mt-8 scroll-mt-24">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="mb-8">
                 <h2 className="text-2xl md:text-4xl font-bold text-gray-900">Copyright Services</h2>
@@ -5078,8 +5078,8 @@ if (showQuotePage) {
                   <Card key={service.title} className="bg-white hover:shadow-lg transition-shadow">
                     <CardContent className="p-5 md:p-7">
                       <div className="flex items-start gap-3 justify-between">
-                        <div className="p-2 md:p-3 bg-purple-100 rounded-full">
-                          <span className="inline-flex items-center justify-center h-6 w-6 md:h-8 md:w-8 text-purple-600">{service.icon}</span>
+                        <div className="p-2 md:p-3 bg-blue-100 rounded-full">
+                          <span className="inline-flex items-center justify-center h-6 w-6 md:h-8 md:w-8 text-blue-600">{service.icon}</span>
                         </div>
                         <h3 className="text-lg md:text-xl font-semibold text-gray-900">{service.title}</h3>
                       </div>
@@ -5087,10 +5087,10 @@ if (showQuotePage) {
                         {service.description} Our team provides comprehensive support for copyright registration, discrepancy resolution, and NOC preparation to ensure your creative works are fully protected.
                       </p>
                       <div className="flex items-center justify-between mt-3 md:mt-4">
-                        <span className="text-xl md:text-2xl font-bold text-purple-600">
+                        <span className="text-xl md:text-2xl font-bold text-blue-600">
                           {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(service.price)}
                         </span>
-                        <Button onClick={() => openOptionsForService(service.title, 'Copyright')} size="sm" className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">Select</Button>
+                        <Button onClick={() => openOptionsForService(service.title, 'Copyright')} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Select</Button>
                       </div>
                     </CardContent>
                   </Card>
