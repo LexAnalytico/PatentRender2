@@ -1,0 +1,141 @@
+IMPORTANT CONTEXT (READ CAREFULLY):
+This is a production Next.js website deployed on Vercel.
+All changes will be pushed to Git and auto-deployed.
+This task is strictly for SEO internal linking improvements.
+
+🚨 CRITICAL RULE — DO NOT TOUCH SLUGS 🚨
+- DO NOT rename, modify, or restructure ANY existing URLs or routes.
+- DO NOT change page slugs, folder names, or dynamic routes.
+- DO NOT introduce redirects.
+- DO NOT suggest “better” URL names.
+- ALL internal links MUST use the existing, current slugs exactly as they are.
+
+Changing slugs will harm SEO and is NOT allowed.
+
+------------------------------------
+
+TASK:
+Implement a clear, consistent INTERNAL LINKING STRATEGY across https://www.ipprotectionindia.com to improve SEO and topical authority.
+
+DO NOT:
+- Change existing URLs or slugs (ABSOLUTELY NO SLUG CHANGES)
+- Remove or rewrite existing content
+- Break layout, styling, or components
+- Introduce new pages or routes
+- Add nofollow to internal links
+
+DO:
+1. On EVERY service page:
+- Add contextual internal links to:
+a) At least 2 other RELATED service pages
+b) At least 1–2 relevant blog articles (if available)
+- Links must be embedded naturally inside paragraph content.
+
+2. On EVERY blog article:
+- Add at least 2 contextual internal links pointing to relevant service pages.
+- Add at least 1 internal link to another related blog article.
+
+3. Anchor text rules:
+- Use descriptive, keyword-rich anchor text.
+- Avoid generic anchors like "click here", "read more", or "learn more".
+- Example GOOD anchor text:
+- "online patent filing services in India"
+- "patentability search services"
+- "freedom to operate (FTO) analysis"
+
+4. Placement rules:
+- Place links within body content (not footer-only).
+- Prefer linking inside:
+- Service explanation sections
+- Process / workflow sections
+- FAQ answers
+- Limit internal links to a maximum of 3–5 per page.
+
+5. Technical implementation:
+- Use Next.js <Link> component for ALL internal links.
+- Ensure links are crawlable (standard href, no JS-only handlers).
+- Preserve all existing SEO metadata (titles, meta descriptions, schema).
+
+6. Quality checks before finalizing:
+- Ensure NO broken links.
+- Ensure links are contextually relevant.
+- Avoid repetitive anchor text across the same page.
+- Avoid circular linking spam.
+
+GOAL:
+Create a clean internal linking structure where:
+- Blog content supports service pages
+- Service pages reference each other logically
+- Google can clearly understand topical relationships
+- SEO authority flows naturally across the site
+
+IMPORTANT CONTEXT (READ CAREFULLY):
+This is a production Next.js website deployed on Vercel.
+All changes will be pushed to Git and auto-deployed.
+This task is strictly for SEO internal linking improvements.
+
+🚨 CRITICAL RULE — DO NOT TOUCH SLUGS 🚨
+- DO NOT rename, modify, or restructure ANY existing URLs or routes.
+- DO NOT change page slugs, folder names, or dynamic routes.
+- DO NOT introduce redirects.
+- DO NOT suggest “better” URL names.
+- ALL internal links MUST use the existing, current slugs exactly as they are.
+
+Changing slugs will harm SEO and is NOT allowed.
+
+------------------------------------
+
+TASK:
+Implement a clear, consistent INTERNAL LINKING STRATEGY across https://www.ipprotectionindia.com to improve SEO and topical authority.
+
+DO NOT:
+- Change existing URLs or slugs (ABSOLUTELY NO SLUG CHANGES)
+- Remove or rewrite existing content
+- Break layout, styling, or components
+- Introduce new pages or routes
+- Add nofollow to internal links
+
+DO:
+1. On EVERY service page:
+- Add contextual internal links to:
+a) At least 2 other RELATED service pages
+b) At least 1–2 relevant blog articles (if available)
+- Links must be embedded naturally inside paragraph content.
+
+2. On EVERY blog article:
+- Add at least 2 contextual internal links pointing to relevant service pages.
+- Add at least 1 internal link to another related blog article.
+
+3. Anchor text rules:
+- Use descriptive, keyword-rich anchor text.
+- Avoid generic anchors like "click here", "read more", or "learn more".
+- Example GOOD anchor text:
+- "online patent filing services in India"
+- "patentability search services"
+- "freedom to operate (FTO) analysis"
+
+4. Placement rules:
+- Place links within body content (not footer-only).
+- Prefer linking inside:
+- Service explanation sections
+- Process / workflow sections
+- FAQ answers
+- Limit internal links to a maximum of 3–5 per page.
+
+5. Technical implementation:
+- Use Next.js <Link> component for ALL internal links.
+- Ensure links are crawlable (standard href, no JS-only handlers).
+- Preserve all existing SEO metadata (titles, meta descriptions, schema).
+
+6. Quality checks before finalizing:
+- Ensure NO broken links.
+- Ensure links are contextually relevant.
+- Avoid repetitive anchor text across the same page.
+- Avoid circular linking spam.
+
+GOAL:
+Create a clean internal linking structure where:
+- Blog content supports service pages
+- Service pages reference each other logically
+- Google can clearly understand topical relationships
+- SEO authority flows naturally across the site

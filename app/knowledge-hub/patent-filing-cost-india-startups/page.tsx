@@ -123,7 +123,7 @@ export default function PatentCostGuidePage() {
                   </div>
                 </div>
                 <p className="text-sm text-gray-600 mt-4 text-center">
-                  *Includes government fees + professional services for DPIIT-recognized startups
+                    *Includes government fees + professional services for DPIIT-recognized startups. Ensure your invention meets <Link href="/knowledge-hub/what-can-be-patented-in-india" className="text-blue-600 hover:text-blue-700 font-medium">patentability requirements</Link> before filing.
                 </p>
               </CardContent>
             </Card>
@@ -136,7 +136,7 @@ export default function PatentCostGuidePage() {
               </h2>
               
               <p className="text-gray-700 mb-6">
-                The Indian Patent Office categorizes applicants into three types with different fee structures. Startups recognized by DPIIT enjoy 80% fee reduction.
+                The Indian Patent Office categorizes applicants into three types with different fee structures. Startups recognized by DPIIT enjoy 80% fee reduction. To understand the complete process, read our guide on <Link href="/knowledge-hub/how-to-file-patent-india-2025" className="text-blue-600 hover:text-blue-700 font-medium">how to file a patent in India</Link>.
               </p>
 
               <div className="overflow-x-auto mb-6">
@@ -213,7 +213,7 @@ export default function PatentCostGuidePage() {
               </h2>
               
               <p className="text-gray-700 mb-6">
-                Patent attorney fees constitute the major cost component. Professional services include patentability search, drafting, filing, and prosecution (responding to examination reports).
+                Patent attorney fees constitute the major cost component. Professional services include patentability search, drafting, filing, and prosecution (responding to examination reports). For comprehensive support, explore our <Link href="/services/patent-filing" className="text-blue-600 hover:text-blue-700 font-medium">patent filing services in India</Link>.
               </p>
 
               <div className="space-y-4 mb-6">
@@ -315,7 +315,7 @@ export default function PatentCostGuidePage() {
               </h2>
 
               <p className="text-gray-700 mb-6">
-                Startups recognized by DPIIT (Department for Promotion of Industry and Internal Trade) under the Startup India initiative can significantly reduce patent costs through the SIPP (Startups Intellectual Property Protection) scheme.
+                Startups recognized by DPIIT (Department for Promotion of Industry and Internal Trade) under the Startup India initiative can significantly reduce patent costs through the SIPP (Startups Intellectual Property Protection) scheme. Learn more in our <Link href="/knowledge-hub/startup-patent-filing-guide-india" className="text-blue-600 hover:text-blue-700 font-medium">complete startup patent filing guide</Link>.
               </p>
 
               <div className="grid md:grid-cols-2 gap-6 mb-6">

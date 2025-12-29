@@ -81,7 +81,7 @@ export default function StartupPatentGuidePage() {
               Complete Patent Filing Guide for Indian Startups 2025
             </h1>
             <p className="text-xl text-gray-600 mb-6">
-              Strategic patent filing guide for Indian startups and founders. Learn SIPP benefits, cost optimization, provisional patents, investor requirements, and expert advice from patent attorneys in Bangalore.
+              Strategic patent filing guide for Indian startups and founders. Learn SIPP benefits, cost optimization, provisional patents, investor requirements, and expert advice from <Link href="/services/patent-filing" className="text-blue-600 hover:text-blue-700 font-medium">professional patent attorneys</Link> in Bangalore.
             </p>
 
             <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg p-6 mb-12">
@@ -126,6 +126,7 @@ export default function StartupPatentGuidePage() {
                         <li>• Establishes priority date with minimal cost</li>
                         <li>• Buys 12 months to refine invention & raise funds</li>
                         <li>• No examination required yet</li>
+                        <li>• Ensure your invention meets <Link href="/knowledge-hub/what-can-be-patented-in-india" className="text-blue-600 hover:text-blue-700 font-medium">patentability criteria</Link></li>
                       </ul>
                     </div>
 
@@ -258,7 +259,7 @@ export default function StartupPatentGuidePage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-700 mb-4">
-                    A provisional patent is a <strong>temporary 12-month filing</strong> that establishes your priority date without requiring a complete patent specification.
+                    A provisional patent is a <strong>temporary 12-month filing</strong> that establishes your priority date without requiring a complete patent specification. Learn the complete process in our <Link href="/knowledge-hub/how-to-file-patent-india-2025" className="text-blue-600 hover:text-blue-700 font-medium">step-by-step patent filing guide</Link>.
                   </p>
 
                   <div className="grid md:grid-cols-2 gap-4">
@@ -344,6 +345,9 @@ export default function StartupPatentGuidePage() {
                   <CardTitle>Patent Costs with SIPP Benefits</CardTitle>
                 </CardHeader>
                 <CardContent>
+                  <p className="text-sm text-gray-700 mb-3">
+                    For a complete breakdown of all fees and charges, see our detailed guide on <Link href="/knowledge-hub/patent-filing-cost-india-startups" className="text-blue-600 hover:text-blue-700 font-medium">patent filing costs in India for startups</Link>.
+                  </p>
                   <table className="w-full text-sm">
                     <thead className="bg-gray-100">
                       <tr>

@@ -181,7 +181,7 @@ export default function PatentFilingGuidePage() {
                 A patent is an exclusive right granted by the Government of India to an inventor for their invention. It provides protection for 20 years from the date of filing, preventing others from making, using, selling, or importing your invention without permission.
               </p>
               <p className="text-gray-700 mb-4 leading-relaxed">
-                In India, patents are governed by the Patents Act, 1970, and are administered by the Indian Patent Office (IPO) under the Controller General of Patents, Designs, and Trademarks. The system follows the "first to file" principle, meaning the first person to file an application gets the priority.
+                In India, patents are governed by the Patents Act, 1970, and are administered by the Indian Patent Office (IPO) under the Controller General of Patents, Designs, and Trademarks. The system follows the "first to file" principle, meaning the first person to file an application gets the priority. If you need professional assistance, our <Link href="/services/patent-filing" className="text-blue-600 hover:text-blue-700 font-medium">patent filing services in India</Link> provide comprehensive support from search to grant.
               </p>
               <Card className="my-6 bg-blue-50 border-blue-200">
                 <CardContent className="pt-6">
@@ -247,7 +247,7 @@ export default function PatentFilingGuidePage() {
 
               <h3 className="text-2xl font-bold text-gray-900 mb-3 mt-8">What Cannot Be Patented?</h3>
               <p className="text-gray-700 mb-4">
-                Under Section 3 and Section 4 of the Patents Act, the following are NOT patentable in India:
+                Under Section 3 and Section 4 of the Patents Act, the following are NOT patentable in India. For detailed examples and analysis, read our comprehensive guide on <Link href="/knowledge-hub/what-can-be-patented-in-india" className="text-blue-600 hover:text-blue-700 font-medium">what can and cannot be patented in India</Link>:
               </p>
               <ul className="list-disc pl-6 space-y-2 text-gray-700 mb-6">
                 <li>Frivolous inventions or those contrary to natural laws</li>
@@ -322,7 +322,7 @@ export default function PatentFilingGuidePage() {
                     <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-4">
                       <p className="text-sm text-yellow-900">
                         <span className="text-lg font-bold mr-2">*</span>
-                        <strong>Important:</strong> Claims define your patent scope. Poorly drafted claims = weak protection. Always hire an experienced patent attorney for drafting.
+                        <strong>Important:</strong> Claims define your patent scope. Poorly drafted claims = weak protection. Always hire an experienced patent attorney for drafting. Check our guide on <Link href="/knowledge-hub/patent-filing-cost-india-startups" className="text-blue-600 hover:text-blue-700 font-medium">patent filing costs</Link> to understand the investment required.
                       </p>
                     </div>
                   </CardContent>
@@ -394,7 +394,7 @@ export default function PatentFilingGuidePage() {
                       File Request for Examination (RFE) using Form 18 within 48 months from priority date. Without RFE, your application will be considered withdrawn.
                     </p>
                     <p className="text-sm text-gray-600">
-                      <strong>Processing Time:</strong> After RFE, examination typically takes 1-2 years. Startups can opt for expedited examination (within 6 months).
+                      <strong>Processing Time:</strong> After RFE, examination typically takes 1-2 years. Startups can opt for expedited examination (within 6 months). Learn more about <Link href="/knowledge-hub/startup-patent-filing-guide-india" className="text-blue-600 hover:text-blue-700 font-medium">patent strategies for Indian startups</Link>.
                     </p>
                   </CardContent>
                 </Card>

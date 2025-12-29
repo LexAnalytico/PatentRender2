@@ -68,10 +68,10 @@ export default function TrademarkBangalorePage() {
                 Why Register Your Trademark in Bangalore?
               </h2>
               <p className="text-gray-700 mb-4 leading-relaxed">
-                Bangalore, India's startup capital, is home to thousands of innovative brands. As a tech and business hub, trademark registration is crucial for startups and established businesses in Bellandur, Koramangala, Whitefield, and across Bengaluru.
+                Bangalore, India's startup capital, is home to thousands of innovative brands. As a tech and business hub, trademark registration is crucial for startups and established businesses in Bellandur, Koramangala, Whitefield, and across Bengaluru. If you also need to protect technical innovations, check out our <Link href="/services/patent-filing" className="text-blue-600 hover:text-blue-700 font-medium">patent filing services in India</Link>.
               </p>
               <p className="text-gray-700 mb-4">
-                Our trademark attorneys in Bellandur, Bangalore specialize in brand protection for tech startups, e-commerce businesses, and service providers across Karnataka and India.
+                Our trademark attorneys in Bellandur, Bangalore specialize in brand protection for tech startups, e-commerce businesses, and service providers across Karnataka and India. Not sure if you need a trademark or patent? Read our guide on <Link href="/knowledge-hub/patent-vs-trademark-differences" className="text-blue-600 hover:text-blue-700 font-medium">patent vs trademark differences</Link>.
               </p>
 
               <div className="grid md:grid-cols-3 gap-4 my-6">
@@ -195,7 +195,7 @@ export default function TrademarkBangalorePage() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-gray-700 mb-3">
-                      If no opposition, registration certificate is issued. Valid for 10 years, renewable indefinitely.
+                    If no opposition, registration certificate is issued. Valid for 10 years, renewable indefinitely. For innovative trademark types, explore our article on <Link href="/knowledge-hub/smell-trademark-olfactory-mark-registration-india" className="text-blue-600 hover:text-blue-700 font-medium">smell trademark registration in India</Link>.
                     </p>
                     <p className="text-sm text-gray-600">
                       <strong>Total Time:</strong> 12-24 months from filing to registration

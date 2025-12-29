@@ -90,7 +90,7 @@ export default function WhatCanBePatentedPage() {
                 Three Requirements for Patentability in India
               </h2>
               <p className="text-gray-700 mb-6 leading-relaxed">
-                Under the Patents Act, 1970, an invention must satisfy three fundamental criteria to be eligible for patent protection in India:
+                Under the Patents Act, 1970, an invention must satisfy three fundamental criteria to be eligible for patent protection in India. Once you understand these requirements, you can proceed with our <Link href="/services/patent-filing" className="text-blue-600 hover:text-blue-700 font-medium">professional patent filing services</Link> to protect your innovation.
               </p>
 
               <div className="grid md:grid-cols-3 gap-6 mb-6">
@@ -348,7 +348,7 @@ export default function WhatCanBePatentedPage() {
                     <div className="bg-blue-50 border-l-4 border-blue-400 p-3 mt-3">
                       <p className="text-xs text-blue-900">
                         <Lightbulb className="h-3 w-3 inline mr-1" />
-                        <strong>Tip:</strong> If your software controls hardware, improves system performance, or solves a technical problem, it may be patentable. Consult a patent attorney in Bangalore for software patentability assessment.
+                        <strong>Tip:</strong> If your software controls hardware, improves system performance, or solves a technical problem, it may be patentable. Learn <Link href="/knowledge-hub/how-to-file-patent-india-2025" className="text-blue-600 hover:text-blue-700 font-medium">how to file a patent application in India</Link> for software inventions. Consult a patent attorney in Bangalore for software patentability assessment.
                       </p>
                     </div>
                   </CardContent>
@@ -652,7 +652,7 @@ export default function WhatCanBePatentedPage() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-gray-700 text-sm">
-                      Conduct a patentability search across global patent databases. If your exact invention or similar solutions exist, it may not be novel. Professional patent attorneys in Bangalore can conduct comprehensive novelty searches.
+                      Conduct a patentability search across global patent databases. If your exact invention or similar solutions exist, it may not be novel. Professional patent attorneys in Bangalore can conduct comprehensive novelty searches. Our <Link href="/knowledge-hub/startup-patent-filing-guide-india" className="text-blue-600 hover:text-blue-700 font-medium">startup patent filing guide</Link> provides cost-effective strategies for early-stage companies.
                     </p>
                   </CardContent>
                 </Card>

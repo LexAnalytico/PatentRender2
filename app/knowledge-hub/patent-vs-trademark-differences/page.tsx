@@ -124,7 +124,7 @@ export default function PatentVsTrademarkPage() {
             <section className="mb-12">
               <h2 className="text-3xl font-bold text-gray-900 mb-6">What is a Patent?</h2>
               <p className="text-gray-700 mb-4 leading-relaxed">
-                A patent protects <strong>inventions</strong> and <strong>technical innovations</strong>. It gives you exclusive rights to make, use, sell, or import your invention for 20 years. Patents protect the <strong>functional aspects</strong> of products or processes.
+                A patent protects <strong>inventions</strong> and <strong>technical innovations</strong>. It gives you exclusive rights to make, use, sell, or import your invention for 20 years. Patents protect the <strong>functional aspects</strong> of products or processes. Learn more about our <Link href="/services/patent-filing" className="text-blue-600 hover:text-blue-700 font-medium">patent filing services in India</Link>.
               </p>
 
               <div className="grid md:grid-cols-2 gap-4 mb-6">
@@ -170,7 +170,7 @@ export default function PatentVsTrademarkPage() {
               <Card className="bg-blue-50 border-blue-200">
                 <CardContent className="pt-6">
                   <p className="text-sm text-blue-900">
-                    <strong>Real Example:</strong> A company invents a new type of water purification filter. They can patent the filter design, purification process, and specific technical implementation. This prevents competitors from copying the technology.
+                    <strong>Real Example:</strong> A company invents a new type of water purification filter. They can patent the filter design, purification process, and specific technical implementation. This prevents competitors from copying the technology. For startups, check our <Link href="/knowledge-hub/startup-patent-filing-guide-india" className="text-blue-600 hover:text-blue-700 font-medium">startup patent filing guide</Link> for cost-saving strategies.
                   </p>
                 </CardContent>
               </Card>
@@ -179,7 +179,7 @@ export default function PatentVsTrademarkPage() {
             <section className="mb-12">
               <h2 className="text-3xl font-bold text-gray-900 mb-6">What is a Trademark?</h2>
               <p className="text-gray-700 mb-4 leading-relaxed">
-                A trademark protects <strong>brand identity</strong> - names, logos, slogans, colors, or sounds that distinguish your goods/services from competitors. It protects the <strong>commercial identity</strong>, not the product itself.
+                A trademark protects <strong>brand identity</strong> - names, logos, slogans, colors, or sounds that distinguish your goods/services from competitors. It protects the <strong>commercial identity</strong>, not the product itself. For trademark registration support, see our guide on <Link href="/knowledge-hub/trademark-registration-bangalore" className="text-blue-600 hover:text-blue-700 font-medium">trademark registration in Bangalore</Link>.
               </p>
 
               <div className="grid md:grid-cols-2 gap-4 mb-6">
@@ -275,6 +275,9 @@ export default function PatentVsTrademarkPage() {
                       <li>• Chemical formulation or compound</li>
                       <li>• Electronic circuit or hardware design</li>
                     </ul>
+                    <p className="text-xs text-gray-600 mt-3">
+                      Learn the complete process: <Link href="/knowledge-hub/how-to-file-patent-india-2025" className="text-blue-600 hover:text-blue-700 font-medium">How to file a patent in India</Link>
+                    </p>
                   </CardContent>
                 </Card>
               </div>

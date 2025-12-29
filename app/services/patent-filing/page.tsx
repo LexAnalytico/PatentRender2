@@ -146,7 +146,7 @@ export default function PatentFilingPage() {
               Patent Filing Services in India
             </h1>
             <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-              Protect your innovation with expert patent filing support. From patentability search to complete application filing, we guide you through every step of the patent process in India.
+              Protect your innovation with expert patent filing support. From patentability search to complete application filing, we guide you through <Link href="/knowledge-hub/how-to-file-patent-india-2025" className="text-blue-600 hover:text-blue-700 font-medium underline">every step of the patent process in India</Link>.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" className="bg-blue-600 hover:bg-blue-700" asChild>
@@ -216,7 +216,7 @@ export default function PatentFilingPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-600 mb-4">
-                    Before investing in a patent application, it's crucial to determine if your invention is truly novel. Our patentability search includes:
+                    Before investing in a patent application, it's crucial to determine if your invention meets the <Link href="/knowledge-hub/what-can-be-patented-in-india" className="text-blue-600 hover:text-blue-700 font-medium">patentability requirements in India</Link>. Our comprehensive patentability search includes:
                   </p>
                   <ul className="space-y-2 text-gray-600">
                     <li className="flex items-start gap-2">
@@ -439,7 +439,7 @@ export default function PatentFilingPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-600">
-                    Inventions that are novel, have an inventive step (non-obvious), and are capable of industrial application can be patented. This includes products, processes, machines, compositions, and improvements. Software, business methods, and algorithms alone cannot be patented, but technical applications may qualify.
+                    Inventions that are novel, have an inventive step (non-obvious), and are capable of industrial application can be patented. This includes products, processes, machines, compositions, and improvements. Learn more about <Link href="/knowledge-hub/what-can-be-patented-in-india" className="text-blue-600 hover:text-blue-700 font-medium">patentability criteria and requirements in India</Link>. Software, business methods, and algorithms alone cannot be patented, but technical applications may qualify.
                   </p>
                 </CardContent>
               </Card>
@@ -450,7 +450,7 @@ export default function PatentFilingPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-600">
-                    Official government fees range from ₹1,600 to ₹8,000 depending on applicant type (individual/startup vs large entity). Professional fees for search, drafting, and filing typically range from ₹50,000 to ₹1,50,000 depending on complexity. We offer competitive pricing with transparent quotations.
+                    Official government fees range from ₹1,600 to ₹8,000 depending on applicant type (individual/startup vs large entity). Professional fees for search, drafting, and filing typically range from ₹50,000 to ₹1,50,000 depending on complexity. For a detailed breakdown, see our complete guide on <Link href="/knowledge-hub/patent-filing-cost-india-startups" className="text-blue-600 hover:text-blue-700 font-medium">patent filing costs for Indian startups</Link>. We offer competitive pricing with transparent quotations.
                   </p>
                 </CardContent>
               </Card>
