@@ -5380,10 +5380,10 @@ if (showQuotePage) {
                         </div>
                       </div>
                     )}
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Total Price:</span>
-                        <span className="text-2xl font-bold text-green-600">
+                    <div className="rounded-md border p-3 bg-gray-50">
+                      <div className="flex items-center justify-between font-semibold">
+                        <span>Total</span>
+                        <span>
                           {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(
                             renewalClassType === 'single' ? 1500 : renewalClassCount * 1500
                           )}
@@ -5413,7 +5413,7 @@ if (showQuotePage) {
                         })
                         setShowRenewalModal(false)
                       }}
-                      className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-md transition-colors"
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md transition-colors"
                     >Add to Cart</button>
                   </div>
                 </div>
@@ -5532,7 +5532,7 @@ if (showQuotePage) {
                       setShowOppositionModal(false)
                       setOppositionTypes([])
                     }}
-                    className="bg-green-600 hover:bg-green-700 w-full"
+                    className="bg-blue-600 hover:bg-blue-700 w-full"
                     disabled={oppositionTypes.length === 0}
                   >
                     Add to Cart
@@ -5594,7 +5594,7 @@ if (showQuotePage) {
                       
                       setShowOppositionHearingModal(false)
                     }}
-                    className="bg-green-600 hover:bg-green-700 w-full"
+                    className="bg-blue-600 hover:bg-blue-700 w-full"
                   >
                     Add to Cart
                   </Button>
@@ -5649,7 +5649,7 @@ if (showQuotePage) {
                       
                       setShowPostExaminationHearingModal(false)
                     }}
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-blue-600 hover:bg-blue-700"
                   >
                     Add
                   </Button>
@@ -5712,7 +5712,7 @@ if (showQuotePage) {
                       
                       setShowResponseModal(false)
                     }}
-                    className="bg-green-600 hover:bg-green-700 w-full"
+                    className="bg-blue-600 hover:bg-blue-700 w-full"
                   >
                     Add to Cart
                   </Button>
@@ -5819,7 +5819,7 @@ if (showQuotePage) {
                       
                       setShowTrademarkFilingModal(false)
                     }}
-                    className="bg-green-600 hover:bg-green-700 w-full"
+                    className="bg-blue-600 hover:bg-blue-700 w-full"
                   >
                     Add to Cart
                   </Button>
@@ -5870,7 +5870,7 @@ if (showQuotePage) {
                 
                 <DialogFooter>
                   <Button
-                    className="bg-orange-600 hover:bg-orange-700"
+                    className="bg-blue-600 hover:bg-blue-700"
                     onClick={() => {
                       const professionalFee = 10000
                       const govFee = designFilingApplicantType === 'individual' ? 1000 : designFilingApplicantType === 'startup_msme' ? 2000 : 4000
@@ -5985,7 +5985,7 @@ if (showQuotePage) {
                       
                       setShowDesignCancellationModal(false)
                     }}
-                    className="bg-orange-600 hover:bg-orange-700"
+                    className="bg-blue-600 hover:bg-blue-700"
                   >
                     Add
                   </Button>
@@ -6041,7 +6041,7 @@ if (showQuotePage) {
                 
                 <DialogFooter>
                   <Button
-                    className="bg-purple-600 hover:bg-purple-700"
+                    className="bg-blue-600 hover:bg-blue-700"
                     onClick={() => {
                       const professionalFee = 7000
                       const govFee = copyrightWorkType === 'film' ? 5000 : copyrightWorkType === 'sound' ? 2000 : 500
@@ -6128,7 +6128,7 @@ if (showQuotePage) {
                 
                 <DialogFooter>
                   <Button
-                    className="bg-purple-600 hover:bg-purple-700"
+                    className="bg-blue-600 hover:bg-blue-700"
                     onClick={() => {
                       const workTypeMap = {
                         'literary': { label: 'Literary', serviceId: 22 },
@@ -6198,7 +6198,7 @@ if (showQuotePage) {
                 
                 <DialogFooter>
                   <Button
-                    className="bg-purple-600 hover:bg-purple-700"
+                    className="bg-blue-600 hover:bg-blue-700"
                     onClick={() => {
                       const newItem = {
                         id: `copyright-noc-${Date.now()}`,
@@ -6256,7 +6256,7 @@ if (showQuotePage) {
                 
                 <DialogFooter>
                   <Button
-                    className="bg-orange-600 hover:bg-orange-700"
+                    className="bg-blue-600 hover:bg-blue-700"
                     onClick={() => {
                       const newItem = {
                         id: `design-fer-${Date.now()}`,
@@ -6314,7 +6314,7 @@ if (showQuotePage) {
                 
                 <DialogFooter>
                   <Button
-                    className="bg-orange-600 hover:bg-orange-700"
+                    className="bg-blue-600 hover:bg-blue-700"
                     onClick={() => {
                       const newItem = {
                         id: `design-hearing-${Date.now()}`,
@@ -6416,7 +6416,7 @@ if (showQuotePage) {
                       
                       setShowTrademarkSearchModal(false)
                     }}
-                    className="bg-green-600 hover:bg-green-700 w-full"
+                    className="bg-blue-600 hover:bg-blue-700 w-full"
                   >
                     Add to Cart
                   </Button>

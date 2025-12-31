@@ -87,8 +87,8 @@ export default function PrivacyPolicyPage() {
       <header className="bg-white shadow-md p-4 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex items-center">
           <div className="flex items-center gap-2">
-            <Scale className="h-8 w-8 text-blue-600" />
-            <span className="text-2xl font-bold text-gray-900">LegalIP Pro</span>
+           {/* <Scale className="h-8 w-8 text-blue-600" />
+            <span className="text-2xl font-bold text-gray-900">LegalIP Pro</span>*/}
           </div>
         </div>
       </header>
@@ -107,9 +107,9 @@ export default function PrivacyPolicyPage() {
             in accordance with the highest standards of data protection.
           </p>
           <div className="mt-4">
-            <a href="/privacy/data-management" className="inline-block text-blue-200 hover:text-white underline">
+           {/*} <a href="/privacy/data-management" className="inline-block text-blue-200 hover:text-white underline">
               See what we do with collected data and when we delete it
-            </a>
+            </a>*/}
           </div>
           <div className="bg-blue-600/20 backdrop-blur-sm rounded-lg p-4 border border-blue-400/30 inline-block">
             <p className="text-blue-200 text-sm">
