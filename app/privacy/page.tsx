@@ -706,8 +706,8 @@ export default function PrivacyPolicyPage() {
                   <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                     <h3 className="font-semibold text-gray-900 mb-3">Mailing Address</h3>
                     <div className="text-gray-800 text-sm space-y-1">
-                      <p>LegalIP Pro</p>
-                      <p>Attn: Privacy Officer</p>
+                     {/*} <p>LegalIP Pro</p>
+                      <p>Attn: Privacy Officer</p>*/}
                       <p>8th Floor, A 10, Shilpitha Tech Park- iSprout, Devarabisanahalli Rd, Kariyammana Agrahara, Bellandur, Bengaluru, Karnataka 560103</p>
                     </div>
                   </div>

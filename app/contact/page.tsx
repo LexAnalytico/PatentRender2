@@ -7,8 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.example.com";
 
 export const metadata: Metadata = {
-  title: "Contact Patent Attorneys in Bangalore | Online IP Services India",
-  description: "Contact leading patent attorneys in Bangalore for online IP services. Expert patent filing, trademark registration, and IP consulting services in Bengaluru. Get free consultation from top IP law firm.",
+  title: "Contact IP Protection India | Online IP & Patent Filing Services",
+  description: "Contact IP Protection India for online patent filing, trademark registration & IP advisory services across India. Speak to an IP expert today.",
   keywords: [
     "patent attorneys bangalore",
     "patent filing bangalore",
@@ -81,10 +81,10 @@ export default function ContactPage() {
         <section className="container mx-auto px-4 py-16">
           <div className="max-w-4xl mx-auto text-center">
             <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-              Contact Leading Patent Attorneys in Bangalore
+              Contact IP Protection India – Online Intellectual Property Services
             </h1>
             <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-              Looking for expert patent attorneys in Bangalore or online IP services? We're here to help with patent filing, trademark registration, and comprehensive IP consulting across India. Reach out for a free consultation.
+              Contact IP Protection India for online patent, trademark, copyright, and intellectual property services across India. We assist startups, businesses, and innovators with end-to-end IP protection, filing, and advisory services through a fully digital process. Our team ensures timely support, transparent communication, and compliance with applicable IP laws.
             </p>
             <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-600">
               <span className="bg-blue-50 px-4 py-2 rounded-full">✓ Patent Filing Bangalore</span>
@@ -92,6 +92,52 @@ export default function ContactPage() {
               <span className="bg-blue-50 px-4 py-2 rounded-full">✓ Trademark Registration</span>
               <span className="bg-blue-50 px-4 py-2 rounded-full">✓ IP Law Firm Bengaluru</span>
             </div>
+          </div>
+        </section>
+
+        {/* When to Contact Section */}
+        <section className="container mx-auto px-4 py-8">
+          <div className="max-w-4xl mx-auto">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">When Should You Contact IP Protection India?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-3 text-gray-700 mb-6">
+                  <li className="flex items-start">
+                    <span className="text-blue-600 mr-2 mt-1">•</span>
+                    <span>To file a patent or trademark online</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-blue-600 mr-2 mt-1">•</span>
+                    <span>To conduct a patentability or freedom-to-operate (FTO) search</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-blue-600 mr-2 mt-1">•</span>
+                    <span>To protect software, designs, or creative works</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-blue-600 mr-2 mt-1">•</span>
+                    <span>To get cost estimates for IP filing in India</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-blue-600 mr-2 mt-1">•</span>
+                    <span>To consult an IP expert before filing</span>
+                  </li>
+                </ul>
+                <p className="text-gray-600">
+                  If you are looking for specific services, you may explore our{" "}
+                  <Link href="/services/patent-filing" className="text-blue-600 hover:text-blue-700 font-medium underline">
+                    Online Patent Filing Services
+                  </Link>
+                  , patentability search, or{" "}
+                  <Link href="/#trademark-services" className="text-blue-600 hover:text-blue-700 font-medium underline">
+                    Trademark Registration Services
+                  </Link>
+                  {" "}pages for detailed information.
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </section>
 
@@ -217,6 +263,11 @@ export default function ContactPage() {
         {/* Map Section - Placeholder */}
         <section className="container mx-auto px-4 py-8">
           <div className="max-w-6xl mx-auto">
+            <div className="text-center mb-6">
+              <p className="text-gray-600">
+                We serve clients across India through online consultations, with operational support from our offices in Bangalore and other locations.
+              </p>
+            </div>
             <Card>
               <CardHeader>
                 <CardTitle>Find Our IP Law Firm in Bangalore</CardTitle>
@@ -314,6 +365,35 @@ export default function ContactPage() {
                 </CardContent>
               </Card>
             </div>
+          </div>
+        </section>
+
+        {/* FAQ Section */}
+        <section className="container mx-auto px-4 py-16">
+          <div className="max-w-4xl mx-auto">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">Frequently Asked Questions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-2">
+                    Can I file a patent online through IP Protection India?
+                  </h3>
+                  <p className="text-gray-600">
+                    Yes, we provide end-to-end online patent filing services in India, including consultation, drafting, and filing.
+                  </p>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 mb-2">
+                    Do you provide services across India?
+                  </h3>
+                  <p className="text-gray-600">
+                    Yes, our services are delivered online, allowing us to assist clients across India regardless of location.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </section>
 

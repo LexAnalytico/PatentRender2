@@ -1,0 +1,132 @@
+IMPORTANT CONTEXT (READ FIRST):
+
+This is a production website built with React + Next.js and deployed on Vercel.
+All changes will be pushed to Git and auto-deployed.
+This task is ONLY for improving SEO content on the /contact page.
+DO NOT change routing, slugs, components, or layout structure.
+
+🚨 CRITICAL RULES 🚨
+- DO NOT change the URL or route (/contact must remain unchanged)
+- DO NOT rename files or folders
+- DO NOT break existing layout, styling, or form functionality
+- DO NOT add new pages
+- DO NOT add heavy content or long paragraphs
+- DO NOT keyword stuff
+
+------------------------------------
+
+TASK:
+Improve the SEO content of the /contact page to strengthen:
+1) Service relevance
+2) Online IP services intent
+3) Internal linking to core service pages
+4) Trust and clarity for users
+
+------------------------------------
+
+IMPLEMENT THE FOLLOWING CHANGES EXACTLY:
+
+1) H1 UPDATE
+If the page currently uses a generic H1 like "Contact Us",
+replace it with:
+
+"Contact IP Protection India – Online Intellectual Property Services"
+
+(Ensure there is only ONE H1 on the page.)
+
+------------------------------------
+
+2) INTRO PARAGRAPH (PLACE DIRECTLY BELOW H1)
+
+Replace any existing generic intro text with a concise 60–80 word paragraph that:
+- Mentions online delivery
+- Mentions core IP services
+- Mentions pan-India availability
+- Sounds professional and neutral
+
+Suggested content (can be lightly adapted but keep intent):
+
+"Contact IP Protection India for online patent, trademark, copyright, and intellectual property services across India. We assist startups, businesses, and innovators with end-to-end IP protection, filing, and advisory services through a fully digital process. Our team ensures timely support, transparent communication, and compliance with applicable IP laws."
+
+------------------------------------
+
+3) ADD A QUALIFYING SECTION ABOVE THE CONTACT FORM
+
+Insert a new section ABOVE the form with:
+
+H2:
+"When Should You Contact IP Protection India?"
+
+Content (use a clean bullet list):
+
+* To file a patent or trademark online  
+* To conduct a patentability or freedom-to-operate (FTO) search  
+* To protect software, designs, or creative works  
+* To get cost estimates for IP filing in India  
+* To consult an IP expert before filing  
+
+------------------------------------
+
+4) INTERNAL LINKING (VERY IMPORTANT)
+
+Below the bullet list, add a short paragraph with INTERNAL LINKS to key service pages.
+
+Rules:
+- Use Next.js <Link> component
+- Use descriptive anchor text
+- Link ONLY to core service pages
+- Do NOT add nofollow
+
+Example sentence structure (adapt links to existing routes):
+
+"If you are looking for specific services, you may explore our Online Patent Filing Services, Patentability Search, or Trademark Registration Services pages for detailed information."
+
+------------------------------------
+
+5) LOCATION CONTEXT (LIGHT TOUCH)
+
+Before the address / map section, add ONE short line:
+
+"We serve clients across India through online consultations, with operational support from our offices in Bangalore and other locations."
+
+Do NOT add city keyword stuffing.
+
+------------------------------------
+
+6) OPTIONAL FAQ (ONLY 2–3 QUESTIONS MAX)
+
+If space allows without clutter, add a small FAQ section near the bottom:
+
+H2: "Frequently Asked Questions"
+
+Q1: Can I file a patent online through IP Protection India?  
+A: Yes, we provide end-to-end online patent filing services in India, including consultation, drafting, and filing.
+
+Q2: Do you provide services across India?  
+A: Yes, our services are delivered online, allowing us to assist clients across India regardless of location.
+
+------------------------------------
+
+7) META DATA (IF MANAGED IN CODE)
+
+If meta title and description are defined in this page component, update to:
+
+Meta Title:
+"Contact IP Protection India | Online IP & Patent Filing Services"
+
+Meta Description:
+"Contact IP Protection India for online patent filing, trademark registration & IP advisory services across India. Speak to an IP expert today."
+
+------------------------------------
+
+FINAL CHECKS BEFORE COMMIT:
+- No route or slug changes
+- No layout breakage
+- No form logic changes
+- Content remains clean and readable
+- Internal links resolve correctly
+- Only light, purposeful SEO content added
+
+GOAL:
+Make the /contact page a strong SEO support + conversion page,
+NOT a primary ranking page.
